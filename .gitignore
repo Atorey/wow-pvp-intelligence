@@ -1,0 +1,14 @@
+# Dependencias y build
+node_modules/
+dist/
+
+# Secretos — nunca se commitea
+.env
+
+# Datos crudos/derivados — regenerables desde los scripts, y algunos
+# (debug-*.json) pueden variar de una máquina a otra. No aportan valor
+# versionados y pueden crecer mucho (leaderboards completos).
+sprint0-data-validation/data/
+
+# Reportes generados por los scripts de validación (no son código fuente)
+sprint0-data-validation/report.json

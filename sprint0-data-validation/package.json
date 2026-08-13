@@ -1,0 +1,22 @@
+{
+  "name": "sprint0-data-validation",
+  "version": "0.1.0",
+  "description": "Sprint 0 — valida los 4 endpoints core de la API de Blizzard (perfil, rating PvP, equipo, talentos) contra personajes reales de EU. Ver README.md.",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "validate": "ts-node src/validate.ts",
+    "leaderboard": "ts-node src/fetchLeaderboard.ts",
+    "ingest": "ts-node src/ingest.ts"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "pg": "^8.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.10",
+    "@types/pg": "^8.21.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.5.4"
+  }
+}

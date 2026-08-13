@@ -1,0 +1,302 @@
+[
+  {
+    "title": "[Sprint 0] Validar los 4 endpoints core de la API de Blizzard",
+    "body": "Perfil, rating PvP por bracket, equipo, especializaciones. Ver sección 32 (días 1-3) y sección 30 (tabla de feasibility) del plan.\n\n**Resultado real:** los 4 endpoints responden de forma fiable para EU. Confirmado con `npm run validate` sobre 3 personajes reales (Monk, Paladin, Rogue).",
+    "labels": ["priority:core-mvp", "type:research", "sprint-0-done"],
+    "milestone": "Phase 0 — Data Feasibility",
+    "state": "closed",
+    "closeComment": "Cerrado — los 4 endpoints core validados sobre una primera muestra. Ver issue de ampliación de cobertura de clases para el seguimiento pendiente."
+  },
+  {
+    "title": "[Sprint 0] Confirmar viabilidad del endpoint de talentos (talent_loadout_code)",
+    "body": "Riesgo activo documentado en la sección 30 del plan: el campo `talent_loadout_code` se reportó roto/ausente tras el parche 11.2 (agosto 2025) en el foro oficial de Blizzard, sin confirmación de que estuviera resuelto de forma estable.\n\n**Resultado real:** 3/3 personajes de prueba (Monk, Paladin, Rogue) devuelven `talent_loadout_code` correctamente. Veredicto del script: GO. Pendiente: ampliar a más clases (ver issue de cobertura) antes de darlo por cerrado con confianza alta — el bug original no afectaba a todas las clases por igual (Priest y Evoker mencionados específicamente en el foro).",
+    "labels": ["priority:core-mvp", "type:risk", "sprint-0-done"],
+    "milestone": "Phase 0 — Data Feasibility",
+    "state": "closed",
+    "closeComment": "GO condicionado — funciona en la muestra probada (n=3). Ver issue de ampliación de cobertura para subir la confianza antes de comprometer Player Gap con talentos en el MVP real."
+  },
+  {
+    "title": "Ampliar validación de talentos a las 13 clases (n=3 actual es insuficiente)",
+    "body": "La validación inicial de talent_loadout_code se hizo con solo 3 personajes (Monk, Paladin, Rogue). El bug original del parche 11.2 no afectaba a todas las clases por igual — el foro oficial mencionaba específicamente Priest y Evoker con formato distinto. Ampliar `characters.eu.json` a 10-15 personajes cubriendo las 13 clases antes de comprometer la comparación de talentos en el MVP real.",
+    "labels": ["priority:core-mvp", "type:risk"],
+    "milestone": "Phase 0 — Data Feasibility",
+    "state": "open"
+  },
+  {
+    "title": "[Sprint 0] Descargar leaderboard completo de Solo Shuffle (3 specs iniciales)",
+    "body": "Frost Mage, Restoration Shaman, Fury Warrior — hasta el tope de 5.000 que expone la API. Ver sección 32 (días 3-5) del plan.\n\n**Resultado real:** ~15.009 entradas descargadas (5.007 + 5.002 + 5.000). Confirmado el tope de 5.000 por bracket/spec (sección 30 del plan).",
+    "labels": ["priority:core-mvp", "type:infra", "sprint-0-done"],
+    "milestone": "Phase 0 — Data Feasibility",
+    "state": "closed",
+    "closeComment": "Cerrado. Ver issue de ampliación a todas las specs para Phase 1."
+  },
+  {
+    "title": "[Sprint 0] Diseñar schema mínimo de Postgres (characters, character_snapshots)",
+    "body": "Modelo append-only según sección 27 del plan: nunca se sobreescribe una fila, cada recogida de datos inserta un snapshot nuevo. Ver `schema.sql`.",
+    "labels": ["priority:core-mvp", "type:infra", "sprint-0-done"],
+    "milestone": "Phase 0 — Data Feasibility",
+    "state": "closed"
+  },
+  {
+    "title": "[Sprint 0] Ingerir dataset de leaderboard y calcular primera distribución de rating",
+    "body": "Ver sección 32 (días 5-7) del plan.\n\n**Resultado real — hallazgo importante:** la cobertura del leaderboard solo (sin acumulación por búsqueda de usuario) depende mucho de la popularidad de la spec:\n- Frost Mage: sin cobertura fiable por debajo de 1800 (spec muy jugada, el top 5.000 no baja de ahí)\n- Restoration Shaman: cobertura High desde 1400\n- Fury Warrior: cobertura High desde 1200\n\nEsto cambia la decisión de la sección 12/25 del plan: la acumulación por búsqueda pasa de 'requisito universal de MVP' a 'requisito condicional según población de la spec'.",
+    "labels": ["priority:core-mvp", "type:research", "sprint-0-done"],
+    "milestone": "Phase 0 — Data Feasibility",
+    "state": "closed",
+    "closeComment": "Cerrado. Hallazgo de cobertura documentado — ver issue de acumulación por búsqueda de usuario para la implementación derivada de esto."
+  },
+  {
+    "title": "[Sprint 0] Ampliar schema para gear y talentos (character_gear, talent_loadout_code)",
+    "body": "Necesario para poder calcular Player Gap real (gear por slot + comparación de talentos). Ver `schema.sql`, sección añadida 'Días 9-11'.",
+    "labels": ["priority:core-mvp", "type:infra", "sprint-0-done"],
+    "milestone": "Phase 0 — Data Feasibility",
+    "state": "closed"
+  },
+  {
+    "title": "[Sprint 0] Muestrear perfiles completos (gear + talentos) por segmento",
+    "body": "~100 personajes por bucket de rating (1800-2000 y 2000-2200) para las 3 specs ya ingeridas, vía `sampleProfiles.ts`. Necesario porque el leaderboard solo trae rating, no gear ni talentos.",
+    "labels": ["priority:core-mvp", "type:research"],
+    "milestone": "Phase 0 — Data Feasibility",
+    "state": "open"
+  },
+  {
+    "title": "[Sprint 0] Generar el primer Player Gap real con datos completos",
+    "body": "Sobre la muestra de perfiles completos: gear por slot (adoption rate + modal item del siguiente segmento) y talentos por coincidencia exacta de `talent_loadout_code` (decisión tomada: decodificar nodos individuales se pospone a Phase 2, ver issue correspondiente). Ver sección 32 (días 9-11) y sección 13 del plan.",
+    "labels": ["priority:core-mvp", "type:research"],
+    "milestone": "Phase 0 — Data Feasibility",
+    "state": "open"
+  },
+  {
+    "title": "Decidir GO/NO-GO formal de Sprint 0",
+    "body": "Según el criterio de la sección 32 del plan: GO si los 3 pilares de datos (rating, gear, talentos) son fiables. Revisar todos los issues de este milestone antes de cerrarlo.",
+    "labels": ["priority:core-mvp", "type:research"],
+    "milestone": "Phase 0 — Data Feasibility",
+    "state": "open"
+  },
+
+  {
+    "title": "Convertir fetchLeaderboard.ts en job programado (no ejecución manual)",
+    "body": "Sección 28 del plan: frecuencia de actualización alineada a la cadencia de publicación de Blizzard (~3h aprox., a confirmar). Sustituye la ejecución manual de Sprint 0.",
+    "labels": ["priority:core-mvp", "type:infra"],
+    "milestone": "Phase 1 — Internal Data Platform",
+    "state": "open"
+  },
+  {
+    "title": "Sistema de colas con throttling explícito (rate limits de Blizzard)",
+    "body": "Límite confirmado: 100 req/s y 36.000 req/h por client (sección 30 del plan). El throttle actual de `blizzard.ts` es un sleep fijo simple, suficiente para Sprint 0 pero no para el volumen de Phase 1. Priorizar: refresco bajo demanda de usuario > batch de leaderboard > recomputo de agregados (sección 28).",
+    "labels": ["priority:core-mvp", "type:infra"],
+    "milestone": "Phase 1 — Internal Data Platform",
+    "state": "open"
+  },
+  {
+    "title": "Ampliar cobertura a todas las specs de Solo Shuffle",
+    "body": "Actualmente solo 3 de ~39 specs (`ALL_SPECS` en `specs.ts` ya tiene el catálogo completo, solo falta ampliar `SPECS_TO_FETCH`).",
+    "labels": ["priority:core-mvp", "type:infra"],
+    "milestone": "Phase 1 — Internal Data Platform",
+    "state": "open"
+  },
+  {
+    "title": "Implementar acumulación de población por búsqueda de usuario",
+    "body": "Confirmado como necesario para specs populares (Frost Mage) por el hallazgo de Sprint 0 — el leaderboard top 5.000 no cubre el rango 1500-1800 para esa spec. Cada búsqueda de personaje en la web debe añadir ese personaje a la base de datos, igual que hace Drustvar (sección 6/12 del plan).",
+    "labels": ["priority:core-mvp", "type:feature"],
+    "milestone": "Phase 1 — Internal Data Platform",
+    "state": "open"
+  },
+  {
+    "title": "Automatizar recálculo de distribución/AggregateSnapshot por segmento",
+    "body": "Job periódico (diario en MVP) que recalcula PopulationSegment + AggregateSnapshot sobre la ventana de actividad vigente. Sección 28 del plan.",
+    "labels": ["priority:core-mvp", "type:infra"],
+    "milestone": "Phase 1 — Internal Data Platform",
+    "state": "open"
+  },
+  {
+    "title": "Implementar ventanas de actividad (Active Players: 7/14/30 días)",
+    "body": "Sección 27 del plan: un personaje con peak rating de hace meses no debe contaminar el AggregateSnapshot del meta actual. Definir last_active_snapshot_date y filtrar por él en todos los cálculos de adoption rate.",
+    "labels": ["priority:core-mvp", "type:feature"],
+    "milestone": "Phase 1 — Internal Data Platform",
+    "state": "open"
+  },
+
+  {
+    "title": "Player Profile — página de perfil de personaje",
+    "body": "Rating, percentil, spec, bracket, actividad. Sección 11 y 25 del plan (Core MVP).",
+    "labels": ["priority:core-mvp", "type:feature"],
+    "milestone": "Phase 2 — MVP",
+    "state": "open"
+  },
+  {
+    "title": "Player Gap — versión productizada (UI)",
+    "body": "Productiza el cálculo ya validado en Sprint 0. Formato fijo de insight (sección 13.6), umbrales de confianza visibles (sección 13.4), nunca lenguaje causal (sección 13.5). Es la razón de ser del producto — sección 41.",
+    "labels": ["priority:core-mvp", "type:feature"],
+    "milestone": "Phase 2 — MVP",
+    "state": "open"
+  },
+  {
+    "title": "Búsqueda de personaje",
+    "body": "Autocompletado sobre la población acumulada + fallback a la API si no existe localmente. Sección 21 y 25 del plan.",
+    "labels": ["priority:core-mvp", "type:feature"],
+    "milestone": "Phase 2 — MVP",
+    "state": "open"
+  },
+  {
+    "title": "Página de metodología",
+    "body": "Obligatoria desde el MVP, no un 'nice to have' — sostiene la credibilidad del principio 'correlación, no causalidad'. Sección 24 del plan.",
+    "labels": ["priority:core-mvp", "type:feature"],
+    "milestone": "Phase 2 — MVP",
+    "state": "open"
+  },
+  {
+    "title": "Build analytics por segmento",
+    "body": "Build más popular por spec, segmentado por rango de rating (no solo top players global). Sección 15 y 25 del plan.",
+    "labels": ["priority:core-mvp", "type:feature"],
+    "milestone": "Phase 2 — MVP",
+    "state": "open"
+  },
+  {
+    "title": "Gear analytics por segmento",
+    "body": "Adoption rate de gear por segmento, alimenta directamente Player Gap. Sección 16 y 25 del plan.",
+    "labels": ["priority:core-mvp", "type:feature"],
+    "milestone": "Phase 2 — MVP",
+    "state": "open"
+  },
+  {
+    "title": "Percentil / ranking propio",
+    "body": "Calculado sobre la población acumulada propia, con comunicación explícita de la limitación (leaderboard oficial tope 5.000, sección 14 del plan).",
+    "labels": ["priority:core-mvp", "type:feature"],
+    "milestone": "Phase 2 — MVP",
+    "state": "open"
+  },
+  {
+    "title": "Decodificar talent_loadout_code en nodos individuales",
+    "body": "Mejora sobre el match exacto usado en Sprint 0 (sección 13 del plan: comparación por talento individual, no solo por build completo). Requiere parsear el string codificado contra el árbol de talentos de cada spec — no trivial, investigar formato documentado por Blizzard (Blizzard_ClassTalentImportExport.lua).",
+    "labels": ["priority:mvp-plus", "type:research"],
+    "milestone": "Phase 2 — MVP",
+    "state": "open"
+  },
+  {
+    "title": "Information Architecture / rutas del sitio",
+    "body": "Sección 24 del plan: /player/, /spec/, /compare/, /meta/, /rankings/, /methodology.",
+    "labels": ["priority:core-mvp", "type:feature"],
+    "milestone": "Phase 2 — MVP",
+    "state": "open"
+  },
+  {
+    "title": "SEO — páginas de segmento indexables con reglas anti-thin-content",
+    "body": "Solo indexar páginas con muestra suficiente (mismo umbral que Player Gap, sección 13.4). Sección 22 del plan.",
+    "labels": ["priority:core-mvp", "type:feature"],
+    "milestone": "Phase 2 — MVP",
+    "state": "open"
+  },
+  {
+    "title": "Trends — variación semana a semana",
+    "body": "MVP+ según sección 26/19 del plan. Anti-FOTM: solo marcar tendencia si representation y high_rating_representation se mueven en la misma dirección durante ≥2 ventanas consecutivas.",
+    "labels": ["priority:mvp-plus", "type:feature"],
+    "milestone": "Phase 2 — MVP",
+    "state": "open"
+  },
+  {
+    "title": "Rating histórico (gráfico de evolución)",
+    "body": "MVP+ según sección 26/20 del plan.",
+    "labels": ["priority:mvp-plus", "type:feature"],
+    "milestone": "Phase 2 — MVP",
+    "state": "open"
+  },
+  {
+    "title": "Meta analytics completo",
+    "body": "MVP+ según sección 26/17 del plan. NO tier list estática — representation + rating distribution + high-rating representation + activity + trend.",
+    "labels": ["priority:mvp-plus", "type:feature"],
+    "milestone": "Phase 2 — MVP",
+    "state": "open"
+  },
+
+  {
+    "title": "Reclutar beta cerrada de 20-50 usuarios reales",
+    "body": "Sección 34, experimento 8 del plan. Reclutar de Discords/comunidades de PvP (experimentos 1 y 6).",
+    "labels": ["priority:core-mvp", "type:research"],
+    "milestone": "Phase 3 — Public Beta",
+    "state": "open"
+  },
+  {
+    "title": "Instrumentar analítica de producto (North Star Metric)",
+    "body": "Player Gap views con confianza High/Medium por usuario único semanal (sección 35 del plan). PostHog recomendado (sección 29).",
+    "labels": ["priority:core-mvp", "type:infra"],
+    "milestone": "Phase 3 — Public Beta",
+    "state": "open"
+  },
+  {
+    "title": "Lanzar en 1-2 comunidades (Reddit/Discord)",
+    "body": "Diversificación de canal desde el principio, no depender solo de SEO (principio 10 del plan). Sección 34, experimento 3.",
+    "labels": ["priority:core-mvp", "type:research"],
+    "milestone": "Phase 3 — Public Beta",
+    "state": "open"
+  },
+
+  {
+    "title": "Comparación jugador vs jugador",
+    "body": "V2 según sección 26/21 del plan.",
+    "labels": ["priority:v2", "type:feature"],
+    "milestone": "Phase 4 — Product-Market Fit",
+    "state": "open"
+  },
+  {
+    "title": "Cobertura 2v2/3v3",
+    "body": "V2 según sección 26/7 del plan.",
+    "labels": ["priority:v2", "type:feature"],
+    "milestone": "Phase 4 — Product-Market Fit",
+    "state": "open"
+  },
+  {
+    "title": "Primeros experimentos de monetización",
+    "body": "Testear willingness to pay real (sección 34, experimento 9; sección 36 del plan). No cobrar de verdad todavía en Phase 3, sí explorar en Phase 4.",
+    "labels": ["priority:v2", "type:research"],
+    "milestone": "Phase 4 — Product-Market Fit",
+    "state": "open"
+  },
+
+  {
+    "title": "Multi-región (US y siguientes tras EU)",
+    "body": "V3 según sección 26 del plan. EU es la región de lanzamiento (decisión ya tomada).",
+    "labels": ["priority:v3", "type:infra"],
+    "milestone": "Phase 5 — Scale",
+    "state": "open"
+  },
+  {
+    "title": "Cobertura RBG/Blitz",
+    "body": "V3 según sección 26/7 del plan.",
+    "labels": ["priority:v3", "type:feature"],
+    "milestone": "Phase 5 — Scale",
+    "state": "open"
+  },
+
+  {
+    "title": "[WON'T DO] LFG",
+    "body": "Decisión explícita de NO construir — sección 5.I y 26 del plan. No competimos de frente con Drustvar en esto; nuestro foco es profundidad (Player Gap), no amplitud.",
+    "labels": ["priority:never"],
+    "milestone": null,
+    "state": "closed",
+    "closeComment": "Cerrado como 'won't do' — decisión de producto documentada en sección 5/26 del plan, no un olvido."
+  },
+  {
+    "title": "[WON'T DO] Winrate de composición sin match data fiable",
+    "body": "Sección 18 y 30 del plan: requiere datos de partida individual (ganador, quién jugó con quién) que no están disponibles vía API pública sin addon. Confirmado indirectamente por el hecho de que herramientas como PvPLogs/RatedTracker son addon-first precisamente por esto.",
+    "labels": ["priority:never", "type:risk"],
+    "milestone": null,
+    "state": "closed",
+    "closeComment": "Cerrado — bloqueado por falta de fuente de datos fiable sin addon, no por falta de prioridad. Reabrir solo si aparece una fuente de datos distinta."
+  },
+  {
+    "title": "[WON'T DO] Miles de páginas SEO combinatorias sin masa crítica de datos",
+    "body": "Sección 22 del plan: thin content. Solo se indexan páginas con tamaño de muestra suficiente (mismo umbral que Player Gap).",
+    "labels": ["priority:never"],
+    "milestone": null,
+    "state": "closed"
+  },
+  {
+    "title": "[FUTURE — revalidar] IA conversacional / búsqueda en lenguaje natural",
+    "body": "Sección 21 y 26 del plan: Seramate ya lo ofrece (SeraChat, AI-Powered Search) con ventaja de tiempo de mercado. Explícitamente fuera del MVP — revalidar en V2/V3 si el dato de uso lo justifica, no construir por paridad competitiva.",
+    "labels": ["priority:future"],
+    "milestone": null,
+    "state": "closed",
+    "closeComment": "Cerrado como 'future' — no es un 'never', es una decisión de secuenciación. Reabrir cuando haya señal real de que el usuario lo pide."
+  }
+]

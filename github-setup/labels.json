@@ -1,0 +1,13 @@
+[
+  { "name": "priority:core-mvp", "color": "1f883d", "description": "Imprescindible para el MVP — sección 26 del plan" },
+  { "name": "priority:mvp-plus", "color": "6cc644", "description": "MVP+ — si el tiempo lo permite tras lo imprescindible" },
+  { "name": "priority:v2", "color": "fbca04", "description": "V2 — post validación inicial" },
+  { "name": "priority:v3", "color": "d4a72c", "description": "V3 — expansión" },
+  { "name": "priority:future", "color": "c2e0c6", "description": "Future — revalidar más adelante, no comprometido" },
+  { "name": "priority:never", "color": "d73a4a", "description": "Never/Avoid — decisión explícita de NO construir, documentada por qué" },
+  { "name": "type:feature", "color": "0e8a16", "description": "Funcionalidad de producto" },
+  { "name": "type:infra", "color": "5319e7", "description": "Infraestructura / pipeline / arquitectura" },
+  { "name": "type:research", "color": "1d76db", "description": "Validación o investigación, no código de producto final" },
+  { "name": "type:risk", "color": "b60205", "description": "Mitiga un riesgo del Risk Register — sección 39 del plan" },
+  { "name": "sprint-0-done", "color": "0e8a16", "description": "Completado durante la validación inicial de Sprint 0" }
+]
