@@ -1,0 +1,7 @@
+# Documento de estrategia: se mantiene tal cual se escribió, sin reformatear.
+docs/product-plan.md
+
+node_modules/
+data/
+reports/
+package-lock.json

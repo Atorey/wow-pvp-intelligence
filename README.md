@@ -1,26 +1,62 @@
 # WoW PvP Intelligence
 
-Plataforma web de analítica PvP para World of Warcraft — sin addon, población → contexto → comparación → progresión.
+Plataforma de analítica PvP para World of Warcraft, sin addon: **población → contexto → comparación → progresión**.
 
-## Estructura del repo
+La única razón de ser del producto en su primera versión es **Player Gap**: decirle a un jugador, con datos y con honestidad sobre la incertidumbre, qué le separa del siguiente segmento de rating. Todo lo demás existe para sostener eso.
 
-- **`sprint0-data-validation/`** — código de Sprint 0 (Phase 0 del roadmap): validación de la API de Blizzard, ingesta de leaderboard, muestreo de perfiles, y el primer cálculo de Player Gap. Ver su propio `README.md` para instrucciones de setup paso a paso.
-- **`github-setup/`** — scripts para crear el repo, labels, milestones e issues a partir del backlog completo del plan de producto (no es código de producto, es tooling de gestión — se puede borrar una vez usado).
+Estrategia completa: [docs/product-plan.md](docs/product-plan.md).
 
-## Estado actual
+## Estructura
 
-Sprint 0 en curso — ver el milestone **"Phase 0 — Data Feasibility"** en Issues para el detalle exacto de qué está hecho y qué falta. Resumen rápido a la fecha de este commit:
+```
+apps/
+  pipeline/     Ingesta: Blizzard API → Postgres (append-only). Es lo único que existe hoy.
+  web/          (aún no creado) Next.js. Entra en Phase 2, cuando haya Player Gap real.
+packages/
+  core/         Dominio compartido pipeline↔web: catálogo de specs, segmentos de
+                rating, umbrales de confianza y ventanas de actividad.
+db/migrations/  Schema versionado. Se aplica con npm run db:migrate.
+docs/           Plan de producto, hallazgos de Sprint 0 y decisiones (ADRs).
+```
 
-- ✅ Los 4 endpoints core de la API de Blizzard (perfil, rating PvP, equipo, talentos) confirmados como fiables.
-- ✅ Leaderboard de Solo Shuffle ingerido para 3 specs (Frost Mage, Restoration Shaman, Fury Warrior), ~15.000 personajes.
-- ✅ Primera distribución de rating por segmento calculada — confirma que la cobertura del leaderboard solo (sin acumulación por búsqueda de usuario) depende de la popularidad de la spec.
-- 🔄 Muestreo de perfiles completos (gear + talentos) por segmento — en curso.
-- ⬜ Primer Player Gap real con datos completos — siguiente paso.
+`packages/core` existe por un motivo concreto: los umbrales de confianza y los límites de segmento tienen que ser **idénticos** en el pipeline y en la web. Si se duplican, un día divergen y el producto empieza a enseñar comparaciones que su propia metodología no respalda.
 
-## Roadmap
+## Arrancar
 
-Ver los 6 milestones en la pestaña Issues del repo (Phase 0 a Phase 5). Cada fase tiene su criterio de GO/NO-GO documentado en el issue de milestone correspondiente.
+```bash
+npm install
+cp .env.example .env        # rellena credenciales de Blizzard y DATABASE_URL
+npm run db:migrate
+npm run pipeline -- --help
+```
 
-## Principios del producto
+Para conseguir las credenciales de Blizzard, ver [apps/pipeline/README.md](apps/pipeline/README.md).
 
-Ver `PRODUCT_PLAN.md` (si lo añades a este repo) para el documento de estrategia completo — en particular, todo insight de producto debe llevar tamaño de muestra y nivel de confianza visible, y el lenguaje nunca implica causalidad ("esto te subirá de rating"), solo correlación observada.
+| Comando                                             | Qué hace                                                               |
+| --------------------------------------------------- | ---------------------------------------------------------------------- |
+| `npm run pipeline -- validate-endpoints`            | Valida perfil/rating/equipo/talentos contra personajes reales          |
+| `npm run pipeline -- fetch-leaderboard`             | Descarga el leaderboard de Solo Shuffle de las specs activas           |
+| `npm run pipeline -- ingest-leaderboard`            | Carga lo descargado en Postgres e imprime la distribución por segmento |
+| `npm run db:migrate`                                | Aplica las migraciones pendientes                                      |
+| `npm run typecheck` / `npm test` / `npm run format` | Calidad                                                                |
+
+## Estado
+
+**Phase 0 — Data Feasibility, en curso.** El detalle vive en los issues del repo (milestones = fases del roadmap); lo verificado hasta ahora, con sus reservas, está en [docs/sprint-0-findings.md](docs/sprint-0-findings.md).
+
+Resumen honesto:
+
+- ✅ Los 4 endpoints core responden bien en EU — sobre una muestra de 3 personajes / 3 clases.
+- ⚠️ `talent_loadout_code` presente en esa muestra, pero **3 clases de 13 no bastan** para comprometer la comparación de talentos: el bug de 11.2 no afectaba a todas por igual.
+- ✅ Leaderboard de 3 specs ingerido; la cobertura por debajo de 1800 depende mucho de la spec.
+- ⬜ Muestreo de perfiles completos (gear + talentos) → **siguiente paso real**.
+- ⬜ Primer Player Gap con datos completos, y GO/NO-GO formal de Sprint 0.
+
+## Reglas que no se negocian
+
+Salen del plan y están implementadas en código, no solo escritas aquí:
+
+1. **Append-only.** `character_snapshots` nunca se sobreescribe ([ADR 0002](docs/decisions/0002-modelo-append-only.md)).
+2. **Nada por debajo de n=30.** Si la muestra no llega, se explica; no se rellena con un número poco fiable ([ADR 0003](docs/decisions/0003-umbrales-de-confianza.md)).
+3. **Correlación, nunca causalidad.** El producto dice "el X% del siguiente segmento hace esto", jamás "esto te subirá de rating".
+4. **Todo insight es trazable**: tamaño de muestra y fecha de cálculo, siempre.
