@@ -1,9 +1,11 @@
 import { migrate } from "./db/migrate";
 import { fetchLeaderboards } from "./jobs/fetch-leaderboard";
 import { ingestLeaderboards } from "./jobs/ingest-leaderboard";
+import { sampleProfiles } from "./jobs/sample-profiles";
 import { validateEndpoints } from "./jobs/validate-endpoints";
 
-const COMMANDS: Record<string, { run: () => Promise<void>; help: string }> = {
+/** `args` son los argumentos posteriores al comando; los jobs sin opciones lo ignoran. */
+const COMMANDS: Record<string, { run: (args: string[]) => Promise<void>; help: string }> = {
   "validate-endpoints": {
     run: validateEndpoints,
     help: "Comprueba perfil/rating/equipo/talentos contra los personajes de config/characters.eu.json",
@@ -15,6 +17,10 @@ const COMMANDS: Record<string, { run: () => Promise<void>; help: string }> = {
   "ingest-leaderboard": {
     run: ingestLeaderboards,
     help: "Carga en Postgres lo descargado (append-only) e imprime la distribución por segmento",
+  },
+  "sample-profiles": {
+    run: sampleProfiles,
+    help: "Baja gear y talentos de una muestra por segmento de rating [--limit --seed --segments --run]",
   },
   migrate: {
     run: migrate,
@@ -31,6 +37,11 @@ function printHelp(): void {
     console.log(`  ${name.padEnd(width)}  ${help}`);
   }
   console.log("\nRequiere un .env en la raíz del repo (ver .env.example).");
+  console.log("\nOpciones de sample-profiles:");
+  console.log("  --limit N      personajes por bucket (default 100; 0 = censo del bucket)");
+  console.log("  --segments R,R rating de entrada de cada segmento (default 1800,2000)");
+  console.log("  --seed S       semilla del muestreo (misma semilla = misma muestra)");
+  console.log("  --run ID       reanuda un run anterior sin volver a gastar cuota");
 }
 
 const command = process.argv[2];
@@ -48,7 +59,7 @@ if (!entry) {
 }
 
 try {
-  await entry.run();
+  await entry.run(process.argv.slice(3));
 } catch (err) {
   console.error(`\n❌ ${err instanceof Error ? err.message : String(err)}`);
   process.exit(1);
