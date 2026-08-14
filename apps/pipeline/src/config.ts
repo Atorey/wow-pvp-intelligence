@@ -14,6 +14,12 @@ dotenv.config({ path: path.join(REPO_ROOT, ".env"), quiet: true });
 /** Datos crudos descargados (gitignored): caché en disco, no fuente de verdad. */
 export const DATA_DIR = path.join(REPO_ROOT, "data");
 export const LEADERBOARD_DIR = path.join(DATA_DIR, "leaderboard");
+/**
+ * Perfiles completos descargados, una carpeta por ejecución de sample-profiles.
+ * Que el crudo quede en disco es lo que hace reanudable el muestreo: un run
+ * cortado a la mitad no vuelve a gastar cuota en lo que ya bajó.
+ */
+export const PROFILES_DIR = path.join(DATA_DIR, "profiles");
 /** Reportes de validación (gitignored). */
 export const REPORTS_DIR = path.join(REPO_ROOT, "reports");
 

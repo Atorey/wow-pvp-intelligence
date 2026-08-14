@@ -3,9 +3,11 @@
  * para construir brackets de Solo Shuffle ("shuffle-{classSlug}-{specSlug}").
  *
  * Es la única fuente de verdad de esta correspondencia en todo el proyecto:
- * nunca se parsea un bracket partiendo el string por guiones, porque no es
- * ambiguo-seguro ("shuffle-demon-hunter-havoc" no se puede partir de forma
- * fiable). Siempre se resuelve contra este catálogo (ver parseShuffleBracket).
+ * nunca se parsea un bracket partiendo el string por guiones, porque la
+ * correspondencia no es mecánica — Blizzard aplasta los slugs compuestos
+ * ("death-knight" → "deathknight"), así que de "shuffle-deathknight-frost" no se
+ * recupera el classSlug partiendo por guiones. Siempre se resuelve contra este
+ * catálogo (ver parseShuffleBracket).
  */
 import type { SpecEntry } from "./types";
 
@@ -63,9 +65,18 @@ export const ALL_SPECS: readonly SpecEntry[] = [
   { classSlug: "warrior", specSlug: "protection", label: "Protection Warrior" },
 ];
 
-/** Bracket de Solo Shuffle tal como lo espera la API: "shuffle-mage-frost". */
+/**
+ * Bracket de Solo Shuffle tal como lo espera la API: "shuffle-mage-frost".
+ *
+ * Los guiones internos de los slugs se eliminan, porque así los nombra Blizzard:
+ * "shuffle-deathknight-frost", no "shuffle-death-knight-frost", y
+ * "shuffle-hunter-beastmastery", no "...-beast-mastery". Verificado contra la
+ * API en la temporada 41 — las formas con guion devuelven 404, no una lista
+ * vacía. Afecta a 6 de las 39 specs (death knight, demon hunter y beast mastery).
+ */
 export function shuffleBracketId(spec: SpecEntry): string {
-  return `shuffle-${spec.classSlug}-${spec.specSlug}`;
+  const flat = (slug: string): string => slug.replaceAll("-", "");
+  return `shuffle-${flat(spec.classSlug)}-${flat(spec.specSlug)}`;
 }
 
 /** Inverso de shuffleBracketId, resuelto contra el catálogo (nunca por split). */
