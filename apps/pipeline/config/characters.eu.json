@@ -1,5 +1,62 @@
 [
-  { "realmSlug": "dun-modr", "name": "nyurka" },
-  { "realmSlug": "dun-modr", "name": "kailynn" },
-  { "realmSlug": "tarren-mill", "name": "whaazzler" }
+  {
+    "realmSlug": "dun-modr",
+    "name": "nyurka"
+  },
+  {
+    "realmSlug": "dun-modr",
+    "name": "kailynn"
+  },
+  {
+    "realmSlug": "tarren-mill",
+    "name": "whaazzler"
+  },
+  {
+    "realmSlug": "archimonde",
+    "name": "Alurik"
+  },
+  {
+    "realmSlug": "dun-modr",
+    "name": "Anstrea"
+  },
+  {
+    "realmSlug": "kazzak",
+    "name": "Avgvstvs"
+  },
+  {
+    "realmSlug": "archimonde",
+    "name": "Sapher"
+  },
+  {
+    "realmSlug": "ravencrest",
+    "name": "Megalodone"
+  },
+  {
+    "realmSlug": "nemesis",
+    "name": "Rolèdy"
+  },
+  {
+    "realmSlug": "archimonde",
+    "name": "Isumi"
+  },
+  {
+    "realmSlug": "tarren-mill",
+    "name": "Shiuuelds"
+  },
+  {
+    "realmSlug": "ravencrest",
+    "name": "Ilovemysp"
+  },
+  {
+    "realmSlug": "defias-brotherhood",
+    "name": "Solobusy"
+  },
+  {
+    "realmSlug": "kazzak",
+    "name": "Cwrpse"
+  },
+  {
+    "realmSlug": "tarren-mill",
+    "name": "Ðyz"
+  }
 ]
