@@ -1,0 +1,4 @@
+# LF en el árbol de trabajo también en Windows: si no, prettier --check falla
+# en local y pasa en CI (o al revés) por finales de línea, no por formato.
+* text=auto eol=lf
+*.ps1 text eol=crlf

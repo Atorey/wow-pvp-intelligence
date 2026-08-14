@@ -1,0 +1,11 @@
+{
+  // Configuración única de todo el monorepo. No hay build de TypeScript:
+  // los jobs se ejecutan con tsx directamente sobre el fuente, así que aquí
+  // TypeScript solo hace de type-checker (noEmit). Cuando entre apps/web,
+  // Next.js traerá su propio tsconfig extendiendo tsconfig.base.json.
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": ["packages/*/src/**/*.ts", "apps/*/src/**/*.ts"]
+}

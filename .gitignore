@@ -1,14 +1,21 @@
 # Dependencias y build
 node_modules/
 dist/
+*.tsbuildinfo
 
-# Secretos — nunca se commitea
+# Secretos — nunca se commitean
 .env
+.env.*
+!.env.example
 
-# Datos crudos/derivados — regenerables desde los scripts, y algunos
-# (debug-*.json) pueden variar de una máquina a otra. No aportan valor
-# versionados y pueden crecer mucho (leaderboards completos).
-sprint0-data-validation/data/
+# Datos crudos/derivados generados por el pipeline: regenerables desde los jobs,
+# pueden pesar mucho (leaderboards completos) y varían de una máquina a otra.
+data/
+reports/
 
-# Reportes generados por los scripts de validación (no son código fuente)
-sprint0-data-validation/report.json
+# Sistema / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json

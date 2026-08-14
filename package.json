@@ -1,0 +1,28 @@
+{
+  "name": "wow-pvp-intelligence",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Plataforma de analítica PvP para WoW — población → contexto → comparación → progresión. Ver docs/product-plan.md.",
+  "engines": {
+    "node": ">=20.11"
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test \"packages/*/src/**/*.test.ts\" \"apps/*/src/**/*.test.ts\"",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "pipeline": "npm run start --workspace @wowpvp/pipeline --",
+    "db:migrate": "npm run pipeline -- migrate"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "prettier": "^3.4.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
