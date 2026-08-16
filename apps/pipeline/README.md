@@ -67,6 +67,33 @@ Si un bucket tiene menos personajes que el tope —el caso de Frost Mage en 1800
 
 El reporte queda en `reports/profile-sample-<runId>.json`, con la cobertura de talentos **por clase**: es lo que decide si Player Gap puede prometer talentos o se queda en gear.
 
+### `player-gap`
+
+Genera la comparación de un personaje contra el segmento de rating inmediatamente superior (§13 del plan, issue #9). No llama a la API: lee de Postgres lo que `sample-profiles` ya bajó.
+
+```bash
+npm run pipeline -- player-gap                                  # un sujeto por spec, en 1800-2000
+npm run pipeline -- player-gap --character ravencrest/loode     # un personaje concreto
+npm run pipeline -- player-gap --top 10                         # más diferencias en la lista
+```
+
+| Opción        | Default         | Qué hace                                                         |
+| ------------- | --------------- | ---------------------------------------------------------------- |
+| `--run`       | el más reciente | Run muestreado a analizar; fija el `captured_at` de la población |
+| `--character` | —               | `reino/nombre`; si se omite, se elige un sujeto por spec         |
+| `--top`       | `5`             | Cuántas diferencias de gear se listan                            |
+| `--rating`    | `1800`          | Rating de entrada del segmento de los sujetos                    |
+
+Escribe dos archivos por personaje en `reports/`: un `.json` auditable con los denominadores crudos y un `.md` legible. El markdown es el que sirve para la validación cualitativa de §32 ("¿un jugador experto reconocería esto como razonable?").
+
+**El cálculo no está aquí.** Vive en `packages/core/src/player-gap.ts`, con tests, para que la web de Phase 2 (#18) use la misma fórmula en vez de reimplementarla. Este job solo consulta y renderiza.
+
+**Los sujetos se eligen con muestreo reproducible**, no cogiendo el primero de la lista, por lo mismo que en `sample-profiles`: el primero por `character_id` no representa al segmento.
+
+**Segmenta por el rating del snapshot de perfil**, no por el bucket con el que se muestreó. Entre la descarga del leaderboard y la del perfil pasan días y hay quien ha cambiado de segmento; usar el bucket original metería en 1800-2000 a gente que hoy está en 2200.
+
+Lo que la comparación **no** incluye, y cada reporte declara: ventana de actividad (#16), stats secundarias y embellishments (el schema no los guarda), y talentos por nodo (#24 — ver el hallazgo de la sección 6.2 de [sprint-0-findings](../../docs/sprint-0-findings.md), la coincidencia exacta de código no da señal utilizable).
+
 ### `migrate`
 
 Aplica las migraciones pendientes de `db/migrations/`. Ver [db/README.md](../../db/README.md).
