@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { shuffleBracketId, type SpecEntry } from "@wowpvp/core";
@@ -15,7 +16,42 @@ export interface LeaderboardFile {
   region: string;
   seasonId: number;
   bracket: string;
+  /** Huella del payload de Blizzard, no del archivo: ver `hashLeaderboard`. */
+  contentHash: string;
   leaderboard: unknown;
+}
+
+/**
+ * Huella del contenido publicado por Blizzard, para saber si una descarga trae
+ * algo nuevo. Se calcula sobre el payload y no sobre el archivo porque el
+ * archivo incluye `fetchedAt`: dos descargas idénticas darían hashes distintos
+ * y todo el mecanismo dejaría de detectar nada.
+ *
+ * Basta con `JSON.stringify` sin canonicalizar claves: el orden viene del mismo
+ * productor en ambas descargas, así que es estable en la práctica. Un falso
+ * "cambió" por reordenación solo costaría una ingesta de más, que el índice
+ * único de snapshots absorbe.
+ */
+export function hashLeaderboard(payload: unknown): string {
+  return crypto.createHash("sha256").update(JSON.stringify(payload)).digest("hex");
+}
+
+/** Una spec descargada. `file` es null cuando la descarga falló o vino vacía. */
+export interface FetchedLeaderboard {
+  spec: string;
+  bracket: string;
+  entries: number;
+  topRating: number | null;
+  cutoffRating: number | null;
+  warning: string | null;
+  file: { path: string; hash: string; content: LeaderboardFile } | null;
+}
+
+export interface LeaderboardBatch {
+  region: string;
+  seasonId: number;
+  fetchedAt: string;
+  results: FetchedLeaderboard[];
 }
 
 interface SeasonIndex {
@@ -53,13 +89,10 @@ async function resolveCurrentSeasonId(client: BlizzardClient): Promise<number> {
   );
 }
 
-interface LeaderboardSummary {
-  spec: string;
-  bracket: string;
-  entries: number;
-  topRating: number | null;
-  cutoffRating: number | null;
-  warning?: string;
+/** Nombre del archivo de una descarga. El sufijo temporal lo usa la retención. */
+export function leaderboardFileName(bracket: string, seasonId: number, fetchedAt: string): string {
+  const stamp = fetchedAt.replace(/[-:]/g, "").replace(/\..+$/, "");
+  return `${bracket}-season${seasonId}-${stamp}.json`;
 }
 
 async function fetchSpec(
@@ -67,76 +100,84 @@ async function fetchSpec(
   spec: SpecEntry,
   seasonId: number,
   fetchedAt: string,
-): Promise<LeaderboardSummary> {
+): Promise<FetchedLeaderboard> {
   const bracket = shuffleBracketId(spec);
   const res = await client.tryGet<{ entries?: { rating?: number }[] }>(
     `/data/wow/pvp-season/${seasonId}/pvp-leaderboard/${bracket}`,
     "dynamic",
   );
 
-  const summary: LeaderboardSummary = {
+  const result: FetchedLeaderboard = {
     spec: spec.label,
     bracket,
     entries: 0,
     topRating: null,
     cutoffRating: null,
+    warning: null,
+    file: null,
   };
 
   if (!res.ok || !res.data) {
-    summary.warning = `HTTP ${res.status} — ${res.error?.slice(0, 200) ?? "sin cuerpo"}`;
-    return summary;
+    result.warning = `HTTP ${res.status} — ${res.error?.slice(0, 200) ?? "sin cuerpo"}`;
+    return result;
   }
 
   const entries = res.data.entries ?? [];
-  summary.entries = entries.length;
+  result.entries = entries.length;
 
   if (entries.length === 0) {
     // Fallo documentado en el foro oficial: el endpoint responde 200 con 0
     // entradas para ciertos brackets de shuffle según temporada/namespace.
-    summary.warning =
+    result.warning =
       "0 entradas con respuesta OK. Es un fallo conocido para algunos brackets de Solo Shuffle: " +
       "no asumas que la spec no se juega, reintenta más tarde antes de descartarla.";
   } else {
     const ratings = entries.map((e) => e.rating).filter((r): r is number => typeof r === "number");
-    summary.topRating = Math.max(...ratings);
-    summary.cutoffRating = Math.min(...ratings);
+    result.topRating = Math.max(...ratings);
+    result.cutoffRating = Math.min(...ratings);
   }
 
-  const file: LeaderboardFile = {
+  const hash = hashLeaderboard(res.data);
+  const content: LeaderboardFile = {
     fetchedAt,
     region: client.region,
     seasonId,
     bracket,
+    contentHash: hash,
     leaderboard: res.data,
   };
 
   fs.mkdirSync(LEADERBOARD_DIR, { recursive: true });
-  const stamp = fetchedAt.replace(/[-:]/g, "").replace(/\..+$/, "");
-  fs.writeFileSync(
-    path.join(LEADERBOARD_DIR, `${bracket}-season${seasonId}-${stamp}.json`),
-    JSON.stringify(file, null, 2),
-  );
+  const filePath = path.join(LEADERBOARD_DIR, leaderboardFileName(bracket, seasonId, fetchedAt));
+  fs.writeFileSync(filePath, JSON.stringify(content, null, 2));
+  result.file = { path: filePath, hash, content };
 
-  return summary;
+  return result;
 }
 
-export async function fetchLeaderboards(): Promise<void> {
+/**
+ * Descarga el leaderboard de las specs activas y devuelve lo descargado. Los
+ * jobs que la usan deciden qué hacer con ello; aquí no se imprime nada, para
+ * que el job programado (`refresh-leaderboard`) no tenga que leer la salida por
+ * consola para saber qué pasó.
+ */
+export async function fetchLeaderboardBatch(): Promise<LeaderboardBatch> {
   const client = new BlizzardClient();
-  console.log(`Región: ${client.region.toUpperCase()}`);
-
   const seasonId = await resolveCurrentSeasonId(client);
-  console.log(`Temporada actual: ${seasonId}`);
-  console.log(`Descargando leaderboard de Solo Shuffle para ${SPECS_TO_INGEST.length} specs...\n`);
-
   const fetchedAt = new Date().toISOString();
-  const summaries: LeaderboardSummary[] = [];
+
+  const results: FetchedLeaderboard[] = [];
   for (const spec of SPECS_TO_INGEST) {
-    console.log(`→ ${spec.label} (${shuffleBracketId(spec)}) ...`);
-    summaries.push(await fetchSpec(client, spec, seasonId, fetchedAt));
+    results.push(await fetchSpec(client, spec, seasonId, fetchedAt));
   }
 
+  return { region: client.region, seasonId, fetchedAt, results };
+}
+
+/** Informe legible de una tanda de descarga. Lo comparten el fetch manual y el job programado. */
+export function printBatch(batch: LeaderboardBatch): void {
   console.log("\n=== LEADERBOARD SOLO SHUFFLE ===\n");
-  for (const s of summaries) {
+  for (const s of batch.results) {
     console.log(`${s.entries > 0 ? "✅" : "⚠️"} ${s.spec} (${s.bracket})`);
     console.log(
       `   Entradas: ${s.entries}${s.entries >= 5000 ? " (tope de 5.000 alcanzado)" : ""}`,
@@ -148,8 +189,17 @@ export async function fetchLeaderboards(): Promise<void> {
     console.log("");
   }
 
-  const total = summaries.reduce((acc, s) => acc + s.entries, 0);
+  const total = batch.results.reduce((acc, s) => acc + s.entries, 0);
   console.log(`Total descargado (crudo, sin deduplicar): ${total}`);
+}
+
+export async function fetchLeaderboards(): Promise<void> {
+  console.log(`Descargando leaderboard de Solo Shuffle para ${SPECS_TO_INGEST.length} specs...`);
+
+  const batch = await fetchLeaderboardBatch();
+  console.log(`Región: ${batch.region.toUpperCase()} — temporada actual: ${batch.seasonId}`);
+
+  printBatch(batch);
   console.log(`Dataset en: ${LEADERBOARD_DIR}`);
   console.log(`\nSiguiente paso: npm run pipeline -- ingest-leaderboard`);
 }

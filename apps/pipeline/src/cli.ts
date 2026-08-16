@@ -2,6 +2,7 @@ import { migrate } from "./db/migrate";
 import { fetchLeaderboards } from "./jobs/fetch-leaderboard";
 import { ingestLeaderboards } from "./jobs/ingest-leaderboard";
 import { playerGap } from "./jobs/player-gap";
+import { refreshLeaderboard } from "./jobs/refresh-leaderboard";
 import { sampleProfiles } from "./jobs/sample-profiles";
 import { validateEndpoints } from "./jobs/validate-endpoints";
 
@@ -18,6 +19,10 @@ const COMMANDS: Record<string, { run: (args: string[]) => Promise<void>; help: s
   "ingest-leaderboard": {
     run: ingestLeaderboards,
     help: "Carga en Postgres lo descargado (append-only) e imprime la distribución por segmento",
+  },
+  "refresh-leaderboard": {
+    run: refreshLeaderboard,
+    help: "Job programado: descarga + ingiere solo si Blizzard ha republicado (ver ADR 0004)",
   },
   "sample-profiles": {
     run: sampleProfiles,

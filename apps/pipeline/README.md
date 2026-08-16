@@ -35,6 +35,18 @@ Carga en Postgres lo descargado e imprime la distribución de población por seg
 
 Es **idempotente**: el `captured_at` sale del momento de la descarga, no de `now()`, así que reingerir el mismo archivo no duplica población. Esto importa más de lo que parece — duplicar filas infla el tamaño de muestra y con él la confianza que el producto declara.
 
+### `refresh-leaderboard`
+
+El job programado: `fetch-leaderboard` + `ingest-leaderboard` en una sola ejecución. Es lo que corre cada 3 horas en [.github/workflows/leaderboard.yml](../../.github/workflows/leaderboard.yml) — ver [ADR 0004](../../docs/decisions/0004-job-programado-del-leaderboard.md) para el porqué del runner y del diseño.
+
+**Ingiere solo si Blizzard ha republicado.** De cada descarga se guarda el hash del payload en `leaderboard_fetches`; si coincide con el de la corrida anterior, no se ingiere y el archivo se borra. Sin esto, cada corrida en la que la fuente no ha cambiado insertaría una copia entera de la población con `captured_at` nuevo, y el histórico —que es el moat— pasaría a estar lleno de medidas que no midieron nada.
+
+**Cada descarga queda registrada**, cambie o no, y también si falló: un hueco en la bitácora no distingue "Blizzard no publicó" de "el job no corrió". Al final de cada corrida imprime la cadencia observada por bracket, que es lo que va a confirmar (o corregir) el "~3h aprox., a confirmar" de §28 del plan. Ojo: es una **cota superior**, porque mirando cada 3h no se puede detectar nada más rápido.
+
+**Los JSON de `data/leaderboard/` son caché**, no histórico: se borran pasados `LEADERBOARD_RETENTION_DAYS` días (3 por defecto). El histórico está en Postgres, que es append-only.
+
+Para ejecutarlo en GitHub Actions hacen falta tres secrets en el repo (`BLIZZARD_CLIENT_ID`, `BLIZZARD_CLIENT_SECRET`, `DATABASE_URL`) y, opcionalmente, la variable `BLIZZARD_REGION`.
+
 ### `sample-profiles`
 
 Baja el perfil completo (gear por slot + `talent_loadout_code`) de una muestra de cada segmento de rating, y lo guarda como snapshots con `source='profile'`. El leaderboard solo trae rating; esto es lo que hace posible comparar algo en Player Gap.
