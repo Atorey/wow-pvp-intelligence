@@ -19,11 +19,13 @@ La muestra anterior eran 3 personajes de 3 clases. Ahora cubre las 13, con **dos
 
 Un personaje de la primera selección devolvió 404 en los cuatro endpoints — había desaparecido (rename, transfer o borrado) entre la descarga del leaderboard y la validación. Se sustituyó por otro vivo. Es rotación normal, no un fallo de la API, pero conviene saber que pasa.
 
-## 2. Talentos — riesgo cerrado
+## 2. Talentos — el riesgo de disponibilidad está cerrado; el de utilidad no
 
 `talent_loadout_code` viene poblado en **15/15 personajes, en las 13 clases**, y en **594 de 595 perfiles** del muestreo por segmento (§4). El único ausente fue un 404 transitorio del endpoint, no un loadout sin código.
 
-Esto es un **GO**: Player Gap puede incluir talentos. El plan de contingencia de §32 (lanzar solo con gear/stats) deja de estar sobre la mesa.
+El riesgo del parche 11.2 (§30) queda cerrado: el campo existe y llega.
+
+> ⚠️ **Pero disponible no es lo mismo que utilizable.** Al calcular el primer Player Gap real (§6.2) resultó que casi cada jugador tiene un código distinto, así que comparar por coincidencia exacta no produce ninguna señal. El plan de contingencia de §32 —lanzar con Player Gap solo de gear— **sigue sobre la mesa**, ya no por falta de dato sino por cómo está codificado.
 
 > El issue #3 figuraba cerrado sin respaldo en el repo. Ahora sí lo tiene: `apps/pipeline/config/characters.eu.json` contiene los 15 personajes y el reporte es reproducible con `npm run pipeline -- validate-endpoints`.
 
@@ -90,19 +92,68 @@ El test que existía afirmaba el valor equivocado y pasaba en verde. Corregido e
 
 > Lección de método: un test fija un error tan bien como un acierto cuando el valor esperado no se ha contrastado nunca con la fuente real.
 
-## 6. Lo que no está hecho
+## 6. Primer Player Gap real — hecho, con un hallazgo que cambia el plan
+
+`player-gap` (issue #9), sobre el run `run-20260814T121556`. Un sujeto por spec, elegido con muestreo reproducible dentro de 1800-2000, comparado contra 2000-2200. Cálculo en `packages/core/src/player-gap.ts`; el job solo consulta y renderiza, para que la web de Phase 2 (#18) no tenga que reimplementar la fórmula.
+
+| Sujeto               | Spec               | CR   | n objetivo | Confianza | Gear alineado | Diferencias |
+| -------------------- | ------------------ | ---- | ---------- | --------- | ------------- | ----------- |
+| Loode-ravencrest     | Frost Mage         | 1994 | 98         | medium    | 37%           | 5           |
+| Collînna-aegwynn     | Restoration Shaman | 1994 | 99         | medium    | 27%           | 5           |
+| Teyshwarr-archimonde | Fury Warrior       | 1829 | 97         | medium    | 33%           | 4           |
+
+Reportes en `reports/player-gap-<run>-<reino>-<nombre>.{json,md}` (regenerables con `npm run pipeline -- player-gap`).
+
+### 6.1 Gear: la señal existe y es reconocible
+
+El criterio de éxito de §32 era cualitativo — que el resultado sea "lo que un jugador experto reconocería como razonable" — y se cumple: en las 3 specs, el gear de tier alto (_Galactic Gladiator's_) está sistemáticamente más adoptado en 2000-2200, y el de entrada (_Galactic Aspirant's_, _Thalassian Competitor's_) más abajo. No es un hallazgo sorprendente, y precisamente por eso sirve de validación: la tubería reproduce algo que ya se sabe cierto.
+
+**El item level no discrimina**: las medianas de equipado son 245-247 abajo y 246-249 arriba. Lo que separa a los segmentos no es tener mejor gear, es _qué piezas concretas_ se llevan. Es un punto a favor del producto — el Player Gap no se reduce a "fárma más".
+
+### 6.2 Talentos: `talent_loadout_code` está poblado, pero la comparación exacta no sirve
+
+Este es el hallazgo importante, y **matiza el GO de la sección 2**:
+
+| Spec               | Perfiles en 2000-2200 | Códigos distintos | Código más repetido |
+| ------------------ | --------------------- | ----------------- | ------------------- |
+| Frost Mage         | 98                    | 85                | 7 jugadores (7%)    |
+| Restoration Shaman | 99                    | 95                | 3 jugadores (3%)    |
+| Fury Warrior       | 97                    | 94                | 3 jugadores (3%)    |
+
+Casi cada jugador tiene un código único. El código completo codifica el árbol entero, así que dos builds que difieren en un solo nodo cuentan como distintas y no se agrupa nada. Decir "el 3% de 2000-2200 usa esta build" es cierto y no significa nada: describe a tres personas.
+
+**Que el dato esté disponible (sección 2) y que sea utilizable son cosas distintas, y solo lo primero estaba verificado.** La comparación por coincidencia exacta se queda en el reporte, pero marcada como sin señal (`hasUsableSignal: false`), y el texto explica la limitación **antes** de enseñar el top-3 — enseñar un 3% como si fuera el consenso del segmento es justo la conclusión engañosa que prohíbe §13.5.
+
+**Consecuencia**: decodificar el loadout en nodos individuales (#24) deja de ser `mvp-plus`. Sin eso, Player Gap se sostiene solo sobre gear, y "Talents" del mockup de §13.1 no se puede pintar. Es la decisión de producto que sale de este issue.
+
+### 6.3 Dos correcciones que salieron de leer los reportes
+
+- **Abalorios y anillos se comparan por grupo, no por hueco**. `TRINKET_1`/`TRINKET_2` y `FINGER_1`/`FINGER_2` son intercambiables, y comparar por el slot literal partía la adopción del mismo item en dos: en la primera versión, el mismo abalorio de Fury salía a la vez como +16 puntos en `TRINKET_2` y −11 en `TRINKET_1`. Puro artefacto del orden en que la API devuelve el equipo, con toda la apariencia de un insight.
+- **Se compara el item level equipado, no el medio**. `average_item_level` cuenta también lo mejor del banco y de las bolsas: difiere del equipado en el **57% de los perfiles** muestreados, y no es lo que el jugador lleva en la arena.
+
+### 6.4 Límites declarados en cada reporte
+
+- **Sin ventana de actividad** (§27, #16): la población es la muestreada en el run, no la activa de los últimos 7 días.
+- **Sin stats secundarias ni embellishments**, que sí aparecen en el mockup de §13.1: el schema no los guarda y deducirlos por heurística sería inventar dato.
+- **Solo es demostrable el salto 1800-2000 → 2000-2200**: es el único par de segmentos consecutivos muestreados. Por eso los 3 sujetos varían en spec y no en rango, al contrario de lo que pedía §32.
+- **Poder discriminante degradado**: §13.3 lo define como varianza entre segmentos consecutivos, que con dos segmentos no dice nada. Se sustituye por un umbral de delta mínimo de 10 puntos porcentuales (`MIN_DISCRIMINATIVE_DELTA`), encapsulado en `isDiscriminative()` para poder volver a la varianza cuando haya un tercer segmento.
+
+## 7. Lo que no está hecho
 
 - **Refresco 24-48h**: repetir la descarga y comprobar que se detectan cambios reales (§32, días 11-12). No ejecutado.
-- **Primer Player Gap real**: los datos ya están en la base de datos; falta el cálculo (#21, #22).
 - **Ampliar a todas las specs** (#13), ahora ya sin el bug del catálogo bloqueándolo.
-- **GO/NO-GO formal de Sprint 0**.
+- **`adoption_rate` de producto** (#21, #22): lo de la sección 6 es un reporte de Sprint 0, no la agregación persistida que consumirá la web.
+- **GO/NO-GO formal de Sprint 0** (#10).
 
-## 7. Estado del veredicto
+## 8. Estado del veredicto
 
 Según el criterio de §32:
 
 - Rating: fiable ✅
-- Gear: fiable ✅ (9.775 filas por slot, con gemas y encantamientos)
-- Talentos: fiable ✅ (13/13 clases, 594/595 perfiles)
+- Gear: fiable ✅ (9.775 filas por slot, con gemas y encantamientos) y **con señal discriminante demostrada** (sección 6.1)
+- Talentos: **disponibles ✅ pero no utilizables todavía** ⚠️ (sección 6.2) — el dato está, la comparación por código exacto no informa
 
-Da para un **GO**, sin la condición que arrastraba desde la primera versión de este documento. Lo que sigue abierto no es la fiabilidad de los datos, sino la decisión de producto de la sección 3: con qué specs se lanza, o si la acumulación por búsqueda entra antes.
+Sigue dando para un **GO**: §32 lo condiciona a que rating y gear sean fiables, y ambos lo son con la comparación real ya hecha. Pero el GO es sobre un Player Gap **de gear**, no el de tres categorías del mockup. Lo que queda abierto son dos decisiones de producto, no de datos:
+
+1. Con qué specs se lanza, o si la acumulación por búsqueda entra antes (sección 3).
+2. Si #24 (decodificar talentos) entra antes del MVP o se lanza sin la categoría "Talents".

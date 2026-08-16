@@ -1,6 +1,7 @@
 import { migrate } from "./db/migrate";
 import { fetchLeaderboards } from "./jobs/fetch-leaderboard";
 import { ingestLeaderboards } from "./jobs/ingest-leaderboard";
+import { playerGap } from "./jobs/player-gap";
 import { sampleProfiles } from "./jobs/sample-profiles";
 import { validateEndpoints } from "./jobs/validate-endpoints";
 
@@ -22,6 +23,10 @@ const COMMANDS: Record<string, { run: (args: string[]) => Promise<void>; help: s
     run: sampleProfiles,
     help: "Baja gear y talentos de una muestra por segmento de rating [--limit --seed --segments --run]",
   },
+  "player-gap": {
+    run: playerGap,
+    help: "Genera el Player Gap de un personaje contra el siguiente segmento [--run --character --top --rating]",
+  },
   migrate: {
     run: migrate,
     help: "Aplica las migraciones pendientes de db/migrations/",
@@ -42,6 +47,11 @@ function printHelp(): void {
   console.log("  --segments R,R rating de entrada de cada segmento (default 1800,2000)");
   console.log("  --seed S       semilla del muestreo (misma semilla = misma muestra)");
   console.log("  --run ID       reanuda un run anterior sin volver a gastar cuota");
+  console.log("\nOpciones de player-gap:");
+  console.log("  --run ID       run muestreado a analizar (default: el más reciente)");
+  console.log("  --character R/N  un personaje concreto; si se omite, un sujeto por spec");
+  console.log("  --top N        cuántas diferencias de gear se listan (default 5)");
+  console.log("  --rating R     rating de entrada del segmento de los sujetos (default 1800)");
 }
 
 const command = process.argv[2];
