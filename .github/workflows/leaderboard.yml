@@ -1,0 +1,42 @@
+name: Leaderboard
+
+# Job programado del leaderboard (§28 del plan, ADR 0004). Sustituye la
+# ejecución manual de Sprint 0.
+on:
+  schedule:
+    # Cada 3 horas: la cadencia que fuentes de terceros atribuyen a Blizzard.
+    # El cron de GitHub Actions no es puntual (puede retrasarse bastantes
+    # minutos con carga alta), y da igual: el job ingiere por cambio de
+    # contenido, no por hora de reloj, así que llegar tarde no duplica nada.
+    - cron: "0 */3 * * *"
+  # Para poder forzar una corrida sin esperar al cron.
+  workflow_dispatch:
+
+# Dos corridas a la vez escribirían snapshots del mismo bracket en paralelo.
+# Si una se retrasa hasta solaparse con la siguiente, la nueva espera.
+concurrency:
+  group: leaderboard
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    # Descargar 3 specs son 3 llamadas; el margen es para reintentos y para
+    # que el job no se quede colgado indefinidamente si la API no responde.
+    timeout-minutes: 20
+    env:
+      BLIZZARD_CLIENT_ID: ${{ secrets.BLIZZARD_CLIENT_ID }}
+      BLIZZARD_CLIENT_SECRET: ${{ secrets.BLIZZARD_CLIENT_SECRET }}
+      BLIZZARD_REGION: ${{ vars.BLIZZARD_REGION || 'eu' }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Las migraciones son idempotentes y el runner siempre trae el código de
+      # main: aplicarlas aquí evita que el job falle contra un schema viejo.
+      - run: npm run db:migrate
+      - run: npm run pipeline -- refresh-leaderboard

@@ -36,7 +36,7 @@ function readLeaderboardFiles(): { file: string; content: LeaderboardFile }[] {
     }));
 }
 
-async function ingestFile(
+export async function ingestFile(
   pool: pg.Pool,
   region: string,
   content: LeaderboardFile,
@@ -55,10 +55,61 @@ async function ingestFile(
 
   const nameSlugs = entries.map((e) => e.character.name.toLowerCase());
   const realmSlugs = entries.map((e) => e.character.realm.slug);
+  const blizzardIds = entries.map((e) => e.character.id);
+  const displayNames = entries.map((e) => e.character.name);
 
   const client = await pool.connect();
   try {
     await client.query("begin");
+
+    // 0) Reconciliar los personajes que se han renombrado o transferido desde la
+    //    ingesta anterior. Sin esto, el mismo blizzard_character_id acabaría en
+    //    dos filas (la vieja y la del nombre nuevo) y chocaría contra
+    //    idx_characters_blizzard_id, abortando la ingesta entera — un problema
+    //    que no existía cuando la ingesta era manual y única, y que aparece en
+    //    cada corrida ahora que el job es periódico (11 casos en 2 días).
+    //
+    //    Se mueve la fila existente en vez de crear una nueva a propósito: el
+    //    personaje es el mismo, y partir su histórico en dos identidades lo
+    //    rompería justo donde está el valor del producto, además de contarlo dos
+    //    veces en la población (y con ella, en el n que declara la confianza).
+    //
+    //    No se toca la fila si el nombre nuevo ya lo ocupa otra: los nombres se
+    //    reciclan, y sobrescribir a un tercero sería peor que dejar el caso sin
+    //    reconciliar (lo recoge el paso 0b).
+    await client.query(
+      `update characters c
+          set realm_slug = u.realm_slug,
+              name_slug = u.name_slug,
+              name_display = u.name_display
+         from unnest($2::bigint[], $3::text[], $4::text[], $5::text[])
+              as u(blizzard_character_id, realm_slug, name_slug, name_display)
+        where c.region = $1
+          and c.blizzard_character_id = u.blizzard_character_id
+          and (c.realm_slug, c.name_slug) is distinct from (u.realm_slug, u.name_slug)
+          and not exists (
+            select 1 from characters other
+             where other.region = $1
+               and other.realm_slug = u.realm_slug
+               and other.name_slug = u.name_slug
+               and other.id <> c.id)`,
+      [region, blizzardIds, realmSlugs, nameSlugs, displayNames],
+    );
+
+    // 0b) Lo que no se pudo reconciliar (el nombre nuevo ya está ocupado) suelta
+    //     el id de Blizzard para no bloquear el índice único. Se pierde el enlace
+    //     con el personaje real, no su histórico: la fila y sus snapshots siguen
+    //     ahí bajo su identidad antigua, que es lo único que sabemos de ella.
+    await client.query(
+      `update characters c
+          set blizzard_character_id = null
+         from unnest($2::bigint[], $3::text[], $4::text[])
+              as u(blizzard_character_id, realm_slug, name_slug)
+        where c.region = $1
+          and c.blizzard_character_id = u.blizzard_character_id
+          and (c.realm_slug, c.name_slug) is distinct from (u.realm_slug, u.name_slug)`,
+      [region, blizzardIds, realmSlugs, nameSlugs],
+    );
 
     // 1) Upsert de identidades. La identidad es (region, realm, name): estable
     //    aunque cambie rating o spec.
@@ -73,9 +124,9 @@ async function ingestFile(
         entries.map(() => region),
         realmSlugs,
         nameSlugs,
-        entries.map((e) => e.character.name),
+        displayNames,
         entries.map((e) => e.faction?.type ?? null),
-        entries.map((e) => e.character.id),
+        blizzardIds,
       ],
     );
 
@@ -141,7 +192,7 @@ async function ingestFile(
  * vista de "último snapshot por personaje y bracket", no sobre la tabla cruda:
  * contar snapshots contaría dos veces al mismo jugador tras la segunda ingesta.
  */
-async function printDistribution(pool: pg.Pool): Promise<void> {
+export async function printDistribution(pool: pg.Pool): Promise<void> {
   const { rows } = await pool.query<{ bracket: string; rating: number }>(
     `select bracket, rating from latest_snapshot_per_character_bracket`,
   );

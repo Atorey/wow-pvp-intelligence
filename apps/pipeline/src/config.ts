@@ -53,6 +53,20 @@ export function getRequestsPerSecond(): number {
   return parsed;
 }
 
+/**
+ * Días que se conservan los JSON descargados de leaderboard. Son caché de
+ * depuración, no histórico: el histórico está en Postgres, que es append-only.
+ * Sin poda, un job cada 3h llena el disco con datos que ya están ingeridos.
+ */
+export function getLeaderboardRetentionDays(): number {
+  const raw = process.env["LEADERBOARD_RETENTION_DAYS"];
+  const parsed = raw ? Number(raw) : 3;
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    throw new Error(`LEADERBOARD_RETENTION_DAYS="${raw}" no es un número de días válido.`);
+  }
+  return parsed;
+}
+
 export function getBlizzardCredentials(): { clientId: string; clientSecret: string } {
   const hint = "Crea un client en https://develop.battle.net/access (ver apps/pipeline/README.md).";
   return {
