@@ -16,7 +16,7 @@ Fase actual: **Phase 0 (Data Feasibility)**, casi cerrada. No hay web todavía; 
 1. **Append-only**: `character_snapshots` nunca se actualiza, solo se inserta ([ADR 0002](docs/decisions/0002-modelo-append-only.md)). Un `update` sobre rating/gear/talentos destruye el histórico, que es el moat del producto.
 2. **Umbrales de confianza en `packages/core`** ([ADR 0003](docs/decisions/0003-umbrales-de-confianza.md)). Nada de `if (n > 30)` suelto: se usa `canShowComparison()`. Por debajo de n=30 no se muestra comparación, se explica por qué. Bajar el umbral para llenar una pantalla vacía es incumplir la promesa del producto.
 3. **Correlación, nunca causalidad**, también en el copy: "el 74% del siguiente segmento lleva X", nunca "cambia X para subir".
-4. **Toda llamada a Blizzard pasa por `BlizzardClient`**. Es el único punto con throttling (100 req/s, 36.000 req/h por client ID). Un `fetch` suelto rompe el ritmo global.
+4. **Toda llamada a Blizzard pasa por `BlizzardClient`**. Es el único punto con throttling: una cola por proceso con techo por segundo y por hora, y prioridades on-demand > batch > aggregate ([ADR 0005](docs/decisions/0005-cola-de-peticiones-con-prioridades.md)). Un `fetch` suelto rompe el ritmo global; un cliente sin prioridad declarada entra como `batch`.
 5. **`null` significa "no disponible", nunca "no lo usa"**. Un `talent_loadout_code` ausente sale del denominador de `adoption_rate`; contarlo como no-adopción falsea el dato.
 6. **No construir lo marcado V2/V3/Never** en §26 del plan sin decisión explícita: LFG, IA conversacional, winrate de comps, counters, multi-región.
 

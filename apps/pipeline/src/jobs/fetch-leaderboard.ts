@@ -2,7 +2,8 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { shuffleBracketId, type SpecEntry } from "@wowpvp/core";
-import { BlizzardClient } from "../blizzard/client";
+import { BlizzardClient, blizzardUsage } from "../blizzard/client";
+import { formatUsage } from "../blizzard/request-queue";
 import { LEADERBOARD_DIR } from "../config";
 import { SPECS_TO_INGEST } from "../specs-to-ingest";
 
@@ -162,7 +163,9 @@ async function fetchSpec(
  * consola para saber qué pasó.
  */
 export async function fetchLeaderboardBatch(): Promise<LeaderboardBatch> {
-  const client = new BlizzardClient();
+  // Batch: prioridad intermedia (§28). Puede llegar tarde sin que nadie lo note,
+  // pero no debe quedarse detrás del recomputo de agregados, que sí puede.
+  const client = new BlizzardClient({ priority: "batch" });
   const seasonId = await resolveCurrentSeasonId(client);
   const fetchedAt = new Date().toISOString();
 
@@ -191,6 +194,7 @@ export function printBatch(batch: LeaderboardBatch): void {
 
   const total = batch.results.reduce((acc, s) => acc + s.entries, 0);
   console.log(`Total descargado (crudo, sin deduplicar): ${total}`);
+  console.log(`Cuota: ${formatUsage(blizzardUsage())}`);
 }
 
 export async function fetchLeaderboards(): Promise<void> {

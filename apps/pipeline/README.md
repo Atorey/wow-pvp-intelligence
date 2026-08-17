@@ -13,6 +13,23 @@ npm run pipeline -- <comando>     # desde la raíz del repo
 3. **Redirect URI**: no la usamos (flujo _client credentials_, sin login de usuario), pero el formulario la pide: `https://localhost:8080` sirve.
 4. Copia `Client ID` y `Client Secret` en el `.env` de la raíz del repo. Guarda el secret al momento: a veces solo se muestra una vez.
 
+## Cuota y prioridades
+
+Todas las peticiones pasan por una cola compartida por el proceso ([ADR 0005](../../docs/decisions/0005-cola-de-peticiones-con-prioridades.md)) que respeta dos techos a la vez:
+
+| Techo                        | Variable                       | Default | Límite real de Blizzard |
+| ---------------------------- | ------------------------------ | ------- | ----------------------- |
+| Instantáneo                  | `BLIZZARD_REQUESTS_PER_SECOND` | `8`     | 100 req/s               |
+| Horario (ventana deslizante) | `BLIZZARD_REQUESTS_PER_HOUR`   | `24000` | 36.000 req/h            |
+
+El horario es el que muerde: 8 req/s sostenidos son 28.800 peticiones en una hora. El default va por debajo del techo real porque el presupuesto se lleva **por proceso** — dos jobs lanzados a la vez no se ven entre ellos.
+
+**Al agotarse la ventana la cola espera**, no falla, y lo avisa por consola. Un job puede quedarse parado hasta que se libere hueco; el aviso está para que eso no se confunda con un cuelgue.
+
+**Prioridades** (§28 del plan): `on-demand` (refresco por búsqueda de usuario, pendiente de #14) > `batch` (leaderboard) > `aggregate` (`sample-profiles`). Cada job declara la suya al construir el cliente: `new BlizzardClient({ priority: "aggregate" })`. Hoy los jobs son secuenciales y rara vez compiten por un turno; la prioridad empieza a decidir algo cuando exista trabajo disparado por un usuario que está esperando.
+
+Cada job imprime al terminar lo que ha gastado, por prioridad y en porcentaje de la ventana horaria.
+
 ## Comandos
 
 ### `validate-endpoints`
@@ -67,7 +84,7 @@ npm run pipeline -- sample-profiles --run run-20260814T…  # reanuda un run cor
 
 Requiere haber ejecutado antes `fetch-leaderboard` e `ingest-leaderboard`: los candidatos salen de la población ya en Postgres.
 
-**Coste.** Son 4 peticiones por personaje (perfil, bracket de PvP, equipo, talentos). El default son ~2.400 peticiones, unos 5 minutos. Un censo de los dos buckets ronda las 22.000-32.000 y se come la mayor parte del límite horario (36.000 req/h), así que conviene lanzarlo sabiendo que esa hora no queda cuota para otra cosa.
+**Coste.** Son 4 peticiones por personaje (perfil, bracket de PvP, equipo, talentos). El default son ~2.400 peticiones, unos 5 minutos. Un censo de los dos buckets ronda las 22.000-32.000: pasa del presupuesto horario por defecto, así que la cola lo frenará hasta que la ventana se libere en vez de agotar la cuota del client ID. Cuenta con que dure más de una hora, y con que durante ese rato el resto de jobs compitan por los mismos turnos.
 
 **Reanudable.** Cada perfil se vuelca a `data/profiles/<runId>/`, y un personaje que ya tiene archivo no se vuelve a pedir. El `captured_at` de todos los snapshots del run es el `sampledAt` del manifiesto, no `now()`: reanudar o repetir el run no duplica población.
 
@@ -115,3 +132,4 @@ Aplica las migraciones pendientes de `db/migrations/`. Ver [db/README.md](../../
 1. Un archivo en `src/jobs/`, exportando una función `async` que recibe los argumentos del CLI (`string[]`) y los ignora si no los necesita.
 2. Registrarlo en `src/cli.ts`.
 3. **Siempre a través de `BlizzardClient`**, nunca con `fetch` directo: es el único sitio donde se controla el ritmo de peticiones, y saltárselo rompe el throttling global (límite: 100 req/s, 36.000 req/h por client ID).
+4. **Declarando su prioridad** al construir el cliente (ver "Cuota y prioridades"). El default es `batch`; usa `aggregate` si lo que baja alimenta recomputos que nadie está esperando.
