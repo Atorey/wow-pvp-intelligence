@@ -1,5 +1,10 @@
-import { getBlizzardCredentials, getRegion, getRequestsPerSecond } from "../config";
-import { RateLimiter } from "./rate-limiter";
+import {
+  getBlizzardCredentials,
+  getRegion,
+  getRequestsPerHour,
+  getRequestsPerSecond,
+} from "../config";
+import { RequestQueue, type QueueUsage, type RequestPriority } from "./request-queue";
 
 export type Namespace = "profile" | "dynamic" | "static";
 
@@ -16,22 +21,61 @@ const TOKEN_URL = "https://oauth.battle.net/token";
 const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
 
 export interface BlizzardClientOptions {
+  /**
+   * Urgencia del trabajo de quien usa este cliente (§28). Un job = una
+   * prioridad; por defecto `batch`, que es lo que hace hoy el pipeline.
+   */
+  priority?: RequestPriority;
   maxRetries?: number;
   locale?: string;
 }
 
 /**
+ * Cola compartida por todo el proceso, no una por cliente.
+ *
+ * El límite de Blizzard es por client ID, así que dos instancias de
+ * BlizzardClient con su propia cola se repartirían el doble de cuota de la que
+ * existe. Compartirla es también lo que permite que la prioridad signifique
+ * algo: solo se pueden ordenar peticiones que compiten por el mismo turno.
+ */
+let sharedQueue: RequestQueue | null = null;
+
+function getSharedQueue(): RequestQueue {
+  sharedQueue ??= new RequestQueue({
+    requestsPerSecond: getRequestsPerSecond(),
+    requestsPerHour: getRequestsPerHour(),
+    onBudgetWait: (waitMs, pending) => {
+      console.warn(
+        `⏳ Cuota horaria agotada: la cola espera ${Math.round(waitMs / 1000)}s ` +
+          `(${pending} petición(es) pendientes). Ver BLIZZARD_REQUESTS_PER_HOUR.`,
+      );
+    },
+  });
+  return sharedQueue;
+}
+
+/**
+ * Gasto de cuota de todo el proceso. Los jobs lo imprimen al terminar: sin un
+ * número al final, "¿cuánta cuota me queda para lanzar otra cosa?" solo se puede
+ * responder a ojo.
+ */
+export function blizzardUsage(): QueueUsage {
+  return getSharedQueue().usage();
+}
+
+/**
  * Cliente de la API de Blizzard con flujo client credentials.
  *
- * Es el único punto del proyecto que habla con Blizzard: token cacheado,
- * throttling explícito (ver RateLimiter) y reintentos con backoff. Cualquier job
- * nuevo debe pasar por aquí en vez de llamar a fetch por su cuenta — si no, el
- * ritmo global deja de estar controlado.
+ * Es el único punto del proyecto que habla con Blizzard: token cacheado, cola
+ * con throttling explícito y prioridades (ver RequestQueue) y reintentos con
+ * backoff. Cualquier job nuevo debe pasar por aquí en vez de llamar a fetch por
+ * su cuenta — si no, el ritmo global deja de estar controlado.
  */
 export class BlizzardClient {
   readonly region: string;
+  readonly priority: RequestPriority;
   private readonly host: string;
-  private readonly limiter: RateLimiter;
+  private readonly queue: RequestQueue;
   private readonly maxRetries: number;
   private readonly locale: string;
   private token: { value: string; expiresAt: number } | null = null;
@@ -39,7 +83,8 @@ export class BlizzardClient {
   constructor(options: BlizzardClientOptions = {}) {
     this.region = getRegion();
     this.host = `https://${this.region}.api.blizzard.com`;
-    this.limiter = new RateLimiter(getRequestsPerSecond());
+    this.queue = getSharedQueue();
+    this.priority = options.priority ?? "batch";
     this.maxRetries = options.maxRetries ?? 3;
     this.locale = options.locale ?? "en_GB";
   }
@@ -82,7 +127,9 @@ export class BlizzardClient {
     let last: BlizzardResponse<T> = { ok: false, status: 0, data: null, error: "sin intentos" };
 
     for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
-      await this.limiter.acquire();
+      // Cada intento pide su propio turno: un reintento consume cuota igual que
+      // una petición nueva, así que contarlo aparte falsearía el presupuesto.
+      await this.queue.acquire(this.priority);
 
       try {
         const token = await this.getAccessToken();
@@ -100,7 +147,7 @@ export class BlizzardClient {
         const retryAfter = Number(res.headers.get("retry-after"));
         const waitMs =
           Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : 500 * 2 ** attempt;
-        this.limiter.pauseFor(waitMs);
+        this.queue.pauseFor(waitMs);
       } catch (err) {
         // Fallo de red: también es reintentable.
         last = {
@@ -109,7 +156,7 @@ export class BlizzardClient {
           data: null,
           error: err instanceof Error ? err.message : String(err),
         };
-        this.limiter.pauseFor(500 * 2 ** attempt);
+        this.queue.pauseFor(500 * 2 ** attempt);
       }
     }
 

@@ -12,7 +12,8 @@ import {
   type RatingSegment,
   type SpecEntry,
 } from "@wowpvp/core";
-import { BlizzardClient } from "../blizzard/client";
+import { BlizzardClient, blizzardUsage } from "../blizzard/client";
+import { formatUsage } from "../blizzard/request-queue";
 import {
   PROFILES_DIR,
   REPORTS_DIR,
@@ -653,7 +654,10 @@ export async function sampleProfiles(args: string[] = []): Promise<void> {
       : `Censo: el coste depende de la población de cada bucket (4 peticiones por personaje).\n`,
   );
 
-  const client = new BlizzardClient();
+  // La prioridad más baja de §28: esto alimenta los agregados de población, que
+  // se recomputan sin que nadie espere delante. Un censo son decenas de miles de
+  // peticiones, así que es justo el trabajo que debe ceder el turno a lo demás.
+  const client = new BlizzardClient({ priority: "aggregate" });
   const pool = createPool();
   const reports: BucketReport[] = [];
 
@@ -672,7 +676,8 @@ export async function sampleProfiles(args: string[] = []): Promise<void> {
   fs.mkdirSync(REPORTS_DIR, { recursive: true });
   const out = path.join(REPORTS_DIR, `profile-sample-${manifest.runId}.json`);
   fs.writeFileSync(out, JSON.stringify({ manifest, buckets: reports }, null, 2));
-  console.log(`\nCrudo: ${runDir}`);
+  console.log(`\nCuota: ${formatUsage(blizzardUsage())}`);
+  console.log(`Crudo: ${runDir}`);
   console.log(`Reporte detallado: ${out}`);
   console.log(`Para reanudar este run sin volver a gastar cuota:`);
   console.log(`  npm run pipeline -- sample-profiles --run ${manifest.runId}`);

@@ -54,6 +54,21 @@ export function getRequestsPerSecond(): number {
 }
 
 /**
+ * Techo horario de peticiones a Blizzard. El límite real es 36.000/h por client
+ * ID; el default va por debajo a propósito porque el presupuesto se lleva por
+ * proceso (ADR 0005): dos jobs solapados no se ven entre ellos, así que el
+ * margen es lo que evita que la suma se pase del techo real.
+ */
+export function getRequestsPerHour(): number {
+  const raw = process.env["BLIZZARD_REQUESTS_PER_HOUR"];
+  const parsed = raw ? Number(raw) : 24_000;
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    throw new Error(`BLIZZARD_REQUESTS_PER_HOUR="${raw}" no es un número válido.`);
+  }
+  return parsed;
+}
+
+/**
  * Días que se conservan los JSON descargados de leaderboard. Son caché de
  * depuración, no histórico: el histórico está en Postgres, que es append-only.
  * Sin poda, un job cada 3h llena el disco con datos que ya están ingeridos.
