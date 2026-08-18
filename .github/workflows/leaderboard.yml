@@ -21,9 +21,12 @@ concurrency:
 jobs:
   refresh:
     runs-on: ubuntu-latest
-    # Descargar 3 specs son 3 llamadas; el margen es para reintentos y para
-    # que el job no se quede colgado indefinidamente si la API no responde.
-    timeout-minutes: 20
+    # Descargar las 40 specs del catálogo son 42 llamadas (una por spec, más el
+    # índice de temporada y el de leaderboards): la cuota de API no es el
+    # cuello de botella. Lo que manda el margen es la ingesta — una publicación
+    # completa ronda las 165.000 filas contra Postgres, no las 15.000 de cuando
+    # eran 3 specs.
+    timeout-minutes: 45
     env:
       BLIZZARD_CLIENT_ID: ${{ secrets.BLIZZARD_CLIENT_ID }}
       BLIZZARD_CLIENT_SECRET: ${{ secrets.BLIZZARD_CLIENT_SECRET }}

@@ -2,12 +2,15 @@ import fs from "node:fs";
 import path from "node:path";
 import type pg from "pg";
 import {
+  ALL_SPECS,
   DEFAULT_SEGMENT_SCALE,
   canShowComparison,
   confidenceFor,
   formatSegment,
+  parseShuffleBracket,
   segmentFor,
   shuffleBracketId,
+  specKey,
   type ConfidenceLevel,
   type RatingSegment,
   type SpecEntry,
@@ -20,6 +23,7 @@ import {
   getBlizzardCredentials,
   getDatabaseUrl,
   getRegion,
+  getRequestsPerHour,
 } from "../config";
 import { createPool } from "../db/pool";
 import { takeSample } from "../sampling";
@@ -69,6 +73,8 @@ interface Options {
   seed: string;
   runId: string | null;
   segmentEntries: number[];
+  /** Specs de este run. `null` = las que ingiere el pipeline (ver --specs). */
+  specs: SpecEntry[] | null;
 }
 
 /**
@@ -138,12 +144,63 @@ interface BucketReport {
 
 // --- Argumentos ---
 
+/**
+ * Specs de --specs, resueltas contra el catálogo y nunca partiendo el string.
+ *
+ * "death-knight-frost" no se puede separar en clase y spec por guiones (el
+ * mismo motivo por el que existe parseShuffleBracket): se compara la clave
+ * entera contra specKey(). Un slug que no exista rompe aquí, antes de gastar
+ * cuota, en vez de muestrear en silencio menos specs de las que creías.
+ */
+export function parseSpecSelection(value: string): SpecEntry[] {
+  const keys = value
+    .split(",")
+    .map((k) => k.trim())
+    .filter((k) => k.length > 0);
+  if (keys.length === 0) {
+    throw new Error(`--specs="${value}" no nombra ninguna spec. Ejemplo: mage-frost,warrior-fury.`);
+  }
+
+  return keys.map((key) => {
+    const spec = ALL_SPECS.find((s) => specKey(s) === key);
+    if (!spec) {
+      throw new Error(
+        `Spec desconocida en --specs: "${key}". Se usa la clave classSlug-specSlug ` +
+          `(p.ej. mage-frost, death-knight-frost). Catálogo en @wowpvp/core.`,
+      );
+    }
+    return spec;
+  });
+}
+
+/**
+ * Specs de un run, leídas del manifiesto y no de SPECS_TO_INGEST.
+ *
+ * Es lo que hace que reanudar un run sea reanudarlo: la lista activa del
+ * pipeline crece (#13 la llevó de 3 a 40 specs), y un --run que iterase sobre la
+ * constante viva se pondría a muestrear specs nuevas bajo el `sampledAt` del run
+ * viejo — población de agosto y de octubre con el mismo captured_at.
+ */
+export function specsFromManifest(manifest: RunManifest): SpecEntry[] {
+  return manifest.brackets.map((bracket) => {
+    const spec = parseShuffleBracket(bracket);
+    if (!spec) {
+      throw new Error(
+        `El run "${manifest.runId}" incluye el bracket "${bracket}", que ya no está en ` +
+          `ALL_SPECS. No se puede reanudar sin saber a qué spec corresponde.`,
+      );
+    }
+    return spec;
+  });
+}
+
 function parseOptions(args: string[]): Options {
   const options: Options = {
     limit: DEFAULT_LIMIT,
     seed: DEFAULT_SEED,
     runId: null,
     segmentEntries: [...DEFAULT_SEGMENT_ENTRIES],
+    specs: null,
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -170,6 +227,9 @@ function parseOptions(args: string[]): Options {
       case "--run":
         options.runId = value;
         break;
+      case "--specs":
+        options.specs = parseSpecSelection(value);
+        break;
       case "--segments": {
         const entries = value.split(",").map((v) => Number(v.trim()));
         if (entries.some((v) => !Number.isFinite(v))) {
@@ -180,9 +240,16 @@ function parseOptions(args: string[]): Options {
       }
       default:
         throw new Error(
-          `Opción desconocida: ${flag}. Disponibles: --limit, --seed, --run, --segments.`,
+          `Opción desconocida: ${flag}. Disponibles: --limit, --seed, --run, --segments, --specs.`,
         );
     }
+  }
+
+  if (options.runId && options.specs) {
+    throw new Error(
+      "--specs no se combina con --run: las specs de un run son parte del run y se leen " +
+        "de su manifiesto. Lanza un run nuevo si quieres otra selección.",
+    );
   }
 
   return options;
@@ -630,29 +697,46 @@ export async function sampleProfiles(args: string[] = []): Promise<void> {
   getBlizzardCredentials();
   getDatabaseUrl();
 
-  const brackets = SPECS_TO_INGEST.map(shuffleBracketId);
+  const brackets = (options.specs ?? SPECS_TO_INGEST).map(shuffleBracketId);
   const manifest = loadOrCreateManifest(options, region, brackets);
   const runDir = path.join(PROFILES_DIR, manifest.runId);
   fs.mkdirSync(runDir, { recursive: true });
 
+  // Siempre del manifiesto, también en un run nuevo: una única forma de saber
+  // qué specs lleva el run, en vez de dos que pueden divergir al reanudar.
+  const specs = specsFromManifest(manifest);
   const segments = manifest.segmentEntries.map((rating) =>
     segmentFor(rating, DEFAULT_SEGMENT_SCALE),
   );
-  const buckets = SPECS_TO_INGEST.length * segments.length;
+  const buckets = specs.length * segments.length;
 
   console.log(`Run: ${manifest.runId} (región ${region.toUpperCase()})`);
   console.log(`captured_at de todos los snapshots: ${manifest.sampledAt}`);
   console.log(
     `Tope por bucket: ${manifest.limit > 0 ? manifest.limit : "sin tope (censo)"} · semilla: "${manifest.seed}"`,
   );
-  console.log(
-    `Segmentos: ${segments.map(formatSegment).join(", ")} · specs: ${SPECS_TO_INGEST.length}`,
-  );
-  console.log(
-    manifest.limit > 0
-      ? `Coste máximo: ${buckets * manifest.limit * 4} peticiones (4 por personaje).\n`
-      : `Censo: el coste depende de la población de cada bucket (4 peticiones por personaje).\n`,
-  );
+  console.log(`Segmentos: ${segments.map(formatSegment).join(", ")} · specs: ${specs.length}`);
+
+  if (manifest.limit > 0) {
+    const cost = buckets * manifest.limit * 4;
+    console.log(`Coste máximo: ${cost} peticiones (4 por personaje).`);
+    // Con las 40 specs del catálogo el muestreo por defecto se sale del techo
+    // horario, y la cola se para una hora entera a mitad de run. Es recuperable
+    // (el crudo ya bajado no se vuelve a pedir), pero conviene saberlo antes de
+    // lanzarlo y no cuando lleva 40 minutos parado: para acotar está --specs.
+    const perHour = getRequestsPerHour();
+    if (cost > perHour) {
+      console.log(
+        `⚠️  Por encima del techo horario (${perHour}): la cola se parará a esperar cuota. ` +
+          `Acota con --specs o --limit si quieres que quepa en una corrida.`,
+      );
+    }
+    console.log("");
+  } else {
+    console.log(
+      `Censo: el coste depende de la población de cada bucket (4 peticiones por personaje).\n`,
+    );
+  }
 
   // La prioridad más baja de §28: esto alimenta los agregados de población, que
   // se recomputan sin que nadie espere delante. Un censo son decenas de miles de
@@ -662,7 +746,7 @@ export async function sampleProfiles(args: string[] = []): Promise<void> {
   const reports: BucketReport[] = [];
 
   try {
-    for (const spec of SPECS_TO_INGEST) {
+    for (const spec of specs) {
       for (const segment of segments) {
         reports.push(await sampleBucket(client, pool, manifest, runDir, spec, segment));
       }

@@ -2,7 +2,7 @@
 
 Estado de la validación de datos (Phase 0). Lo que aquí se da por bueno es lo que se ejecutó de verdad contra la API real; lo que está en duda se marca como tal, incluso cuando el issue correspondiente esté cerrado.
 
-Actualizado: 14 de agosto de 2026.
+Actualizado: 18 de agosto de 2026.
 
 ## 1. Endpoints core — funcionan sobre las 13 clases
 
@@ -74,7 +74,7 @@ Los 5 que faltan para 600 son personajes que ya no aparecen en su bracket. Es ro
 
 **Coste real y ritmo**: 4 peticiones por personaje. El ritmo efectivo fue de **~3,2 req/s**, no los 8 del limitador — el cuello de botella es la latencia acumulada (4 llamadas secuenciales más un insert por slot de gear contra Postgres remoto), no el throttling. Los 600 tardaron ~13 minutos.
 
-**Censo, si alguna vez hace falta**: los dos buckets completos son 6.469 personajes ≈ 25.900 peticiones ≈ 2,2 horas al ritmo real. Cabe en el límite horario de 36.000 pero se lo come casi entero. No aporta nada a la pregunta de Phase 0 (n=100 ya es confianza `high`); serviría para el `adoption_rate` real de #21/#22, y a escala de 39 specs deja de ser viable.
+**Censo, si alguna vez hace falta**: los dos buckets completos son 6.469 personajes ≈ 25.900 peticiones ≈ 2,2 horas al ritmo real. Cabe en el límite horario de 36.000 pero se lo come casi entero. No aporta nada a la pregunta de Phase 0 (n=100 ya es confianza `high`); serviría para el `adoption_rate` real de #21/#22, y a escala de 40 specs deja de ser viable.
 
 ## 5. Bug del catálogo de specs — encontrado al ampliar cobertura
 
@@ -141,7 +141,7 @@ Casi cada jugador tiene un código único. El código completo codifica el árbo
 ## 7. Lo que no está hecho
 
 - **Refresco 24-48h**: repetir la descarga y comprobar que se detectan cambios reales (§32, días 11-12). No ejecutado.
-- **Ampliar a todas las specs** (#13), ahora ya sin el bug del catálogo bloqueándolo.
+- ~~**Ampliar a todas las specs** (#13)~~: hecho el 18 de agosto de 2026, ver sección 9.
 - **`adoption_rate` de producto** (#21, #22): lo de la sección 6 es un reporte de Sprint 0, no la agregación persistida que consumirá la web.
 - **GO/NO-GO formal de Sprint 0** (#10).
 
@@ -157,3 +157,13 @@ Sigue dando para un **GO**: §32 lo condiciona a que rating y gear sean fiables,
 
 1. Con qué specs se lanza, o si la acumulación por búsqueda entra antes (sección 3).
 2. Si #24 (decodificar talentos) entra antes del MVP o se lanza sin la categoría "Talents".
+
+## 9. Ampliación a todas las specs (#13)
+
+La ingesta pasa de 3 specs a las 40 del catálogo. Medido contra la temporada 41 en EU antes de tocar nada:
+
+- **Había una spec 40 sin catalogar.** El índice de leaderboards publica `shuffle-demonhunter-devourer` con **5.003 entradas y corte en 1731**, y no estaba en `ALL_SPECS`. No es un caso marginal: es población de spec principal que el pipeline no ingería en ningún sitio. Para que no vuelva a pasar en silencio, cada corrida contrasta el índice contra el catálogo y avisa de lo que no sabe mapear (`unknownShuffleBrackets`).
+- **Las specs de tanque sí tienen leaderboard**, al contrario de lo que cabría suponer de un modo sin rol de tanque: Blood 681, Vengeance 355, Guardian 1083, Brewmaster 563, Protection Paladin 1470, Protection Warrior 676. Se ingieren, pero con esas poblaciones sus buckets tardarán en llegar a n=30 y `canShowComparison()` los tapará. Es el comportamiento correcto, no un fallo de cobertura.
+- **Las 39 specs que ya estaban en el catálogo responden 200 con datos.** Ninguna 404 ni lista vacía: el bug de la sección 5 está cerrado en la práctica, no solo en el test.
+- **El volumen se multiplica por 11**: una publicación completa son **165.202 filas** frente a las 15.009 de 3 specs. El job corre cada 3h y solo ingiere cuando cambia el hash, así que el techo teórico es ~1,3M snapshots/día. Sobre `character_snapshots`, que es append-only por diseño (ADR 0002), eso es lo que hay que vigilar antes que la cuota de API: **está sin medir el ritmo real de publicación**, y de él depende si hace falta política de retención o rollup. Decisión consciente de medir primero.
+- **La cuota de API deja de ser el límite del leaderboard y pasa a serlo del muestreo.** Descargar 40 specs son 42 peticiones por corrida, nada. Pero `sample-profiles` con los parámetros por defecto sobre 40 specs son ~32.000 peticiones, por encima del techo de 24.000/h: por eso el job acepta ahora `--specs` y toma la lista del manifiesto al reanudar, en vez de heredar la selección activa del pipeline.

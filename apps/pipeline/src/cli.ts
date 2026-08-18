@@ -26,7 +26,7 @@ const COMMANDS: Record<string, { run: (args: string[]) => Promise<void>; help: s
   },
   "sample-profiles": {
     run: sampleProfiles,
-    help: "Baja gear y talentos de una muestra por segmento de rating [--limit --seed --segments --run]",
+    help: "Baja gear y talentos de una muestra por segmento de rating [--limit --seed --segments --specs --run]",
   },
   "player-gap": {
     run: playerGap,
@@ -51,6 +51,7 @@ function printHelp(): void {
   console.log("  --limit N      personajes por bucket (default 100; 0 = censo del bucket)");
   console.log("  --segments R,R rating de entrada de cada segmento (default 1800,2000)");
   console.log("  --seed S       semilla del muestreo (misma semilla = misma muestra)");
+  console.log("  --specs K,K    specs a muestrear, p.ej. mage-frost (default: las que ingiere)");
   console.log("  --run ID       reanuda un run anterior sin volver a gastar cuota");
   console.log("\nOpciones de player-gap:");
   console.log("  --run ID       run muestreado a analizar (default: el más reciente)");
