@@ -1,15 +1,18 @@
-import { requireSpec, type SpecEntry } from "@wowpvp/core";
+import { ALL_SPECS, type SpecEntry } from "@wowpvp/core";
 
 /**
- * Specs que el pipeline descarga hoy. Empezamos por 3 populares (decisión del
- * plan §32, días 3-5) y se amplía desde aquí — el catálogo completo de las ~39
- * specs vive en @wowpvp/core (ALL_SPECS), esto es solo la selección activa.
+ * Specs que el pipeline descarga hoy: todas las del catálogo (#13).
  *
- * requireSpec falla al arrancar si un slug está mal escrito, en vez de ingerir
- * en silencio menos specs de las que crees.
+ * Empezamos por 3 populares en Sprint 0 para validar la tubería, no porque el
+ * resto no interesara. Ya validada, la selección activa deja de tener sentido
+ * como lista aparte: cualquier spec fuera de ella es un segmento de rating que
+ * el producto no puede comparar, y las specs de tanque —con poblaciones de
+ * cientos, no de miles— son justo las que necesitan que la ingesta lleve más
+ * tiempo acumulando para llegar a n=30.
+ *
+ * Sigue siendo una constante propia del pipeline y no un alias de ALL_SPECS a
+ * secas: es el punto donde acotar la ingesta si alguna vez hace falta (una spec
+ * que Blizzard deja de publicar, una región nueva con menos presupuesto), y ese
+ * recorte no debe tocar el catálogo canónico.
  */
-export const SPECS_TO_INGEST: SpecEntry[] = [
-  requireSpec("mage", "frost"),
-  requireSpec("shaman", "restoration"),
-  requireSpec("warrior", "fury"),
-];
+export const SPECS_TO_INGEST: readonly SpecEntry[] = ALL_SPECS;

@@ -18,6 +18,7 @@ export const ALL_SPECS: readonly SpecEntry[] = [
 
   { classSlug: "demon-hunter", specSlug: "havoc", label: "Havoc Demon Hunter" },
   { classSlug: "demon-hunter", specSlug: "vengeance", label: "Vengeance Demon Hunter" },
+  { classSlug: "demon-hunter", specSlug: "devourer", label: "Devourer Demon Hunter" },
 
   { classSlug: "druid", specSlug: "balance", label: "Balance Druid" },
   { classSlug: "druid", specSlug: "feral", label: "Feral Druid" },
@@ -72,7 +73,7 @@ export const ALL_SPECS: readonly SpecEntry[] = [
  * "shuffle-deathknight-frost", no "shuffle-death-knight-frost", y
  * "shuffle-hunter-beastmastery", no "...-beast-mastery". Verificado contra la
  * API en la temporada 41 — las formas con guion devuelven 404, no una lista
- * vacía. Afecta a 6 de las 39 specs (death knight, demon hunter y beast mastery).
+ * vacía. Afecta a 7 de las 40 specs (death knight, demon hunter y beast mastery).
  */
 export function shuffleBracketId(spec: SpecEntry): string {
   const flat = (slug: string): string => slug.replaceAll("-", "");
@@ -82,6 +83,36 @@ export function shuffleBracketId(spec: SpecEntry): string {
 /** Inverso de shuffleBracketId, resuelto contra el catálogo (nunca por split). */
 export function parseShuffleBracket(bracket: string): SpecEntry | undefined {
   return ALL_SPECS.find((spec) => shuffleBracketId(spec) === bracket);
+}
+
+/**
+ * Leaderboard agregado de Solo Shuffle: no es una spec, es la suma de todas.
+ * Aparece en el índice de Blizzard junto a los brackets por spec, así que hay
+ * que descontarlo antes de comparar el índice con el catálogo.
+ */
+export const SHUFFLE_AGGREGATE_BRACKET = "shuffle-overall";
+
+/**
+ * Brackets de shuffle que Blizzard publica y el catálogo no sabe mapear.
+ *
+ * El catálogo es estático a propósito (es la fuente de verdad, versionada y
+ * revisable), pero eso lo deja ciego ante una spec nueva de un parche: entraría
+ * en el índice de Blizzard y el pipeline seguiría ingiriendo las de siempre sin
+ * que nadie se enterara. Pasó de verdad — "shuffle-demonhunter-devourer" llevaba
+ * 5.000 entradas publicadas y no estaba en ALL_SPECS.
+ *
+ * No decide nada por su cuenta: solo devuelve lo que no reconoce, para que quien
+ * llame avise. Ingerir a ciegas un bracket que el catálogo no mapea rompería
+ * parseShuffleBracket en la ingesta, que es peor que no ingerirlo.
+ */
+export function unknownShuffleBrackets(publishedBrackets: readonly string[]): string[] {
+  const unknown = publishedBrackets.filter(
+    (bracket) =>
+      bracket.startsWith("shuffle-") &&
+      bracket !== SHUFFLE_AGGREGATE_BRACKET &&
+      parseShuffleBracket(bracket) === undefined,
+  );
+  return [...new Set(unknown)].sort();
 }
 
 /** Busca una spec por sus slugs. Devuelve undefined si no existe en el catálogo. */

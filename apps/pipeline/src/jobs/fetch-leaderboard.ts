@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { shuffleBracketId, type SpecEntry } from "@wowpvp/core";
+import { shuffleBracketId, unknownShuffleBrackets, type SpecEntry } from "@wowpvp/core";
 import { BlizzardClient, blizzardUsage } from "../blizzard/client";
 import { formatUsage } from "../blizzard/request-queue";
 import { LEADERBOARD_DIR } from "../config";
@@ -53,6 +53,42 @@ export interface LeaderboardBatch {
   seasonId: number;
   fetchedAt: string;
   results: FetchedLeaderboard[];
+  /**
+   * Brackets de shuffle publicados que el catálogo no reconoce. `null` cuando
+   * no se pudo comprobar (rule 5: null es "no disponible", no "no hay ninguno"),
+   * que es distinto de una lista vacía y no debe leerse como "todo en orden".
+   */
+  unknownBrackets: string[] | null;
+}
+
+interface LeaderboardIndex {
+  leaderboards?: { name?: string }[];
+}
+
+/**
+ * Contraste entre lo que Blizzard publica y lo que el catálogo sabe mapear.
+ *
+ * Cuesta una petición por corrida y no cambia lo que se ingiere: solo avisa. Es
+ * el seguro contra el punto ciego de tener el catálogo estático — una spec nueva
+ * de un parche se ingiere en cero sitios y sin ruido, y lo normal es enterarse
+ * meses después. Si el índice no responde se devuelve null: un diagnóstico que
+ * falla no debe tumbar la descarga, pero tampoco puede pasar por "no hay nada
+ * desconocido".
+ */
+async function findUnknownBrackets(
+  client: BlizzardClient,
+  seasonId: number,
+): Promise<string[] | null> {
+  const res = await client.tryGet<LeaderboardIndex>(
+    `/data/wow/pvp-season/${seasonId}/pvp-leaderboard/index`,
+    "dynamic",
+  );
+  if (!res.ok || !res.data) return null;
+
+  const names = (res.data.leaderboards ?? [])
+    .map((l) => l.name)
+    .filter((name): name is string => typeof name === "string");
+  return unknownShuffleBrackets(names);
 }
 
 interface SeasonIndex {
@@ -169,12 +205,14 @@ export async function fetchLeaderboardBatch(): Promise<LeaderboardBatch> {
   const seasonId = await resolveCurrentSeasonId(client);
   const fetchedAt = new Date().toISOString();
 
+  const unknownBrackets = await findUnknownBrackets(client, seasonId);
+
   const results: FetchedLeaderboard[] = [];
   for (const spec of SPECS_TO_INGEST) {
     results.push(await fetchSpec(client, spec, seasonId, fetchedAt));
   }
 
-  return { region: client.region, seasonId, fetchedAt, results };
+  return { region: client.region, seasonId, fetchedAt, results, unknownBrackets };
 }
 
 /** Informe legible de una tanda de descarga. Lo comparten el fetch manual y el job programado. */
@@ -190,6 +228,16 @@ export function printBatch(batch: LeaderboardBatch): void {
     }
     if (s.warning) console.log(`   ⚠️  ${s.warning}`);
     console.log("");
+  }
+
+  if (batch.unknownBrackets === null) {
+    console.log("No se pudo leer el índice de leaderboards: sin comprobar si hay specs nuevas.");
+  } else if (batch.unknownBrackets.length > 0) {
+    console.log(
+      `⚠️  Blizzard publica ${batch.unknownBrackets.length} bracket(s) de shuffle que el ` +
+        `catálogo no conoce: ${batch.unknownBrackets.join(", ")}. No se están ingiriendo — ` +
+        `añádelos a ALL_SPECS en @wowpvp/core.`,
+    );
   }
 
   const total = batch.results.reduce((acc, s) => acc + s.entries, 0);
