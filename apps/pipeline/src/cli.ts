@@ -3,6 +3,7 @@ import { fetchLeaderboards } from "./jobs/fetch-leaderboard";
 import { ingestLeaderboards } from "./jobs/ingest-leaderboard";
 import { lookupCharacters } from "./jobs/lookup-character";
 import { playerGap } from "./jobs/player-gap";
+import { refreshActivity } from "./jobs/refresh-activity";
 import { refreshAggregates } from "./jobs/refresh-aggregates";
 import { refreshLeaderboard } from "./jobs/refresh-leaderboard";
 import { sampleProfiles } from "./jobs/sample-profiles";
@@ -33,6 +34,10 @@ const COMMANDS: Record<string, { run: (args: string[]) => Promise<void>; help: s
   "sample-profiles": {
     run: sampleProfiles,
     help: "Baja gear y talentos de una muestra por segmento de rating [--limit --seed --segments --specs --run]",
+  },
+  "refresh-activity": {
+    run: refreshActivity,
+    help: "Recalcula last_active_at por personaje desde las partidas jugadas [--season --dry-run]",
   },
   "refresh-aggregates": {
     run: refreshAggregates,
@@ -71,6 +76,8 @@ function printHelp(): void {
   console.log("  --character R/N  un personaje concreto; si se omite, un sujeto por spec");
   console.log("  --top N        cuántas diferencias de gear se listan (default 5)");
   console.log("  --rating R     rating de entrada del segmento de los sujetos (default 1800)");
+  console.log("  --window D     ventana de actividad en días (7, 14 o 30; default: la de §13.4)");
+  console.log("  --all          sin filtro de actividad (reproduce reportes anteriores a #16)");
 }
 
 const command = process.argv[2];

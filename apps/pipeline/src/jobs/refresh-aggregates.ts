@@ -5,10 +5,12 @@ import {
   aggregateSegment,
   formatSegment,
   groupBySegment,
+  isActiveWithin,
   parseShuffleBracket,
   pickActivityWindow,
   segmentFor,
   summarizeSegment,
+  type ActivityEvidence,
   type ActivityWindowDays,
   type AggregatedVariable,
   type PlayerBuild,
@@ -16,6 +18,7 @@ import {
 } from "@wowpvp/core";
 import { getRegion } from "../config";
 import { createPool } from "../db/pool";
+import { printActivitySummary, rebuildActivity } from "./refresh-activity";
 
 /**
  * Recálculo periódico de PopulationSegment + AggregateSnapshot (§28 del plan, #15).
@@ -29,15 +32,16 @@ import { createPool } from "../db/pool";
  * encadenarlos ataría una cadencia a la otra y un fallo de la descarga se
  * llevaría por delante el agregado del día.
  *
- * Dos límites conocidos, escritos también en las filas que produce:
+ * Dos cosas que conviene tener presentes, escritas también en las filas que
+ * produce:
  *
- * - **La actividad se mide por `captured_at`**, no por partidas jugadas: un
- *   personaje cuenta como activo si lo hemos vuelto a ver en el ladder dentro
- *   de la ventana. Aparecer en el leaderboard no es haber jugado — quien está
- *   en el top 5.000 sigue apareciendo aunque lleve una semana parado. Es un
- *   proxy que sobreestima la población activa del tramo alto; #16 lo sustituye
- *   por la variación real de `season_match_statistics.played`, y para eso todo
- *   el filtro vive en una única función (`withinWindow`).
+ * - **La actividad es la de §27**, derivada de la variación real del contador
+ *   de partidas (#16): quien sigue saliendo en el leaderboard sin jugar no
+ *   entra. Como el histórico todavía es corto, buena parte de la población
+ *   entra por primera observación en vez de por subida vista, así que cada fila
+ *   guarda el reparto (`active_by_delta` / `active_by_first_seen`) y no solo el
+ *   total. La actividad se recalcula al empezar la corrida: agregar con la de
+ *   ayer sería decir que se filtra por actividad sin hacerlo.
  * - **El rating es de hoy y el gear puede ser de hace días.** Vienen de fuentes
  *   distintas del mismo personaje (leaderboard vs. muestreo de perfiles), así
  *   que la fila guarda el rango temporal de los perfiles usados en vez de
@@ -85,7 +89,7 @@ export function parseOptions(args: string[]): Options {
 
 // --- Población ---
 
-/** Última observación de rating de un personaje en un bracket. */
+/** Última observación de rating de un personaje en un bracket, con su actividad. */
 export interface ActiveRow {
   characterId: string;
   bracket: string;
@@ -93,6 +97,9 @@ export interface ActiveRow {
   specSlug: string;
   rating: number;
   capturedAt: Date;
+  /** `last_active_snapshot_date` (§27), materializado por refresh-activity. */
+  lastActiveAt: Date;
+  activityEvidence: ActivityEvidence;
 }
 
 /** Último perfil completo de un personaje en un bracket: lo que aporta gear y talentos. */
@@ -114,8 +121,12 @@ export interface Member extends PlayerBuild {
   bracket: string;
   classSlug: string;
   specSlug: string;
-  /** Cuándo se vio por última vez su rating. Es lo que decide si está activo. */
+  /** Cuándo se vio por última vez su rating. No es lo que decide si está activo. */
   capturedAt: Date;
+  /** Cuándo jugó por última vez, hasta donde se puede demostrar (§27, #16). */
+  lastActiveAt: Date;
+  /** Si esa fecha es una subida vista del contador o la primera observación. */
+  activityEvidence: ActivityEvidence;
   /** Cuándo se bajó el perfil del que sale su gear. null si no hay perfil. */
   profileCapturedAt: Date | null;
 }
@@ -156,6 +167,8 @@ export function buildMembers(
       specSlug: row.specSlug,
       rating: row.rating,
       capturedAt: row.capturedAt,
+      lastActiveAt: row.lastActiveAt,
+      activityEvidence: row.activityEvidence,
       profileCapturedAt: profile?.capturedAt ?? null,
       gearBySlot: profile?.gearBySlot ?? new Map<string, number>(),
       talentLoadoutCode: profile?.talentLoadoutCode ?? null,
@@ -170,12 +183,13 @@ export function buildMembers(
 /**
  * El único sitio donde se decide si un personaje está activo (§27).
  *
- * Aislado a propósito: cuando #16 derive la actividad de las partidas jugadas
- * en lugar de la última vez que lo vimos en el ladder, se cambia esta función y
- * nada más — ni el agregado, ni el schema, ni el consumidor.
+ * La regla en sí no está aquí sino en core (`isActiveWithin`), que es lo que
+ * garantiza que la web de Phase 2 filtre igual; esta función solo dice qué
+ * fecha del personaje se compara con la ventana, y desde #16 es la de haber
+ * jugado, no la de haber sido visto.
  */
 export function withinWindow(member: Member, now: Date, days: ActivityWindowDays): boolean {
-  return member.capturedAt.getTime() >= now.getTime() - days * MS_PER_DAY;
+  return isActiveWithin(member, now, days);
 }
 
 export interface WindowedPopulation {
@@ -253,6 +267,11 @@ async function loadActive(
   // distinct on = la observación más reciente de cada personaje en cada bracket.
   // Un personaje puede jugar varias specs: la clave es (personaje, bracket), no
   // el personaje solo (§27: el spec activo cambia entre snapshots).
+  // El join con character_activity es interno a propósito: sin fila de
+  // actividad no se puede afirmar que alguien esté activo, y meterlo igual
+  // "porque se le ha visto" es justo el proxy que #16 sustituye. La tabla se
+  // reconstruye al empezar la corrida, así que faltar solo puede faltar si
+  // alguien salta ese paso.
   const { rows } = await pool.query<{
     character_id: string;
     bracket: string;
@@ -260,11 +279,17 @@ async function loadActive(
     spec_slug: string;
     rating: number;
     captured_at: Date;
+    last_active_at: Date;
+    evidence: ActivityEvidence;
   }>(
     `select distinct on (s.character_id, s.bracket)
-            s.character_id, s.bracket, s.class_slug, s.spec_slug, s.rating, s.captured_at
+            s.character_id, s.bracket, s.class_slug, s.spec_slug, s.rating, s.captured_at,
+            a.last_active_at, a.evidence
        from character_snapshots s
        join characters c on c.id = s.character_id
+       join character_activity a
+         on a.character_id = s.character_id and a.bracket = s.bracket
+        and a.season_id = s.season_id
       where c.region = $1 and s.season_id = $2 and s.captured_at >= $3
         and s.source <> 'search'
       order by s.character_id, s.bracket, s.captured_at desc`,
@@ -278,6 +303,8 @@ async function loadActive(
     specSlug: row.spec_slug,
     rating: row.rating,
     capturedAt: row.captured_at,
+    lastActiveAt: row.last_active_at,
+    activityEvidence: row.evidence,
   }));
 }
 
@@ -288,6 +315,11 @@ async function loadActive(
  * población posible por debajo del corte del leaderboard, y el día que ese
  * número sea grande la decisión de excluirlos hay que revisarla con dato
  * delante, no de memoria.
+ *
+ * Se les aplica la misma ventana de actividad que al resto, con el corte más
+ * ancho de la corrida: si no, el contador de "cuánta población nos estamos
+ * dejando" incluiría a gente que tampoco entraría estando permitida, y el dato
+ * con el que se revisaría la decisión estaría inflado.
  */
 async function loadSearchOnly(
   pool: pg.Pool,
@@ -300,7 +332,11 @@ async function loadSearchOnly(
        select s.character_id, s.bracket, s.source, s.rating, s.captured_at
          from character_snapshots s
          join characters c on c.id = s.character_id
+         join character_activity a
+           on a.character_id = s.character_id and a.bracket = s.bracket
+          and a.season_id = s.season_id
         where c.region = $1 and s.season_id = $2 and s.captured_at >= $3
+          and a.last_active_at >= $3
      ),
      search_only as (
        select character_id, bracket
@@ -394,6 +430,10 @@ export interface ComputedSegment {
   segmentMax: number | null;
   window: ActivityWindowDays;
   summary: SegmentSummary;
+  /** De la población activa, cuántos por subida vista del contador de partidas. */
+  activeByDelta: number;
+  /** Y cuántos por primera observación, sin subida vista (§27, #16). */
+  activeByFirstSeen: number;
   variables: AggregatedVariable[];
   profileFrom: Date | null;
   profileTo: Date | null;
@@ -460,6 +500,8 @@ export function computeSegments(
         segmentMax: Number.isFinite(segment.max) ? segment.max : null,
         window,
         summary: summarizeSegment(active),
+        activeByDelta: active.filter((m) => m.activityEvidence === "played-delta").length,
+        activeByFirstSeen: active.filter((m) => m.activityEvidence === "first-seen").length,
         variables: aggregateSegment(active),
         profileFrom: range.from,
         profileTo: range.to,
@@ -504,9 +546,10 @@ async function writeSegments(
             sample_size, confidence, rating_median, rating_p25, rating_p75,
             rating_min, rating_max, equipped_item_level_median,
             item_level_sample, gear_sample, talent_sample,
-            profile_data_from, profile_data_to, excluded_search)
+            profile_data_from, profile_data_to, excluded_search,
+            active_by_delta, active_by_first_seen)
          values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
-                 $16, $17, $18, $19, $20, $21, $22, $23, $24)
+                 $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
          returning id`,
         [
           computedAt,
@@ -533,6 +576,8 @@ async function writeSegments(
           segment.profileFrom,
           segment.profileTo,
           segment.excludedSearch,
+          segment.activeByDelta,
+          segment.activeByFirstSeen,
         ],
       );
 
@@ -597,9 +642,17 @@ function printSegments(segments: readonly ComputedSegment[]): void {
         ? "sin perfiles"
         : `${summary.gearSample} perfiles, ${segment.variables.length} variables`;
 
+    // El reparto de la evidencia se imprime junto al n porque forma parte de
+    // lo que ese n promete: 120 personas de las que hemos visto jugar a 3 no es
+    // la misma muestra que 120 de las que hemos visto jugar a 118.
+    const evidencia =
+      segment.activeByDelta === 0
+        ? "ninguno con partidas vistas"
+        : `${segment.activeByDelta} con partidas vistas`;
+
     console.log(
-      `  ${label}: n=${summary.sampleSize} (${summary.confidence}, ventana ${segment.window}d) · ` +
-        `mediana ${summary.ratingMedian ?? "—"} CR · ${perfiles}`,
+      `  ${label}: n=${summary.sampleSize} (${summary.confidence}, ventana ${segment.window}d, ` +
+        `${evidencia}) · mediana ${summary.ratingMedian ?? "—"} CR · ${perfiles}`,
     );
   }
   console.log("");
@@ -635,6 +688,25 @@ export async function refreshAggregates(args: string[]): Promise<void> {
     }
     console.log(`Temporada ${seasonId}.\n`);
 
+    // Primero la actividad y después el agregado, en la misma corrida: la
+    // ventana de §27 filtra por "ha jugado", y hacerlo con una tabla calculada
+    // ayer daría por activo a quien dejó de jugar justo después.
+    //
+    // En --dry-run se calcula pero no se escribe, así que el recorte por
+    // ventana lo hará la actividad que ya estuviera materializada: la
+    // inspección previa no puede dejar rastro en la base de datos.
+    console.log("Ventana de actividad (§27, #16):");
+    printActivitySummary(
+      await rebuildActivity(pool, region, seasonId, now, { dryRun: options.dryRun }),
+    );
+    if (options.dryRun) {
+      console.log(
+        "(--dry-run: la actividad no se ha escrito; los segmentos de abajo se filtran con la " +
+          "que ya hubiera en character_activity)",
+      );
+    }
+    console.log("");
+
     const [active, searchOnly, { profiles, itemNames }] = await Promise.all([
       loadActive(pool, region, seasonId, cutoff),
       loadSearchOnly(pool, region, seasonId, cutoff),
@@ -651,7 +723,9 @@ export async function refreshAggregates(args: string[]): Promise<void> {
     if (segments.length === 0) {
       throw new Error(
         `Ningún segmento tiene población dentro de la ventana de ${widest} días. ` +
-          `¿Está corriendo el job de leaderboard?`,
+          `Puede ser que no esté corriendo el job de leaderboard, o que character_activity ` +
+          `esté vacía para esta temporada (con --dry-run no se escribe): ` +
+          `npm run pipeline -- refresh-activity`,
       );
     }
 

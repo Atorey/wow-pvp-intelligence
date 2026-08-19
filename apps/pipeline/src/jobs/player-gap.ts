@@ -2,11 +2,15 @@ import fs from "node:fs";
 import path from "node:path";
 import type pg from "pg";
 import {
+  ACTIVITY_WINDOWS,
   computePlayerGap,
   formatSegment,
+  isActiveWithin,
   nextSegment,
+  pickActivityWindow,
   segmentFor,
   shuffleBracketId,
+  type ActivityWindowDays,
   type AdoptionRate,
   type PlayerBuild,
   type PlayerGap,
@@ -37,6 +41,8 @@ const DEFAULT_SUBJECT_RATING = 1800;
 /** Semilla de la elección de sujetos. Fija, para que el reporte sea reproducible. */
 const SUBJECT_SEED = "player-gap";
 
+const VALID_WINDOWS: readonly number[] = Object.values(ACTIVITY_WINDOWS);
+
 interface Options {
   runId: string | null;
   /** "realm/nombre" si se pide un personaje concreto; si no, se eligen 3 sujetos. */
@@ -44,6 +50,14 @@ interface Options {
   topDifferences: number;
   topTalentCodes: number;
   subjectRating: number;
+  /** Ventana de actividad forzada. null = la elige §13.4 por segmento. */
+  window: ActivityWindowDays | null;
+  /**
+   * Sin filtro de actividad. Existe para reproducir los reportes anteriores a
+   * #16 —y para inspeccionar cuánta población se está descartando—, no para
+   * ganar muestra: un agregado sin ventana describe a quien jugaba hace meses.
+   */
+  allActivity: boolean;
 }
 
 /** Lo que el reporte necesita de un personaje y que PlayerBuild no lleva (core es agnóstico). */
@@ -59,6 +73,12 @@ interface Population {
   meta: Map<string, CharacterMeta>;
   /** item_id → nombre legible. El nombre es para pintar; el id es la clave real. */
   itemNames: Map<number, string>;
+  /**
+   * character_id → `last_active_snapshot_date` (§27, #16). Ausente no significa
+   * "inactivo" sino "no calculado", pero tampoco permite afirmar lo contrario:
+   * `selectActive` lo deja fuera de la comparación por no ser demostrable.
+   */
+  activity: Map<string, Date>;
 }
 
 // --- Argumentos ---
@@ -70,10 +90,16 @@ function parseOptions(args: string[]): Options {
     topDifferences: 5,
     topTalentCodes: 3,
     subjectRating: DEFAULT_SUBJECT_RATING,
+    window: null,
+    allActivity: false,
   };
 
   for (let i = 0; i < args.length; i++) {
     const flag = args[i];
+    if (flag === "--all") {
+      options.allActivity = true;
+      continue;
+    }
     const value = args[i + 1];
     if (!flag?.startsWith("--")) continue;
     if (value === undefined || value.startsWith("--")) {
@@ -107,9 +133,20 @@ function parseOptions(args: string[]): Options {
         options.subjectRating = parsed;
         break;
       }
+      case "--window": {
+        const parsed = Number(value);
+        if (!VALID_WINDOWS.includes(parsed)) {
+          throw new Error(
+            `--window="${value}" debe ser una de las ventanas de §27: ${VALID_WINDOWS.join(", ")}.`,
+          );
+        }
+        options.window = parsed as ActivityWindowDays;
+        break;
+      }
       default:
         throw new Error(
-          `Opción desconocida: ${flag}. Disponibles: --run, --character, --top, --rating.`,
+          `Opción desconocida: ${flag}. Disponibles: --run, --character, --top, --rating, ` +
+            `--window, --all.`,
         );
     }
   }
@@ -207,6 +244,23 @@ async function loadPopulation(
     [bracket, capturedAt],
   );
 
+  // La actividad se lee de la tabla materializada (refresh-activity) y se cruza
+  // por (personaje, bracket, temporada): la temporada sale del propio snapshot
+  // del run porque un run viejo puede ser de la temporada anterior, y el
+  // contador de partidas se reinicia con ella.
+  const { rows: activityRows } = await pool.query<{
+    character_id: string;
+    last_active_at: Date;
+  }>(
+    `select a.character_id, a.last_active_at
+       from character_activity a
+       join character_snapshots s
+         on s.character_id = a.character_id and s.bracket = a.bracket
+        and s.season_id = a.season_id
+      where s.source = 'profile' and s.bracket = $1 and s.captured_at = $2`,
+    [bracket, capturedAt],
+  );
+
   const gearBySnapshot = new Map<string, Map<string, number>>();
   const itemNames = new Map<number, string>();
   for (const row of gear) {
@@ -237,7 +291,62 @@ async function loadPopulation(
     };
   });
 
-  return { builds, meta, itemNames };
+  return {
+    builds,
+    meta,
+    itemNames,
+    activity: new Map(activityRows.map((row) => [row.character_id, row.last_active_at])),
+  };
+}
+
+// --- Ventana de actividad ---
+
+export interface ActiveSegment {
+  /** null = se pidió --all: la población no está filtrada por actividad. */
+  window: ActivityWindowDays | null;
+  population: PlayerBuild[];
+  /** Cuántos del segmento quedaron fuera por no haber jugado en la ventana. */
+  excludedInactive: number;
+}
+
+/**
+ * Recorta un segmento a su población activa (§27, #16).
+ *
+ * La ventana se elige por segmento con la regla de §13.4 (7 días si llegan a
+ * n=30, si no 14), igual que en refresh-aggregates: el trade-off entre frescura
+ * y muestra no es el mismo en 1800-2000 que en 2600-2800.
+ *
+ * Quien no tiene fila de actividad **no entra**. Es la misma decisión que toma
+ * el agregado con su join interno: sin serie no se puede afirmar que alguien
+ * haya jugado, y colarlo "porque está en el run" sería volver al proxy que #16
+ * sustituye. Se cuenta aparte para que el reporte pueda decir cuánta población
+ * ha perdido en vez de enseñar un n más pequeño sin explicación.
+ */
+export function selectActive(
+  population: readonly PlayerBuild[],
+  activity: ReadonlyMap<string, Date>,
+  at: Date,
+  options: { window: ActivityWindowDays | null; allActivity: boolean },
+): ActiveSegment {
+  if (options.allActivity) {
+    return { window: null, population: [...population], excludedInactive: 0 };
+  }
+
+  const inWindow = (days: ActivityWindowDays): PlayerBuild[] =>
+    population.filter((build) => {
+      const lastActiveAt = activity.get(build.characterId);
+      return lastActiveAt !== undefined && isActiveWithin({ lastActiveAt }, at, days);
+    });
+
+  const window =
+    options.window ??
+    pickActivityWindow({
+      7: inWindow(ACTIVITY_WINDOWS.default).length,
+      14: inWindow(ACTIVITY_WINDOWS.fallback).length,
+    }).window;
+
+  const active = inWindow(window);
+  return { window, population: active, excludedInactive: population.length - active.length };
 }
 
 /**
@@ -290,6 +399,31 @@ function itemLabel(itemId: number, itemNames: Map<number, string>): string {
   return itemNames.get(itemId) ?? `item ${itemId}`;
 }
 
+/**
+ * Cómo se declara la ventana en el reporte.
+ *
+ * Con `first-seen` dominando la población —el caso normal mientras el histórico
+ * sea de días— decir "los que han jugado esta semana" sería falso, así que el
+ * texto dice lo que de verdad se filtró: quien no ha dado señal de actividad en
+ * la ventana no está en la comparación.
+ */
+function activityNote(activity: ReportContext["activity"]): string {
+  if (activity.window === null) {
+    return (
+      "⚠️ Sin ventana de actividad (`--all`): la población incluye a quien no ha jugado en " +
+      "semanas, así que estos porcentajes no describen el meta actual (§27)."
+    );
+  }
+
+  const excluded = activity.excludedFromTarget + activity.excludedFromOwn;
+  return (
+    `Ventana de actividad: **${activity.window} días** (§27) — entra quien ha dado señal de ` +
+    `actividad dentro de ella: una subida observada de su contador de partidas o, si nunca se ` +
+    `le ha visto subirlo, su primera observación. ` +
+    `${excluded} perfil(es) del run se quedan fuera por no darla.`
+  );
+}
+
 interface ReportContext {
   spec: SpecEntry;
   bracket: string;
@@ -299,6 +433,17 @@ interface ReportContext {
   meta: CharacterMeta;
   itemNames: Map<number, string>;
   gap: PlayerGap;
+  /**
+   * Con qué ventana de actividad se recortó cada segmento y a cuánta gente dejó
+   * fuera. Va en el reporte, no solo en el log: §28 exige que ningún número se
+   * enseñe sin poder trazar de dónde sale, y la ventana es parte de su
+   * definición tanto como el tamaño de muestra.
+   */
+  activity: {
+    window: ActivityWindowDays | null;
+    excludedFromTarget: number;
+    excludedFromOwn: number;
+  };
 }
 
 /**
@@ -309,7 +454,7 @@ interface ReportContext {
  * muestra va pegado a cada porcentaje, no en una nota al pie (§13.5).
  */
 function renderMarkdown(context: ReportContext): string {
-  const { spec, bracket, subject, meta, itemNames, gap, runId, sampledAt } = context;
+  const { spec, bracket, subject, meta, itemNames, gap, runId, sampledAt, activity } = context;
   const lines: string[] = [];
 
   lines.push(`# Player Gap — ${meta.nameDisplay}-${meta.realmSlug}`);
@@ -322,6 +467,8 @@ function renderMarkdown(context: ReportContext): string {
   );
   lines.push("");
   lines.push(`Run \`${runId}\` · muestreado ${sampledAt} · bracket \`${bracket}\``);
+  lines.push("");
+  lines.push(activityNote(activity));
   lines.push("");
 
   if (!gap.available) {
@@ -451,9 +598,8 @@ function renderMarkdown(context: ReportContext): string {
   );
   lines.push("");
   lines.push(
-    "Fuera de esta comparación: stats secundarias y embellishments (el schema todavía no los " +
-      "guarda) y la ventana de actividad de §27 (#16 pendiente) — la población es la muestreada " +
-      "en este run, no la activa de los últimos 7 días.",
+    "Fuera de esta comparación: stats secundarias y embellishments, que el schema todavía no " +
+      "guarda.",
   );
   lines.push("");
 
@@ -462,7 +608,7 @@ function renderMarkdown(context: ReportContext): string {
 
 /** El JSON es el reporte auditable: lleva los denominadores crudos, no solo los porcentajes. */
 function toJson(context: ReportContext): unknown {
-  const { spec, bracket, subject, meta, itemNames, gap, runId, sampledAt } = context;
+  const { spec, bracket, subject, meta, itemNames, gap, runId, sampledAt, activity } = context;
 
   const withNames = (itemId: number) => ({ itemId, itemName: itemNames.get(itemId) ?? null });
 
@@ -482,6 +628,11 @@ function toJson(context: ReportContext): unknown {
     },
     ownSegment: gap.ownSegment,
     targetSegment: gap.targetSegment,
+    activityWindow: {
+      days: activity.window,
+      excludedFromTarget: activity.excludedFromTarget,
+      excludedFromOwn: activity.excludedFromOwn,
+    },
     ...(gap.available
       ? {
           available: true,
@@ -503,7 +654,11 @@ function toJson(context: ReportContext): unknown {
       : { available: false, confidence: gap.confidence, reason: gap.reason }),
     caveats: [
       "El item level comparado es el equipado; average_item_level cuenta también el banco.",
-      "Sin ventana de actividad (§27 / #16): la población es la muestreada en este run.",
+      activity.window === null
+        ? "Sin ventana de actividad (--all): la población incluye personajes inactivos (§27)."
+        : `Población filtrada por actividad a ${activity.window} días (§27), medida desde el ` +
+          `momento del run: subida observada de season_match_statistics.played o, a falta de ` +
+          `ella, primera observación del personaje.`,
       "Sin stats secundarias ni embellishments: el schema no los guarda todavía.",
       "Talentos por coincidencia exacta de talent_loadout_code (#24 pendiente).",
     ],
@@ -520,7 +675,7 @@ async function reportFor(
   matchesRequested: (meta: CharacterMeta) => boolean,
 ): Promise<ReportContext | null> {
   const bracket = shuffleBracketId(spec);
-  const { builds, meta, itemNames } = await loadPopulation(
+  const { builds, meta, itemNames, activity } = await loadPopulation(
     pool,
     manifest.region,
     bracket,
@@ -537,8 +692,14 @@ async function reportFor(
   if (options.character && !requested) return null;
 
   const ownSegment = requested ? segmentFor(requested.rating) : segmentFor(options.subjectRating);
-  const ownPopulation = segmentPopulation(builds, ownSegment);
-  const subject = requested ?? pickSubject(ownPopulation, bracket);
+  // La ventana se mide desde el momento del run, no desde "ahora": un reporte
+  // de hace un mes tiene que poder reproducirse tal cual se publicó, y con el
+  // reloj de hoy su población iría vaciándose sola.
+  const at = new Date(manifest.sampledAt);
+  const own = selectActive(segmentPopulation(builds, ownSegment), activity, at, options);
+  // El sujeto pedido a mano no se filtra: es la persona que pregunta, no parte
+  // de la población de referencia contra la que se compara.
+  const subject = requested ?? pickSubject(own.population, bracket);
   if (!subject) return null;
 
   const targetSegment = nextSegment(ownSegment);
@@ -552,6 +713,8 @@ async function reportFor(
   const subjectMeta = meta.get(subject.characterId);
   if (!subjectMeta) return null;
 
+  const target = selectActive(segmentPopulation(builds, targetSegment), activity, at, options);
+
   return {
     spec,
     bracket,
@@ -564,11 +727,16 @@ async function reportFor(
       player: subject,
       ownSegment,
       targetSegment,
-      ownPopulation,
-      targetPopulation: segmentPopulation(builds, targetSegment),
+      ownPopulation: own.population,
+      targetPopulation: target.population,
       topDifferences: options.topDifferences,
       topTalentCodes: options.topTalentCodes,
     }),
+    activity: {
+      window: target.window,
+      excludedFromTarget: target.excludedInactive,
+      excludedFromOwn: own.excludedInactive,
+    },
   };
 }
 
@@ -610,7 +778,7 @@ export async function playerGap(args: string[]): Promise<void> {
     }
 
     for (const context of contexts) {
-      const { gap, meta, spec, subject } = context;
+      const { gap, meta, spec, subject, activity } = context;
       const files = write(context);
       const header = `${meta.nameDisplay}-${meta.realmSlug} · ${spec.label} · ${subject.rating} CR`;
 
@@ -621,7 +789,8 @@ export async function playerGap(args: string[]): Promise<void> {
         console.log(`✅ ${header}`);
         console.log(
           `   ${formatSegment(gap.ownSegment)} → ${formatSegment(gap.targetSegment)} · ` +
-            `n=${gap.targetSampleSize} (${gap.confidence})`,
+            `n=${gap.targetSampleSize} (${gap.confidence}) · ` +
+            `${activity.window === null ? "sin ventana de actividad" : `ventana ${activity.window}d`}`,
         );
         console.log(
           `   Gear alineado: ${gap.gear.score === null ? "—" : percent(gap.gear.score)} · ` +
