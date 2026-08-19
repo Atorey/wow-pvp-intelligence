@@ -12,13 +12,51 @@ import { LEADERBOARD_DIR, getRegion } from "../config";
 import { createPool } from "../db/pool";
 import type { LeaderboardFile } from "./fetch-leaderboard";
 
-interface LeaderboardEntry {
+export interface LeaderboardEntry {
   character: { name: string; id: number; realm: { slug: string } };
   faction?: { type: string };
   rank: number;
   rating: number;
   season_match_statistics?: { played: number; won: number; lost: number };
   tier?: { id: number };
+}
+
+/**
+ * Una sola entrada por personaje dentro de un archivo. Blizzard no lo garantiza:
+ * un personaje transferido o renombrado puede salir dos veces en la misma
+ * publicación, bajo dos identidades (reino, nombre) pero con el mismo
+ * `character.id` — y entonces el upsert intenta escribir ese id en dos filas
+ * dentro de la misma sentencia y choca contra idx_characters_blizzard_id, que no
+ * es el arbiter del `on conflict` y por tanto aborta la ingesta entera.
+ *
+ * Se conserva la entrada mejor clasificada y se descartan las demás: entre dos
+ * apariciones del mismo personaje, la de rank más bajo es la viva; la otra es el
+ * residuo de la identidad anterior. Quedarse con las dos contaría al jugador dos
+ * veces en la población, es decir, en el n que sostiene la confianza declarada
+ * (ADR 0003).
+ */
+export function dedupeEntries(entries: LeaderboardEntry[]): LeaderboardEntry[] {
+  const seenIds = new Set<number>();
+  const seenIdentities = new Set<string>();
+  const kept: LeaderboardEntry[] = [];
+
+  // Ordenamos por rank en vez de fiarnos del orden recibido: cuál de las dos
+  // apariciones sobrevive no puede depender de cómo venga serializado el JSON.
+  for (const entry of [...entries].sort((a, b) => a.rank - b.rank)) {
+    const identity = `${entry.character.realm.slug}|${entry.character.name.toLowerCase()}`;
+    const id = entry.character.id;
+    const hasId = typeof id === "number";
+
+    // Sin id no se deduplica por id: agrupar todos los "sin id" bajo la misma
+    // clave descartaría personajes distintos (regla 5, null es "no disponible").
+    if (seenIdentities.has(identity) || (hasId && seenIds.has(id))) continue;
+
+    seenIdentities.add(identity);
+    if (hasId) seenIds.add(id);
+    kept.push(entry);
+  }
+
+  return kept;
 }
 
 function readLeaderboardFiles(): { file: string; content: LeaderboardFile }[] {
@@ -48,9 +86,17 @@ export async function ingestFile(
     );
   }
 
-  const entries = ((content.leaderboard as { entries?: LeaderboardEntry[] })?.entries ?? []).filter(
-    (e) => e?.character?.name && e?.character?.realm?.slug,
-  );
+  const received = (
+    (content.leaderboard as { entries?: LeaderboardEntry[] })?.entries ?? []
+  ).filter((e) => e?.character?.name && e?.character?.realm?.slug);
+
+  const entries = dedupeEntries(received);
+  const duplicated = received.length - entries.length;
+  if (duplicated > 0)
+    console.warn(
+      `  ⚠️  ${duplicated} entrada(s) del mismo personaje repetidas en la publicación, descartadas.`,
+    );
+
   if (entries.length === 0) return { snapshots: 0 };
 
   const nameSlugs = entries.map((e) => e.character.name.toLowerCase());

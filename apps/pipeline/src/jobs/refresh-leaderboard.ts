@@ -179,6 +179,7 @@ export async function refreshLeaderboard(): Promise<void> {
   try {
     const previous = await lastHashByBracket(pool, batch.region);
     const outcomes: RefreshOutcome[] = [];
+    const failures: string[] = [];
 
     console.log("\n=== INGESTA ===\n");
     for (const result of batch.results) {
@@ -204,10 +205,30 @@ export async function refreshLeaderboard(): Promise<void> {
         continue;
       }
 
-      const { snapshots } = await ingestFile(pool, batch.region, result.file.content);
-      await recordFetch(pool, batch, result, { changed: true, snapshots });
-      console.log(`→ ${result.spec}: publicación nueva, ${snapshots} snapshots insertados`);
-      outcomes.push({ result, changed: true, snapshots });
+      try {
+        const { snapshots } = await ingestFile(pool, batch.region, result.file.content);
+        await recordFetch(pool, batch, result, { changed: true, snapshots });
+        console.log(`→ ${result.spec}: publicación nueva, ${snapshots} snapshots insertados`);
+        outcomes.push({ result, changed: true, snapshots });
+      } catch (err) {
+        // Una spec que revienta no puede llevarse por delante a las otras 39. Son
+        // 39 transacciones independientes y el runner es efímero (ADR 0004): lo que
+        // no se ingiere aquí no se reintenta, se pierde esa publicación entera.
+        //
+        // Se anota con content_hash null a propósito: la comparación de la corrida
+        // siguiente mira el último hash no nulo, así que guardar el de una ingesta
+        // fallida haría que el bracket se diera por ingerido y no se reintentara.
+        const reason = err instanceof Error ? err.message : String(err);
+        failures.push(`${result.spec}: ${reason}`);
+        await recordFetch(pool, batch, result, {
+          changed: false,
+          snapshots: 0,
+          hash: null,
+          note: `ingesta fallida — ${reason}`,
+        });
+        console.error(`→ ${result.spec}: ❌ la ingesta falló (${reason})`);
+        outcomes.push({ result, changed: false, snapshots: 0 });
+      }
     }
 
     if (outcomes.every((o) => !o.result.file)) {
@@ -231,6 +252,12 @@ export async function refreshLeaderboard(): Promise<void> {
     if (changedCount > 0) await printDistribution(pool);
 
     await printCadence(pool, batch.region);
+
+    // El job termina en rojo si algo falló, pero después de haber ingerido todo lo
+    // demás: una corrida a medias que se anuncia verde es peor que una que falla.
+    if (failures.length > 0) {
+      throw new Error(`${failures.length} spec(s) no se pudieron ingerir: ${failures.join(" | ")}`);
+    }
   } finally {
     await pool.end();
   }
@@ -240,7 +267,12 @@ async function recordFetch(
   pool: pg.Pool,
   batch: { region: string; seasonId: number; fetchedAt: string },
   result: FetchedLeaderboard,
-  { changed, snapshots }: { changed: boolean; snapshots: number },
+  {
+    changed,
+    snapshots,
+    hash,
+    note,
+  }: { changed: boolean; snapshots: number; hash?: string | null; note?: string | null },
 ): Promise<void> {
   await pool.query(
     `insert into leaderboard_fetches
@@ -252,11 +284,11 @@ async function recordFetch(
       batch.seasonId,
       result.bracket,
       batch.fetchedAt,
-      result.file?.hash ?? null,
+      hash === undefined ? (result.file?.hash ?? null) : hash,
       result.entries,
       changed,
       snapshots,
-      result.warning,
+      note ?? result.warning,
     ],
   );
 }
