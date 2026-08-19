@@ -26,6 +26,7 @@ import {
   getRequestsPerHour,
 } from "../config";
 import { createPool } from "../db/pool";
+import { insertProfileSnapshot } from "../db/snapshots";
 import { takeSample } from "../sampling";
 import { SPECS_TO_INGEST } from "../specs-to-ingest";
 import {
@@ -431,9 +432,9 @@ async function captureProfile(
 // --- Inserción ---
 
 /**
- * Inserta el snapshot de perfil y su gear. Siempre INSERT, nunca UPDATE
- * (append-only, ADR 0002): un update sobre rating/gear/talentos destruiría el
- * histórico, que es el moat del producto.
+ * Inserta el snapshot de perfil y su gear en una transacción. El INSERT en sí
+ * vive en db/snapshots.ts, compartido con la búsqueda bajo demanda: las dos
+ * fuentes escriben la misma forma de snapshot y solo difieren en el `source`.
  *
  * Devuelve false si el snapshot ya existía (reanudación o reejecución del run).
  */
@@ -443,6 +444,7 @@ async function insertSnapshot(
   candidate: Candidate,
   spec: SpecEntry,
   bracket: string,
+  rating: number,
   stats: PvpBracketResponse,
   profile: ProfileResponse | null,
   talentCode: string | null,
@@ -452,73 +454,23 @@ async function insertSnapshot(
   try {
     await client.query("begin");
 
-    const inserted = await client.query<{ id: string }>(
-      `insert into character_snapshots
-         (character_id, captured_at, source, season_id, bracket, class_slug, spec_slug,
-          rating, matches_played, matches_won, matches_lost, pvp_tier_id,
-          average_item_level, equipped_item_level, talent_loadout_code)
-       values ($1, $2, 'profile', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-       on conflict (character_id, bracket, captured_at) do nothing
-       returning id`,
-      [
-        candidate.characterId,
-        manifest.sampledAt,
-        candidate.seasonId,
-        bracket,
-        spec.classSlug,
-        spec.specSlug,
-        stats.rating,
-        // ladder_rank se queda a null: el perfil no da posición de ladder, y
-        // copiarla del snapshot de leaderboard mezclaría fuentes.
-        stats.season_match_statistics?.played ?? null,
-        stats.season_match_statistics?.won ?? null,
-        stats.season_match_statistics?.lost ?? null,
-        stats.tier?.id ?? null,
-        profile?.average_item_level ?? null,
-        profile?.equipped_item_level ?? null,
-        talentCode,
-      ],
-    );
-
-    const isNew = (inserted.rowCount ?? 0) > 0;
-
-    // Si el snapshot ya existía, puede ser de un run anterior que murió entre el
-    // snapshot y su gear. Se recupera el id para completarlo en vez de dejarlo
-    // a medias.
-    let snapshotId = inserted.rows[0]?.id;
-    if (!snapshotId) {
-      const existing = await client.query<{ id: string }>(
-        `select id from character_snapshots
-          where character_id = $1 and bracket = $2 and captured_at = $3`,
-        [candidate.characterId, bracket, manifest.sampledAt],
-      );
-      snapshotId = existing.rows[0]?.id;
-    }
-
-    // Una fila por slot, no un unnest en bloque: enchantment_ids, gem_item_ids y
-    // bonus_list son int[], y unnest sobre un array de arrays los aplanaría en
-    // una sola dimensión, mezclando las gemas de un item con las del siguiente.
-    // Son ~16 slots por personaje dentro de la misma transacción.
-    for (const item of snapshotId ? gear : []) {
-      await client.query(
-        `insert into character_snapshot_gear
-           (snapshot_id, slot, item_id, item_name, item_level, quality,
-            enchantment_ids, gem_item_ids, bonus_list)
-         values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-         on conflict (snapshot_id, slot) do nothing`,
-        [
-          snapshotId,
-          item.slot,
-          item.itemId,
-          item.itemName,
-          item.itemLevel,
-          item.quality,
-          item.enchantmentIds,
-          item.gemItemIds,
-          item.bonusList,
-        ],
-      );
-    }
+    const { isNew } = await insertProfileSnapshot(client, {
+      characterId: candidate.characterId,
+      capturedAt: manifest.sampledAt,
+      source: "profile",
+      seasonId: candidate.seasonId,
+      bracket,
+      spec,
+      rating,
+      matchesPlayed: stats.season_match_statistics?.played ?? null,
+      matchesWon: stats.season_match_statistics?.won ?? null,
+      matchesLost: stats.season_match_statistics?.lost ?? null,
+      pvpTierId: stats.tier?.id ?? null,
+      averageItemLevel: profile?.average_item_level ?? null,
+      equippedItemLevel: profile?.equipped_item_level ?? null,
+      talentCode,
+      gear,
+    });
 
     await client.query("commit");
     return isNew;
@@ -608,6 +560,7 @@ async function sampleBucket(
       candidate,
       spec,
       bracket,
+      stats.rating,
       stats,
       capture.profile.data,
       talent.code,

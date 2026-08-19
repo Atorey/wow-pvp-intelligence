@@ -32,9 +32,21 @@ export interface SpecializationsResponse {
 export interface ProfileResponse {
   average_item_level?: number;
   equipped_item_level?: number;
+  // Identidad. El leaderboard ya la trae en cada entrada; en una búsqueda por
+  // nombre el perfil es la única fuente, y es lo que permite reconciliar a un
+  // personaje renombrado con la fila que ya teníamos.
+  id?: number;
+  name?: string;
+  faction?: { type?: string };
+  realm?: { slug?: string };
+  character_class?: { name?: string };
+  /** Spec equipada ahora mismo. Decide de qué bracket es el gear que devuelve la API. */
+  active_spec?: { name?: string };
 }
 
 export interface PvpBracketResponse {
+  /** Temporada del rating. season_id es not null en BD y no siempre lo sabemos por otra vía. */
+  season?: { id?: number };
   rating?: number;
   season_match_statistics?: { played?: number; won?: number; lost?: number };
   tier?: { id?: number };

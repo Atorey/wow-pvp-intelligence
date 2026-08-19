@@ -82,6 +82,24 @@ export function getLeaderboardRetentionDays(): number {
   return parsed;
 }
 
+/**
+ * Minutos que se considera fresco el perfil de un personaje ya consultado.
+ *
+ * §28 pide caché corta (15-30 min) en el refresco bajo demanda: sin ella,
+ * cinco búsquedas seguidas del mismo personaje cuestan cinco veces la cuota y
+ * meten cinco snapshots casi idénticos en un histórico append-only, que es la
+ * forma más rápida de convertir el moat en ruido. 30 es el extremo alto del
+ * rango del plan: el rating de un jugador no cambia entre dos partidas.
+ */
+export function getCharacterLookupTtlMinutes(): number {
+  const raw = process.env["CHARACTER_LOOKUP_TTL_MINUTES"];
+  const parsed = raw ? Number(raw) : 30;
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    throw new Error(`CHARACTER_LOOKUP_TTL_MINUTES="${raw}" no es un número de minutos válido.`);
+  }
+  return parsed;
+}
+
 export function getBlizzardCredentials(): { clientId: string; clientSecret: string } {
   const hint = "Crea un client en https://develop.battle.net/access (ver apps/pipeline/README.md).";
   return {
