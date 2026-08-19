@@ -32,4 +32,5 @@ Fase actual: **Phase 0 (Data Feasibility)**, casi cerrada. No hay web todavía; 
 
 - **Talentos**: `talent_loadout_code` se reportó ausente tras el parche 11.2 y de forma desigual por clase. Validado solo sobre 3 clases de 13. No comprometer features que dependan de talentos sin ampliar esa validación.
 - **Cobertura de leaderboard**: el tope de 5.000 por spec deja fuera el rango bajo del ICP en las specs más jugadas (Frost Mage no baja de ~1800). No asumir que el leaderboard cubre 1400-2200.
+- **`matches_played` no es comparable entre fuentes**: el contador del perfil da un número sistemáticamente menor que el del leaderboard para el mismo personaje y bracket (595 de 595 casos medidos). Restarlos fabrica actividad que nadie jugó ([ADR 0008](docs/decisions/0008-ventana-de-actividad-por-partidas-jugadas.md)); solo se compara cada fuente consigo misma.
 - **Los issues cerrados no siempre están respaldados por el repo** (#3 y #7 se cerraron con trabajo que no estaba en el código). Verificar antes de dar algo por hecho.

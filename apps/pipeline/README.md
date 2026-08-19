@@ -120,6 +120,32 @@ Si un bucket tiene menos personajes que el tope —el caso de Frost Mage en 1800
 
 El reporte queda en `reports/profile-sample-<runId>.json`, con la cobertura de talentos **por clase**: es lo que decide si Player Gap puede prometer talentos o se queda en gear.
 
+### `refresh-activity`
+
+Recalcula `last_active_snapshot_date` de cada personaje y bracket a partir de la variación de `season_match_statistics.played`, y lo materializa en `character_activity` (§27 "Active Players", issue #16). No llama a la API. Ver [ADR 0008](../../docs/decisions/0008-ventana-de-actividad-por-partidas-jugadas.md).
+
+```bash
+npm run pipeline -- refresh-activity                # temporada vigente
+npm run pipeline -- refresh-activity --season 41    # una temporada concreta
+npm run pipeline -- refresh-activity --dry-run      # calcula e imprime, sin escribir
+```
+
+| Opción      | Default     | Qué hace                                                     |
+| ----------- | ----------- | ------------------------------------------------------------ |
+| `--season`  | la más alta | Temporada a recalcular (el contador se reinicia en cada una) |
+| `--dry-run` | —           | Calcula e imprime el resumen, pero no escribe                |
+
+No hace falta ejecutarlo a mano antes de agregar: **`refresh-aggregates` lo llama al empezar su corrida**, porque filtrar con la actividad de ayer sería decir que se filtra por actividad sin hacerlo.
+
+**Dos niveles de evidencia, y la diferencia importa:**
+
+- `played-delta` — le hemos visto subir el contador entre dos observaciones: sabemos que jugó y cuándo.
+- `first-seen` — nunca se le ha visto subirlo. Lo único demostrable es que jugó **antes** de nuestra primera observación (para entrar al ladder hay que jugar), así que se fecha ahí. Es la cota más antigua defendible y **caduca sola**: quien no vuelve a dar señales sale de la ventana de 7 días una semana después.
+
+Hoy el 100% de la población entra por `first-seen` (ladder de la temporada 41 congelado, temporada 42 recién empezada). El job lo dice al terminar y cada segmento guarda su reparto en `active_by_delta` / `active_by_first_seen`.
+
+**Los contadores de fuentes distintas no se restan entre sí.** El perfil devuelve un número sistemáticamente menor que el leaderboard para el mismo personaje y bracket (595 de 595 casos medidos), así que cada fuente se compara consigo misma; `search` comparte listón con `profile` porque sale del mismo endpoint. Sin esa separación aparecían 594 "activos" que no habían jugado nada.
+
 ### `refresh-aggregates`
 
 Recalcula la distribución de población y el `adoption_rate` por segmento, y los escribe en `population_segments` / `aggregate_snapshots` (§27 y §28 del plan, issue #15). No llama a la API: solo lee `character_snapshots` y escribe agregados, así que no gasta cuota. Es lo que corre a diario en [.github/workflows/aggregates.yml](../../.github/workflows/aggregates.yml) — ver [ADR 0007](../../docs/decisions/0007-agregados-por-segmento.md).
@@ -139,7 +165,7 @@ npm run pipeline -- refresh-aggregates --window 30  # fuerza la ventana de "seas
 
 **La ventana de actividad se elige por segmento**, no por bracket: 7 días si llegan a n=30, si no 14 (§13.4), y queda escrita en `activity_window_days`. Un mismo bracket puede tener 7 días abajo y 14 arriba, y eso es correcto: forzar la misma a los dos significaría perder frescura abajo o muestra arriba.
 
-**Ojo con lo que hoy significa "activo".** Se mide por `captured_at` —lo hemos vuelto a ver en el ladder— y no por partidas jugadas: quien está dentro del top 5.000 sigue apareciendo aunque lleve una semana parado, así que el número **sobreestima la población activa del tramo alto**. Lo sustituye #16; todo el filtro es la función `withinWindow`.
+**"Activo" significa haber dado señal de actividad**, no haber salido en el ladder: la población se cruza contra `character_activity` (ver `refresh-activity`), que el job recalcula al empezar. Quien no tiene fila de actividad no entra — sin serie no se puede afirmar que alguien haya jugado. Cada fila declara además cuánta de su población entró por subida vista del contador y cuánta por primera observación.
 
 **El rating es reciente y el gear puede no serlo.** El rating sale del último snapshot (normalmente de leaderboard, de hoy) y el gear del último perfil completo dentro de la ventana (de `sample-profiles`, de hace días). La distancia entre ambos queda registrada en `profile_data_from` / `profile_data_to` en vez de dejarse suponer.
 
@@ -157,6 +183,7 @@ Genera la comparación de un personaje contra el segmento de rating inmediatamen
 npm run pipeline -- player-gap                                  # un sujeto por spec, en 1800-2000
 npm run pipeline -- player-gap --character ravencrest/loode     # un personaje concreto
 npm run pipeline -- player-gap --top 10                         # más diferencias en la lista
+npm run pipeline -- player-gap --all                            # sin filtro de actividad
 ```
 
 | Opción        | Default         | Qué hace                                                         |
@@ -165,6 +192,8 @@ npm run pipeline -- player-gap --top 10                         # más diferenci
 | `--character` | —               | `reino/nombre`; si se omite, se elige un sujeto por spec         |
 | `--top`       | `5`             | Cuántas diferencias de gear se listan                            |
 | `--rating`    | `1800`          | Rating de entrada del segmento de los sujetos                    |
+| `--window`    | por segmento    | Fuerza la ventana de actividad: `7`, `14` o `30` (§27)           |
+| `--all`       | —               | Sin filtro de actividad; reproduce los reportes anteriores a #16 |
 
 Escribe dos archivos por personaje en `reports/`: un `.json` auditable con los denominadores crudos y un `.md` legible. El markdown es el que sirve para la validación cualitativa de §32 ("¿un jugador experto reconocería esto como razonable?").
 
@@ -174,7 +203,9 @@ Escribe dos archivos por personaje en `reports/`: un `.json` auditable con los d
 
 **Segmenta por el rating del snapshot de perfil**, no por el bucket con el que se muestreó. Entre la descarga del leaderboard y la del perfil pasan días y hay quien ha cambiado de segmento; usar el bucket original metería en 1800-2000 a gente que hoy está en 2200.
 
-Lo que la comparación **no** incluye, y cada reporte declara: ventana de actividad (#16), stats secundarias y embellishments (el schema no los guarda), y talentos por nodo (#24 — ver el hallazgo de la sección 6.2 de [sprint-0-findings](../../docs/sprint-0-findings.md), la coincidencia exacta de código no da señal utilizable).
+**La población se filtra por ventana de actividad** (§27), y la ventana se mide **desde el momento del run**, no desde el reloj de hoy: un reporte tiene que poder reproducirse tal y como se publicó. El sujeto pedido con `--character` no se filtra —es quien pregunta, no parte de la población de referencia—, y `--all` desactiva el filtro entero, avisando en el propio reporte de que sin ventana los porcentajes no describen el meta actual.
+
+Lo que la comparación **no** incluye, y cada reporte declara: stats secundarias y embellishments (el schema no los guarda), y talentos por nodo (#24 — ver el hallazgo de la sección 6.2 de [sprint-0-findings](../../docs/sprint-0-findings.md), la coincidencia exacta de código no da señal utilizable).
 
 ### `migrate`
 

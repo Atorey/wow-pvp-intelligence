@@ -24,6 +24,8 @@ function active(overrides: Partial<ActiveRow> & { characterId: string }): Active
     specSlug: "frost",
     rating: 1900,
     capturedAt: daysAgo(1),
+    lastActiveAt: daysAgo(1),
+    activityEvidence: "played-delta",
     ...overrides,
   };
 }
@@ -35,6 +37,8 @@ function member(overrides: Partial<Member> & { characterId: string }): Member {
     specSlug: "frost",
     rating: 1900,
     capturedAt: daysAgo(1),
+    lastActiveAt: daysAgo(1),
+    activityEvidence: "played-delta",
     profileCapturedAt: null,
     gearBySlot: new Map(),
     talentLoadoutCode: null,
@@ -115,7 +119,7 @@ test("el perfil se pega al mismo personaje en el mismo bracket, no en otro", () 
 
 test("se usa la ventana de 7 días cuando alcanza muestra", () => {
   const members = Array.from({ length: 30 }, (_, i) =>
-    member({ characterId: `c${i}`, capturedAt: daysAgo(3) }),
+    member({ characterId: `c${i}`, lastActiveAt: daysAgo(3) }),
   );
 
   const selected = selectByWindow(members, NOW, null);
@@ -126,10 +130,10 @@ test("se usa la ventana de 7 días cuando alcanza muestra", () => {
 test("se cae a 14 días solo si 7 no llega a n=30", () => {
   const members = [
     ...Array.from({ length: 20 }, (_, i) =>
-      member({ characterId: `fresh${i}`, capturedAt: daysAgo(2) }),
+      member({ characterId: `fresh${i}`, lastActiveAt: daysAgo(2) }),
     ),
     ...Array.from({ length: 20 }, (_, i) =>
-      member({ characterId: `stale${i}`, capturedAt: daysAgo(10) }),
+      member({ characterId: `stale${i}`, lastActiveAt: daysAgo(10) }),
     ),
   ];
 
@@ -139,10 +143,12 @@ test("se cae a 14 días solo si 7 no llega a n=30", () => {
   assert.equal(selected.members.length, 40);
 });
 
-test("quien no se ha vuelto a ver queda fuera de la ventana", () => {
+test("quien no ha jugado queda fuera de la ventana aunque se le siga viendo", () => {
   const members = [
-    member({ characterId: "activo", capturedAt: daysAgo(1) }),
-    member({ characterId: "inactivo", capturedAt: daysAgo(40) }),
+    member({ characterId: "activo", lastActiveAt: daysAgo(1) }),
+    // Sale en el leaderboard de ayer, pero su contador de partidas no se mueve
+    // desde hace 40 días: eso es exactamente lo que §27 no quiere en el agregado.
+    member({ characterId: "inactivo", capturedAt: daysAgo(1), lastActiveAt: daysAgo(40) }),
   ];
 
   assert.equal(selectByWindow(members, NOW, 7).members.length, 1);
@@ -151,7 +157,7 @@ test("quien no se ha vuelto a ver queda fuera de la ventana", () => {
 });
 
 test("una ventana forzada no se reajusta por muestra", () => {
-  const members = [member({ characterId: "solo", capturedAt: daysAgo(2) })];
+  const members = [member({ characterId: "solo", lastActiveAt: daysAgo(2) })];
   const selected = selectByWindow(members, NOW, 7);
 
   // n=1 es insuficiente, pero el operador pidió 7 días: la fila saldrá con su
@@ -166,14 +172,14 @@ test("cada segmento se calcula con su propia ventana", () => {
   const members = [
     // 1800-2000: población fresca de sobra.
     ...Array.from({ length: 30 }, (_, i) =>
-      member({ characterId: `low${i}`, rating: 1900, capturedAt: daysAgo(2) }),
+      member({ characterId: `low${i}`, rating: 1900, lastActiveAt: daysAgo(2) }),
     ),
     // 2000-2200: solo llega a muestra estirando a 14 días.
     ...Array.from({ length: 20 }, (_, i) =>
-      member({ characterId: `midA${i}`, rating: 2100, capturedAt: daysAgo(2) }),
+      member({ characterId: `midA${i}`, rating: 2100, lastActiveAt: daysAgo(2) }),
     ),
     ...Array.from({ length: 20 }, (_, i) =>
-      member({ characterId: `midB${i}`, rating: 2100, capturedAt: daysAgo(9) }),
+      member({ characterId: `midB${i}`, rating: 2100, lastActiveAt: daysAgo(9) }),
     ),
   ];
 
@@ -186,7 +192,7 @@ test("cada segmento se calcula con su propia ventana", () => {
 });
 
 test("un segmento sin nadie dentro de la ventana no se escribe", () => {
-  const members = [member({ characterId: "viejo", rating: 2500, capturedAt: daysAgo(20) })];
+  const members = [member({ characterId: "viejo", rating: 2500, lastActiveAt: daysAgo(20) })];
 
   // La fila diría n=0 sin distinguir "no hay nadie en ese tramo" de "no lo
   // miramos", y esa ambigüedad es justo lo que el proyecto evita en la bitácora.
@@ -236,4 +242,21 @@ test("el rango temporal de los perfiles queda registrado", () => {
   assert.equal(segment?.profileTo?.getTime(), daysAgo(2).getTime());
   assert.equal(segment?.summary.gearSample, 2);
   assert.equal(segment?.summary.sampleSize, 3);
+});
+
+test("la fila declara cuánta de su población es evidencia y cuánta es arranque", () => {
+  const members = [
+    member({ characterId: "a", activityEvidence: "played-delta" }),
+    member({ characterId: "b", activityEvidence: "first-seen" }),
+    member({ characterId: "c", activityEvidence: "first-seen" }),
+  ];
+
+  const [segment] = computeSegments(members, [], NOW, null);
+
+  // n=3 hecho de 1 subida vista y 2 arranques no promete lo mismo que n=3 de
+  // tres subidas vistas, y con el histórico corto de hoy el segundo caso es el
+  // raro: sin este reparto, la fila no permitiría distinguirlos (§27, #16).
+  assert.equal(segment?.summary.sampleSize, 3);
+  assert.equal(segment?.activeByDelta, 1);
+  assert.equal(segment?.activeByFirstSeen, 2);
 });

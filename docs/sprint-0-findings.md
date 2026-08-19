@@ -133,7 +133,7 @@ Casi cada jugador tiene un código único. El código completo codifica el árbo
 
 ### 6.4 Límites declarados en cada reporte
 
-- **Sin ventana de actividad** (§27, #16): la población es la muestreada en el run, no la activa de los últimos 7 días.
+- ~~**Sin ventana de actividad** (§27, #16)~~: hecho el 19 de agosto de 2026, ver sección 10. La población del reporte se filtra por actividad, medida desde el momento del run.
 - **Sin stats secundarias ni embellishments**, que sí aparecen en el mockup de §13.1: el schema no los guarda y deducirlos por heurística sería inventar dato.
 - **Solo es demostrable el salto 1800-2000 → 2000-2200**: es el único par de segmentos consecutivos muestreados. Por eso los 3 sujetos varían en spec y no en rango, al contrario de lo que pedía §32.
 - **Poder discriminante degradado**: §13.3 lo define como varianza entre segmentos consecutivos, que con dos segmentos no dice nada. Se sustituye por un umbral de delta mínimo de 10 puntos porcentuales (`MIN_DISCRIMINATIVE_DELTA`), encapsulado en `isDiscriminative()` para poder volver a la varianza cuando haya un tercer segmento.
@@ -167,3 +167,15 @@ La ingesta pasa de 3 specs a las 40 del catálogo. Medido contra la temporada 41
 - **Las 39 specs que ya estaban en el catálogo responden 200 con datos.** Ninguna 404 ni lista vacía: el bug de la sección 5 está cerrado en la práctica, no solo en el test.
 - **El volumen se multiplica por 11**: una publicación completa son **165.202 filas** frente a las 15.009 de 3 specs. El job corre cada 3h y solo ingiere cuando cambia el hash, así que el techo teórico es ~1,3M snapshots/día. Sobre `character_snapshots`, que es append-only por diseño (ADR 0002), eso es lo que hay que vigilar antes que la cuota de API: **está sin medir el ritmo real de publicación**, y de él depende si hace falta política de retención o rollup. Decisión consciente de medir primero.
 - **La cuota de API deja de ser el límite del leaderboard y pasa a serlo del muestreo.** Descargar 40 specs son 42 peticiones por corrida, nada. Pero `sample-profiles` con los parámetros por defecto sobre 40 specs son ~32.000 peticiones, por encima del techo de 24.000/h: por eso el job acepta ahora `--specs` y toma la lista del manifiesto al reanudar, en vez de heredar la selección activa del pipeline.
+
+## 10. Ventana de actividad (#16)
+
+Al derivar `last_active_snapshot_date` de `season_match_statistics.played` (ADR 0008) salieron tres hechos que no estaban medidos, y los tres cambian cómo hay que leer todo lo anterior:
+
+- **El contador del perfil y el del leaderboard no cuentan lo mismo.** De los 595 personajes con las dos fuentes para el mismo bracket y el mismo rating, el perfil da un número **menor en 595 de 595 casos** (60 en leaderboard frente a 10 en perfil, por ejemplo). No es ruido ni un desfase temporal: es sistemático. Restarlos daba 594 personajes "activos" que no habían jugado nada, así que el delta solo se calcula **dentro de la misma fuente**. Afecta a cualquier cosa futura que use `matches_played` como magnitud comparable, no solo a la actividad.
+- **El leaderboard de una temporada terminada se congela.** En los **647.950** pares de snapshots consecutivos de la temporada 41 recogidos entre el 13 y el 19 de agosto de 2026 no hay **ni un solo** cambio de `matches_played` ni de `rating`, y aun así el ladder se republica cada ~3h. Todo lo que se calculó sobre "le hemos vuelto a ver" durante esos días estaba midiendo nuestra cadencia de descarga, no el juego.
+- **La temporada 42 empezó el 19 de agosto de 2026 a las 09:12 UTC**, con 28-64 personajes por bracket y ratings entre 15 y 1815. El corte de temporada llegó, por tanto, en mitad de la ventana: el job agrega solo la vigente (§27) y avisa cuando hay dos.
+
+**Consecuencia**: hoy el 100 % de la población entra en la ventana por primera observación (`first-seen`) y no por subida vista del contador. Está declarado en cada fila de `population_segments` (`active_by_delta` / `active_by_first_seen`) y el job lo dice al terminar. El primer `played-delta` real llegará cuando haya dos publicaciones de la temporada 42 con juego entre medias.
+
+**Efecto colateral medido**: el 18 de agosto se ingirieron **447.851 snapshots** cuyo contenido no cambiaba en rating ni en partidas. El `content_hash` se mueve porque el `rank` baila con las altas y bajas del corte, así que la comprobación del ADR 0004 no filtra este caso. No contamina la actividad —un contador que no sube no es actividad, se ingiera una vez o veinte—, pero sí el volumen: se trata en #53, dentro del alcance de #48.
