@@ -19,6 +19,7 @@
  *   (decisión tomada en #9; decodificar el loadout se pospone a #24).
  */
 import { canShowComparison, confidenceFor } from "./confidence";
+import { median } from "./stats";
 import type { ConfidenceLevel, RatingSegment } from "./types";
 
 /**
@@ -167,7 +168,7 @@ export function isDiscriminative(delta: number): boolean {
 // --- Gear ---
 
 /** Si el equipo de este miembro es legible; si no, sale de los denominadores de gear. */
-function hasGear(member: PlayerBuild): boolean {
+export function hasComparableGear(member: PlayerBuild): boolean {
   return member.gearBySlot.size > 0;
 }
 
@@ -176,8 +177,13 @@ function hasGear(member: PlayerBuild): boolean {
  *
  * Un grupo puede tener más de un item (dos anillos, dos abalorios), por eso es
  * un Set y no un valor suelto.
+ *
+ * Exportada porque los agregados por segmento (#15) cuentan la misma adopción
+ * en una sola pasada sobre la población: si allí se reagrupara el equipo con
+ * otro criterio, el adoption_rate publicado y el que compara Player Gap
+ * dejarían de ser el mismo número.
  */
-function itemsByGroup(member: PlayerBuild): Map<string, Set<number>> {
+export function comparableItemsByGroup(member: PlayerBuild): Map<string, Set<number>> {
   const groups = new Map<string, Set<number>>();
   for (const [slot, itemId] of member.gearBySlot) {
     if (COSMETIC_SLOTS.includes(slot)) continue;
@@ -203,7 +209,7 @@ function itemsByGroup(member: PlayerBuild): Map<string, Set<number>> {
 export function comparableSlotGroups(population: readonly PlayerBuild[]): string[] {
   const groups = new Set<string>();
   for (const member of population) {
-    for (const group of itemsByGroup(member).keys()) groups.add(group);
+    for (const group of comparableItemsByGroup(member).keys()) groups.add(group);
   }
   return [...groups].sort();
 }
@@ -218,7 +224,9 @@ export function slotItemAdoption(
   itemId: number,
 ): AdoptionRate {
   return adoptionRate(population, (member) =>
-    hasGear(member) ? (itemsByGroup(member).get(group)?.has(itemId) ?? false) : null,
+    hasComparableGear(member)
+      ? (comparableItemsByGroup(member).get(group)?.has(itemId) ?? false)
+      : null,
   );
 }
 
@@ -229,8 +237,8 @@ export function modalItem(
 ): { itemId: number; adoption: AdoptionRate } | undefined {
   const counts = new Map<number, number>();
   for (const member of population) {
-    if (!hasGear(member)) continue;
-    for (const itemId of itemsByGroup(member).get(group) ?? []) {
+    if (!hasComparableGear(member)) continue;
+    for (const itemId of comparableItemsByGroup(member).get(group) ?? []) {
       counts.set(itemId, (counts.get(itemId) ?? 0) + 1);
     }
   }
@@ -278,7 +286,7 @@ export function gearAlignment(
   targetPopulation: readonly PlayerBuild[],
 ): GearAlignment {
   const groups = new Set(comparableSlotGroups(targetPopulation));
-  const playerItems = itemsByGroup(player);
+  const playerItems = comparableItemsByGroup(player);
   let total = 0;
   let compared = 0;
 
@@ -332,12 +340,12 @@ export function biggestGearDifferences(
   top: number = DEFAULT_TOP_DIFFERENCES,
 ): GearDifference[] {
   const differences: GearDifference[] = [];
-  const playerItems = itemsByGroup(player);
+  const playerItems = comparableItemsByGroup(player);
 
   for (const group of comparableSlotGroups(targetPopulation)) {
     const candidates = new Set<number>();
     for (const member of targetPopulation) {
-      for (const itemId of itemsByGroup(member).get(group) ?? []) candidates.add(itemId);
+      for (const itemId of comparableItemsByGroup(member).get(group) ?? []) candidates.add(itemId);
     }
 
     for (const itemId of [...candidates].sort((a, b) => a - b)) {
@@ -457,20 +465,6 @@ export function compareTalents(
 }
 
 // --- Item level ---
-
-/**
- * Mediana, no media: el item level tiene cola por abajo (personajes que
- * acaban de empezar la temporada) y una media se dejaría arrastrar por ella.
- */
-function median(values: readonly number[]): number | null {
-  if (values.length === 0) return null;
-  const sorted = [...values].sort((a, b) => a - b);
-  const middle = Math.floor(sorted.length / 2);
-  if (sorted.length % 2 === 1) return sorted[middle] ?? null;
-  const low = sorted[middle - 1];
-  const high = sorted[middle];
-  return low === undefined || high === undefined ? null : (low + high) / 2;
-}
 
 /**
  * Comparación de item level **equipado** (ver PlayerBuild.equippedItemLevel).

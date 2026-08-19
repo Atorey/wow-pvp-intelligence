@@ -3,6 +3,7 @@ import { fetchLeaderboards } from "./jobs/fetch-leaderboard";
 import { ingestLeaderboards } from "./jobs/ingest-leaderboard";
 import { lookupCharacters } from "./jobs/lookup-character";
 import { playerGap } from "./jobs/player-gap";
+import { refreshAggregates } from "./jobs/refresh-aggregates";
 import { refreshLeaderboard } from "./jobs/refresh-leaderboard";
 import { sampleProfiles } from "./jobs/sample-profiles";
 import { validateEndpoints } from "./jobs/validate-endpoints";
@@ -32,6 +33,10 @@ const COMMANDS: Record<string, { run: (args: string[]) => Promise<void>; help: s
   "sample-profiles": {
     run: sampleProfiles,
     help: "Baja gear y talentos de una muestra por segmento de rating [--limit --seed --segments --specs --run]",
+  },
+  "refresh-aggregates": {
+    run: refreshAggregates,
+    help: "Job diario: recalcula la distribución y el adoption_rate por segmento [--window --dry-run]",
   },
   "player-gap": {
     run: playerGap,

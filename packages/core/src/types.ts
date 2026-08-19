@@ -28,5 +28,12 @@ export type ConfidenceLevel = "high" | "medium" | "insufficient";
 /** Ventanas de actividad en días (docs/product-plan.md §27, "Active Players"). */
 export type ActivityWindowDays = 7 | 14 | 30;
 
-/** Origen de un snapshot: entrada de leaderboard (barata) o perfil completo (cara). */
-export type SnapshotSource = "leaderboard" | "profile";
+/**
+ * Origen de un snapshot: entrada de leaderboard (barata), perfil completo
+ * muestreado por nosotros (cara) o perfil traído por la búsqueda de un usuario.
+ *
+ * 'search' se distingue del resto porque entra por sesgo de selección —alguien
+ * se interesó por ese personaje— y por eso queda fuera de los agregados por
+ * segmento (ADR 0006 y ADR 0007), no porque el dato sea de peor calidad.
+ */
+export type SnapshotSource = "leaderboard" | "profile" | "search";
