@@ -18,11 +18,12 @@ Aplica en orden los `.sql` de `migrations/` que no consten en `schema_migrations
 
 ## Estado
 
-| Archivo                        | Qué añade                                                                                                         |
-| ------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
-| `0001_init.sql`                | `characters`, `character_snapshots`, vista `latest_snapshot_per_character_bracket`                                |
-| `0002_profile_snapshots.sql`   | Índice único de ingesta idempotente, columnas de perfil (ilvl, `talent_loadout_code`) y `character_snapshot_gear` |
-| `0003_leaderboard_fetches.sql` | `leaderboard_fetches`: bitácora de descargas del job programado (hash de contenido y cadencia observada)          |
-| `0004_character_lookups.sql`   | `source='search'` en `character_snapshots` y `character_lookups`: bitácora de la acumulación por búsqueda         |
+| Archivo                          | Qué añade                                                                                                                                                       |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0001_init.sql`                  | `characters`, `character_snapshots`, vista `latest_snapshot_per_character_bracket`                                                                              |
+| `0002_profile_snapshots.sql`     | Índice único de ingesta idempotente, columnas de perfil (ilvl, `talent_loadout_code`) y `character_snapshot_gear`                                               |
+| `0003_leaderboard_fetches.sql`   | `leaderboard_fetches`: bitácora de descargas del job programado (hash de contenido y cadencia observada)                                                        |
+| `0004_character_lookups.sql`     | `source='search'` en `character_snapshots` y `character_lookups`: bitácora de la acumulación por búsqueda                                                       |
+| `0005_population_aggregates.sql` | `population_segments` y `aggregate_snapshots`: distribución y `adoption_rate` por segmento, con `sample_size`, `computed_at` y la ventana de actividad aplicada |
 
-Lo que **todavía no existe** y hará falta para Player Gap: `population_segments` / `aggregate_snapshots` (adoption_rate por variable y segmento, con `sample_size` y `computed_at`). Se añadirá cuando haya muestra de perfiles suficiente — ver el issue de recálculo de agregados.
+`population_segments` y `aggregate_snapshots` son las únicas tablas **derivadas**: se reconstruyen enteras desde `character_snapshots` con `npm run pipeline -- refresh-aggregates`, así que borrar un recálculo no destruye histórico de población. La regla 3 sigue valiendo tal cual para `character_snapshots`, que es la fuente de verdad — ver [ADR 0007](../docs/decisions/0007-agregados-por-segmento.md).

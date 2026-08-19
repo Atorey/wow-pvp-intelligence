@@ -1,0 +1,42 @@
+name: Aggregates
+
+# Recálculo diario de PopulationSegment + AggregateSnapshot (§28 del plan,
+# ADR 0007). Separado del workflow de leaderboard a propósito: la agregación es
+# diaria por decisión del plan y la descarga va cada 3h.
+on:
+  schedule:
+    # 05:30 UTC: después de la corrida de leaderboard de las 03:00 y con margen
+    # de sobra si esa se retrasa (el cron de Actions no es puntual). La hora
+    # exacta da igual mientras sea una vez al día — lo que se agrega es la
+    # ventana de actividad de los últimos 7-14 días, no "lo de esta noche".
+    - cron: "30 5 * * *"
+  workflow_dispatch:
+
+# Dos recálculos a la vez escribirían dos juegos de filas con computed_at casi
+# idénticos, y el consumidor lee "el más reciente de este segmento".
+concurrency:
+  group: aggregates
+  cancel-in-progress: false
+
+jobs:
+  aggregate:
+    runs-on: ubuntu-latest
+    # Solo Postgres: este job no llama a la API de Blizzard (por eso no necesita
+    # credenciales ni gasta cuota). El tiempo se va en cargar la población
+    # activa —del orden de 165.000 filas por publicación— y en escribir los
+    # agregados.
+    timeout-minutes: 30
+    env:
+      BLIZZARD_REGION: ${{ vars.BLIZZARD_REGION || 'eu' }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Idempotentes, y el runner siempre trae el código de main: evita que el
+      # job falle contra un schema viejo.
+      - run: npm run db:migrate
+      - run: npm run pipeline -- refresh-aggregates

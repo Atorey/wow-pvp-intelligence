@@ -120,6 +120,35 @@ Si un bucket tiene menos personajes que el tope —el caso de Frost Mage en 1800
 
 El reporte queda en `reports/profile-sample-<runId>.json`, con la cobertura de talentos **por clase**: es lo que decide si Player Gap puede prometer talentos o se queda en gear.
 
+### `refresh-aggregates`
+
+Recalcula la distribución de población y el `adoption_rate` por segmento, y los escribe en `population_segments` / `aggregate_snapshots` (§27 y §28 del plan, issue #15). No llama a la API: solo lee `character_snapshots` y escribe agregados, así que no gasta cuota. Es lo que corre a diario en [.github/workflows/aggregates.yml](../../.github/workflows/aggregates.yml) — ver [ADR 0007](../../docs/decisions/0007-agregados-por-segmento.md).
+
+```bash
+npm run pipeline -- refresh-aggregates              # ventana elegida por segmento
+npm run pipeline -- refresh-aggregates --dry-run    # calcula e imprime, sin escribir
+npm run pipeline -- refresh-aggregates --window 30  # fuerza la ventana de "season active"
+```
+
+| Opción      | Default      | Qué hace                                                      |
+| ----------- | ------------ | ------------------------------------------------------------- |
+| `--window`  | por segmento | Fuerza la ventana de actividad: `7`, `14` o `30` (las de §27) |
+| `--dry-run` | —            | Calcula e imprime la tabla, pero no escribe ninguna fila      |
+
+**Cada corrida inserta filas nuevas con su `computed_at`**, nunca actualiza las anteriores: el histórico de agregados es lo que alimentará las tendencias de #27. Son las únicas tablas **derivadas** del proyecto — se reconstruyen enteras volviendo a ejecutar el job, a diferencia de `character_snapshots`.
+
+**La ventana de actividad se elige por segmento**, no por bracket: 7 días si llegan a n=30, si no 14 (§13.4), y queda escrita en `activity_window_days`. Un mismo bracket puede tener 7 días abajo y 14 arriba, y eso es correcto: forzar la misma a los dos significaría perder frescura abajo o muestra arriba.
+
+**Ojo con lo que hoy significa "activo".** Se mide por `captured_at` —lo hemos vuelto a ver en el ladder— y no por partidas jugadas: quien está dentro del top 5.000 sigue apareciendo aunque lleve una semana parado, así que el número **sobreestima la población activa del tramo alto**. Lo sustituye #16; todo el filtro es la función `withinWindow`.
+
+**El rating es reciente y el gear puede no serlo.** El rating sale del último snapshot (normalmente de leaderboard, de hoy) y el gear del último perfil completo dentro de la ventana (de `sample-profiles`, de hace días). La distancia entre ambos queda registrada en `profile_data_from` / `profile_data_to` en vez de dejarse suponer.
+
+**Se guarda también lo que no se puede enseñar**: segmentos con n insuficiente e items que lleva una sola persona. Guardar no es mostrar —la puerta sigue siendo `canShowComparison()`— y sin esas filas no se puede saber cuánto le falta a una spec de tanque para llegar a n=30 ni calcular el poder discriminante de §13.3.
+
+**Los personajes que solo vienen de búsquedas (`source='search'`) no entran** en el agregado, pero se cuentan en `excluded_search`. Entran por sesgo de selección (ADR 0006) y meterlos contaminaría el `n` que sostiene la confianza; el contador está para revisar esa decisión con dato delante, porque el precio es dejar 1400-1800 sin agregados.
+
+**Sin perfiles dentro de la ventana solo se publica la distribución.** El job lo avisa al terminar. La solución es muestrear con la cadencia de la ventana, no ensanchar la ventana.
+
 ### `player-gap`
 
 Genera la comparación de un personaje contra el segmento de rating inmediatamente superior (§13 del plan, issue #9). No llama a la API: lee de Postgres lo que `sample-profiles` ya bajó.
