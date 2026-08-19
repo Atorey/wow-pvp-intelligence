@@ -1,6 +1,7 @@
 import { migrate } from "./db/migrate";
 import { fetchLeaderboards } from "./jobs/fetch-leaderboard";
 import { ingestLeaderboards } from "./jobs/ingest-leaderboard";
+import { lookupCharacters } from "./jobs/lookup-character";
 import { playerGap } from "./jobs/player-gap";
 import { refreshLeaderboard } from "./jobs/refresh-leaderboard";
 import { sampleProfiles } from "./jobs/sample-profiles";
@@ -23,6 +24,10 @@ const COMMANDS: Record<string, { run: (args: string[]) => Promise<void>; help: s
   "refresh-leaderboard": {
     run: refreshLeaderboard,
     help: "Job programado: descarga + ingiere solo si Blizzard ha republicado (ver ADR 0004)",
+  },
+  "lookup-character": {
+    run: lookupCharacters,
+    help: "Busca personajes y los añade a la población acumulada [--character reino/nombre --force]",
   },
   "sample-profiles": {
     run: sampleProfiles,
@@ -53,6 +58,9 @@ function printHelp(): void {
   console.log("  --seed S       semilla del muestreo (misma semilla = misma muestra)");
   console.log("  --specs K,K    specs a muestrear, p.ej. mage-frost (default: las que ingiere)");
   console.log("  --run ID       reanuda un run anterior sin volver a gastar cuota");
+  console.log("\nOpciones de lookup-character:");
+  console.log("  --character R/N  personaje a buscar; se puede repetir");
+  console.log("  --force        ignora la caché y vuelve a preguntar a Blizzard");
   console.log("\nOpciones de player-gap:");
   console.log("  --run ID       run muestreado a analizar (default: el más reciente)");
   console.log("  --character R/N  un personaje concreto; si se omite, un sujeto por spec");

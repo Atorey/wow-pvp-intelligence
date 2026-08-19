@@ -22,11 +22,13 @@ Todas las peticiones pasan por una cola compartida por el proceso ([ADR 0005](..
 | Instantáneo                  | `BLIZZARD_REQUESTS_PER_SECOND` | `8`     | 100 req/s               |
 | Horario (ventana deslizante) | `BLIZZARD_REQUESTS_PER_HOUR`   | `24000` | 36.000 req/h            |
 
+La búsqueda bajo demanda añade una variable propia, `CHARACTER_LOOKUP_TTL_MINUTES` (30 por defecto): ver `lookup-character`.
+
 El horario es el que muerde: 8 req/s sostenidos son 28.800 peticiones en una hora. El default va por debajo del techo real porque el presupuesto se lleva **por proceso** — dos jobs lanzados a la vez no se ven entre ellos.
 
 **Al agotarse la ventana la cola espera**, no falla, y lo avisa por consola. Un job puede quedarse parado hasta que se libere hueco; el aviso está para que eso no se confunda con un cuelgue.
 
-**Prioridades** (§28 del plan): `on-demand` (refresco por búsqueda de usuario, pendiente de #14) > `batch` (leaderboard) > `aggregate` (`sample-profiles`). Cada job declara la suya al construir el cliente: `new BlizzardClient({ priority: "aggregate" })`. Hoy los jobs son secuenciales y rara vez compiten por un turno; la prioridad empieza a decidir algo cuando exista trabajo disparado por un usuario que está esperando.
+**Prioridades** (§28 del plan): `on-demand` (`lookup-character`, la búsqueda de usuario) > `batch` (leaderboard) > `aggregate` (`sample-profiles`). Cada job declara la suya al construir el cliente: `new BlizzardClient({ priority: "aggregate" })`. Los jobs siguen siendo procesos separados y secuenciales, así que rara vez compiten por un turno; la prioridad decidirá algo de verdad cuando la web de #19 dispare búsquedas mientras corre un muestreo.
 
 Cada job imprime al terminar lo que ha gastado, por prioridad y en porcentaje de la ventana horaria.
 
@@ -63,6 +65,28 @@ El job programado: `fetch-leaderboard` + `ingest-leaderboard` en una sola ejecuc
 **Los JSON de `data/leaderboard/` son caché**, no histórico: se borran pasados `LEADERBOARD_RETENTION_DAYS` días (3 por defecto). El histórico está en Postgres, que es append-only.
 
 Para ejecutarlo en GitHub Actions hacen falta tres secrets en el repo (`BLIZZARD_CLIENT_ID`, `BLIZZARD_CLIENT_SECRET`, `DATABASE_URL`) y, opcionalmente, la variable `BLIZZARD_REGION`.
+
+### `lookup-character`
+
+```bash
+npm run pipeline -- lookup-character --character twisting-nether/anatorey
+npm run pipeline -- lookup-character --character ragnaros/alice --character sanguino/bob
+npm run pipeline -- lookup-character --character ragnaros/alice --force   # ignora la caché
+```
+
+Busca un personaje y lo **añade a la población acumulada** con `source='search'`: identidad, rating de cada Solo Shuffle que juegue, gear y talentos. Es la segunda vía de población de §12 del plan y el motor que consumirá la búsqueda de la web (#19) — ver [ADR 0006](../../docs/decisions/0006-acumulacion-de-poblacion-por-busqueda.md).
+
+**Existe porque el leaderboard no llega abajo.** El tope de 5.000 por spec deja fuera el rango bajo del ICP en las specs más jugadas (Frost Mage no baja de ~1800): un jugador de 1600 solo entra en nuestra base si alguien lo busca.
+
+**Cuesta 4 peticiones más una por bracket jugado.** Los brackets salen del `pvp-summary` del propio personaje, no se prueban las 40 specs a ver cuál responde.
+
+**Caché de `CHARACTER_LOOKUP_TTL_MINUTES` minutos** (30 por defecto), medida sobre la última captura de perfil que tengamos de él. Dentro del TTL no se llama a Blizzard: además de cuota, evita que cinco búsquedas seguidas metan cinco snapshots casi idénticos en un histórico que está para medir cambios.
+
+**El gear se le cuelga solo al bracket de la spec que lleva equipada.** La API devuelve un único equipo, el de ahora; atribuírselo también a las otras specs que juega sería registrar una build que nadie ha observado y que acabaría contando en el `adoption_rate` de un segmento.
+
+**Solo Solo Shuffle.** 2v2/3v3/RBG no nombran ninguna spec y `class_slug`/`spec_slug` se deducen del bracket; entran con #34.
+
+**Cada búsqueda queda registrada** en `character_lookups`, incluidas las que dan 404 o se sirven de caché. Es lo que permite responder a "¿cuánta población nueva aporta de verdad la búsqueda?", que §12 da por hecho y nadie ha medido.
 
 ### `sample-profiles`
 

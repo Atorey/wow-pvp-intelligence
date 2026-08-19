@@ -96,7 +96,7 @@ interface SeasonIndex {
   seasons?: { id?: number }[];
 }
 
-async function resolveCurrentSeasonId(client: BlizzardClient): Promise<number> {
+export async function resolveCurrentSeasonId(client: BlizzardClient): Promise<number> {
   const index = await client.get<SeasonIndex>("/data/wow/pvp-season/index", "dynamic");
 
   // 1) El índice trae la temporada actual explícita.
