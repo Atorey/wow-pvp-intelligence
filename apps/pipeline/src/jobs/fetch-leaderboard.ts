@@ -19,6 +19,12 @@ export interface LeaderboardFile {
   bracket: string;
   /** Huella del payload de Blizzard, no del archivo: ver `hashLeaderboard`. */
   contentHash: string;
+  /**
+   * Huella de la población publicada: ver `hashPopulation`. Es la que decide si
+   * se ingiere. Opcional porque los archivos escritos antes de #53 no la traen,
+   * y un archivo viejo en `data/leaderboard` no debe romper una reingesta.
+   */
+  populationHash?: string;
   leaderboard: unknown;
 }
 
@@ -37,6 +43,70 @@ export function hashLeaderboard(payload: unknown): string {
   return crypto.createHash("sha256").update(JSON.stringify(payload)).digest("hex");
 }
 
+/**
+ * Lo que de una entrada del leaderboard es dato de población. El resto —el
+ * `rank`, el envoltorio, el orden del array— es derivado o accesorio, y no
+ * describe a nadie.
+ */
+interface PopulationEntry {
+  character?: { name?: string; id?: number; realm?: { slug?: string } };
+  rating?: number;
+  season_match_statistics?: { played?: number; won?: number; lost?: number };
+  tier?: { id?: number };
+}
+
+/**
+ * Identidad de una entrada para ordenar la huella. Se prefiere el id de
+ * Blizzard, que sobrevive a renombres y transferencias; sin él, (reino, nombre).
+ * Los dos espacios van prefijados para que un id 123 no pueda colisionar con un
+ * personaje que se llame así.
+ */
+function populationKey(entry: PopulationEntry): string {
+  const id = entry.character?.id;
+  if (typeof id === "number") return `id:${id}`;
+  return `n:${entry.character?.realm?.slug ?? ""}|${(entry.character?.name ?? "").toLowerCase()}`;
+}
+
+/**
+ * Huella de la población publicada: quiénes están y con qué rating, partidas y
+ * tier. Es la que decide si se ingiere.
+ *
+ * `hashLeaderboard` no sirve para eso, y no por el `rank`: medido sobre la
+ * temporada 41 en EU, de 148 transiciones entre publicaciones consecutivas 36
+ * movían solo el rank, 49 eran altas o bajas —población de verdad— y **96 no
+ * cambiaban nada de lo que guardamos**. El payload se mueve por campos que ni
+ * siquiera ingerimos. Por eso esta huella se calcula sobre la proyección exacta
+ * de lo que acaba en `character_snapshots`: así es inmune por construcción a
+ * cualquier cosa que Blizzard cambie fuera de ahí, en vez de ir excluyendo
+ * campos a medida que los descubrimos.
+ *
+ * Se ordena por identidad y no se confía en el orden recibido, que viene por
+ * rank: si no, una sola alta en el corte desplazaría a todos los de abajo y
+ * volveríamos a tener una huella que se mueve sin que cambie nadie.
+ *
+ * Se descartan las entradas sin nombre o sin reino porque son las mismas que
+ * `ingest-leaderboard` descarta: la huella tiene que hablar de lo que se
+ * ingiere, no de lo que se recibe.
+ */
+export function hashPopulation(payload: unknown): string {
+  const entries = ((payload as { entries?: PopulationEntry[] })?.entries ?? []).filter(
+    (e) => e?.character?.name && e?.character?.realm?.slug,
+  );
+
+  const projection = entries
+    .map((e) => [
+      populationKey(e),
+      e.rating ?? null,
+      e.season_match_statistics?.played ?? null,
+      e.season_match_statistics?.won ?? null,
+      e.season_match_statistics?.lost ?? null,
+      e.tier?.id ?? null,
+    ])
+    .sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+
+  return crypto.createHash("sha256").update(JSON.stringify(projection)).digest("hex");
+}
+
 /** Una spec descargada. `file` es null cuando la descarga falló o vino vacía. */
 export interface FetchedLeaderboard {
   spec: string;
@@ -45,7 +115,7 @@ export interface FetchedLeaderboard {
   topRating: number | null;
   cutoffRating: number | null;
   warning: string | null;
-  file: { path: string; hash: string; content: LeaderboardFile } | null;
+  file: { path: string; hash: string; populationHash: string; content: LeaderboardFile } | null;
 }
 
 export interface LeaderboardBatch {
@@ -175,19 +245,21 @@ async function fetchSpec(
   }
 
   const hash = hashLeaderboard(res.data);
+  const populationHash = hashPopulation(res.data);
   const content: LeaderboardFile = {
     fetchedAt,
     region: client.region,
     seasonId,
     bracket,
     contentHash: hash,
+    populationHash,
     leaderboard: res.data,
   };
 
   fs.mkdirSync(LEADERBOARD_DIR, { recursive: true });
   const filePath = path.join(LEADERBOARD_DIR, leaderboardFileName(bracket, seasonId, fetchedAt));
   fs.writeFileSync(filePath, JSON.stringify(content, null, 2));
-  result.file = { path: filePath, hash, content };
+  result.file = { path: filePath, hash, populationHash, content };
 
   return result;
 }

@@ -13,9 +13,10 @@ import { ingestFile, printDistribution } from "./ingest-leaderboard";
  * que desaparece al terminar la corrida.
  *
  * Preguntamos cada 3h porque es la cadencia que fuentes de terceros atribuyen a
- * Blizzard, pero la asunción no se da por buena: se ingiere solo cuando el
- * contenido descargado difiere del anterior, y cada observación queda registrada
- * para poder medir la cadencia real más adelante.
+ * Blizzard, pero la asunción no se da por buena: se ingiere solo cuando cambia
+ * la **población** descargada —no cuando cambia el payload, que se mueve por el
+ * rank y por campos que ni guardamos (#53, ADR 0009)— y cada observación queda
+ * registrada para poder medir la cadencia real.
  */
 
 const MS_PER_HOUR = 3_600_000;
@@ -25,17 +26,31 @@ interface RefreshOutcome {
   result: FetchedLeaderboard;
   changed: boolean;
   snapshots: number;
+  redundant: number;
 }
 
-async function lastHashByBracket(pool: pg.Pool, region: string): Promise<Map<string, string>> {
-  const { rows } = await pool.query<{ bracket: string; content_hash: string }>(
-    `select distinct on (bracket) bracket, content_hash
+/**
+ * Última huella no nula de cada bracket.
+ *
+ * Son dos y no una desde #53, y miden cosas distintas: `content_hash` dice si
+ * Blizzard republicó (la cadencia para la que nació la bitácora, ADR 0004) y
+ * `population_hash` dice si cambió alguien, que es lo único que justifica
+ * ingerir. Se filtran los nulos porque null es "no se pudo mirar" o "la ingesta
+ * falló": darlo por bueno haría que el bracket no se reintentara.
+ */
+async function lastHashByBracket(
+  pool: pg.Pool,
+  region: string,
+  column: "content_hash" | "population_hash",
+): Promise<Map<string, string>> {
+  const { rows } = await pool.query<{ bracket: string; hash: string }>(
+    `select distinct on (bracket) bracket, ${column} as hash
        from leaderboard_fetches
-      where region = $1 and content_hash is not null
+      where region = $1 and ${column} is not null
       order by bracket, fetched_at desc`,
     [region],
   );
-  return new Map(rows.map((r) => [r.bracket, r.content_hash]));
+  return new Map(rows.map((r) => [r.bracket, r.hash]));
 }
 
 // -- Cadencia --------------------------------------------------------------
@@ -108,30 +123,48 @@ export function summarizeCadence(rows: CadenceRow[]): CadenceSummary[] {
     });
 }
 
+/**
+ * Dos cadencias, no una (#53). Cada cuánto **publica** Blizzard es la medición
+ * que §28 dejó pendiente y para la que nació la bitácora; cada cuánto **cambia
+ * la población** es lo que de verdad marca el ritmo al que crece el histórico, y
+ * por tanto el número con el que se decide el cron y la retención (#48). Que
+ * fueran lo mismo era precisamente el error que este issue corrige.
+ */
 async function printCadence(pool: pg.Pool, region: string): Promise<void> {
-  const { rows } = await pool.query<CadenceRow>(
-    `select bracket, fetched_at
-       from leaderboard_fetches
-      where region = $1 and changed
-      order by bracket, fetched_at asc`,
-    [region],
-  );
+  const load = async (condition: string): Promise<CadenceSummary[]> => {
+    const { rows } = await pool.query<CadenceRow>(
+      `select bracket, fetched_at
+         from leaderboard_fetches
+        where region = $1 and ${condition}
+        order by bracket, fetched_at asc`,
+      [region],
+    );
+    return summarizeCadence(rows).filter((s) => s.medianHours !== null);
+  };
 
-  const summaries = summarizeCadence(rows).filter((s) => s.medianHours !== null);
-  if (summaries.length === 0) {
+  const fmt = (h: number | null): string => (h === null ? "—" : `${h.toFixed(1)}h`);
+  const print = (title: string, unit: string, summaries: CadenceSummary[]): void => {
+    if (summaries.length === 0) return;
+    console.log(`\n=== ${title} ===`);
+    console.log("(cota superior: solo miramos cada 3h, así que el valor real puede ser menor)\n");
+    for (const s of summaries) {
+      console.log(
+        `  ${s.bracket}: mediana ${fmt(s.medianHours)} ` +
+          `(min ${fmt(s.minHours)}, max ${fmt(s.maxHours)}, ${s.changes} ${unit})`,
+      );
+    }
+  };
+
+  const published = await load("published");
+  const changed = await load("changed");
+
+  if (published.length === 0 && changed.length === 0) {
     console.log("\nCadencia observada: todavía no hay dos publicaciones distintas que comparar.");
     return;
   }
 
-  console.log("\n=== CADENCIA OBSERVADA DE PUBLICACIÓN ===");
-  console.log("(cota superior: solo miramos cada 3h, así que el valor real puede ser menor)\n");
-  for (const s of summaries) {
-    const fmt = (h: number | null) => (h === null ? "—" : `${h.toFixed(1)}h`);
-    console.log(
-      `  ${s.bracket}: mediana ${fmt(s.medianHours)} ` +
-        `(min ${fmt(s.minHours)}, max ${fmt(s.maxHours)}, ${s.changes} publicaciones)`,
-    );
-  }
+  print("CADENCIA OBSERVADA DE PUBLICACIÓN", "publicaciones", published);
+  print("CADENCIA OBSERVADA DE CAMBIO DE POBLACIÓN", "cambios", changed);
 }
 
 // -- Retención -------------------------------------------------------------
@@ -177,7 +210,8 @@ export async function refreshLeaderboard(): Promise<void> {
 
   const pool = createPool();
   try {
-    const previous = await lastHashByBracket(pool, batch.region);
+    const previousContent = await lastHashByBracket(pool, batch.region, "content_hash");
+    const previousPopulation = await lastHashByBracket(pool, batch.region, "population_hash");
     const outcomes: RefreshOutcome[] = [];
     const failures: string[] = [];
 
@@ -186,48 +220,67 @@ export async function refreshLeaderboard(): Promise<void> {
       if (!result.file) {
         // No se pudo mirar. Se registra igual: un hueco en la bitácora sin
         // explicación se confundiría después con "Blizzard no publicó nada".
-        await recordFetch(pool, batch, result, { changed: false, snapshots: 0 });
+        await recordFetch(pool, batch, result, { changed: false, published: null, snapshots: 0 });
         console.log(`→ ${result.spec}: descarga fallida, no se ingiere`);
-        outcomes.push({ result, changed: false, snapshots: 0 });
+        outcomes.push({ result, changed: false, snapshots: 0, redundant: 0 });
         continue;
       }
 
-      const changed = previous.get(result.bracket) !== result.file.hash;
+      // Publicar y cambiar de población no son lo mismo (#53): el payload se
+      // mueve por el rank, por el envoltorio y por campos que ni ingerimos. Lo
+      // primero se registra como observación de cadencia; solo lo segundo
+      // justifica escribir en el histórico.
+      //
+      // Los brackets sin population_hash previo (los de antes de esta migración)
+      // no están en el mapa, así que cuentan como cambio y se ingieren una vez.
+      // No hace falta tratarlos aparte: el filtro por fila de `ingestFile`
+      // absorbe esa ingesta escribiendo cero filas.
+      const published = previousContent.get(result.bracket) !== result.file.hash;
+      const changed = previousPopulation.get(result.bracket) !== result.file.populationHash;
 
       if (!changed) {
-        // Mismo contenido que la última vez: Blizzard no ha republicado. Ingerirlo
-        // crearía una fila por personaje con captured_at nuevo y datos idénticos,
-        // que es exactamente lo que hace inútil un histórico append-only.
+        // Nadie ha entrado, salido ni movido rating o partidas. Ingerirlo
+        // crearía una fila por personaje con captured_at nuevo y datos
+        // idénticos, que es lo que hace inútil un histórico append-only.
         fs.rmSync(result.file.path, { force: true });
-        await recordFetch(pool, batch, result, { changed: false, snapshots: 0 });
-        console.log(`→ ${result.spec}: sin cambios desde la última descarga, no se ingiere`);
-        outcomes.push({ result, changed: false, snapshots: 0 });
+        await recordFetch(pool, batch, result, { changed: false, published, snapshots: 0 });
+        const detail = published
+          ? "republicado pero sin cambios de población"
+          : "sin cambios desde la última descarga";
+        console.log(`→ ${result.spec}: ${detail}, no se ingiere`);
+        outcomes.push({ result, changed: false, snapshots: 0, redundant: 0 });
         continue;
       }
 
       try {
-        const { snapshots } = await ingestFile(pool, batch.region, result.file.content);
-        await recordFetch(pool, batch, result, { changed: true, snapshots });
-        console.log(`→ ${result.spec}: publicación nueva, ${snapshots} snapshots insertados`);
-        outcomes.push({ result, changed: true, snapshots });
+        const { snapshots, redundant } = await ingestFile(pool, batch.region, result.file.content);
+        await recordFetch(pool, batch, result, { changed: true, published, snapshots, redundant });
+        console.log(
+          `→ ${result.spec}: población nueva, ${snapshots} snapshots insertados ` +
+            `(${redundant} entradas sin cambio, descartadas)`,
+        );
+        outcomes.push({ result, changed: true, snapshots, redundant });
       } catch (err) {
         // Una spec que revienta no puede llevarse por delante a las otras 39. Son
         // 39 transacciones independientes y el runner es efímero (ADR 0004): lo que
         // no se ingiere aquí no se reintenta, se pierde esa publicación entera.
         //
-        // Se anota con content_hash null a propósito: la comparación de la corrida
-        // siguiente mira el último hash no nulo, así que guardar el de una ingesta
-        // fallida haría que el bracket se diera por ingerido y no se reintentara.
+        // Se anota con population_hash null a propósito: la comparación de la
+        // corrida siguiente mira el último hash no nulo, así que guardar el de
+        // una ingesta fallida daría el bracket por ingerido y no se reintentaría.
+        // El content_hash sí se conserva: la publicación se vio, y eso es cierto
+        // aunque la ingesta fallara.
         const reason = err instanceof Error ? err.message : String(err);
         failures.push(`${result.spec}: ${reason}`);
         await recordFetch(pool, batch, result, {
           changed: false,
+          published,
           snapshots: 0,
-          hash: null,
+          populationHash: null,
           note: `ingesta fallida — ${reason}`,
         });
         console.error(`→ ${result.spec}: ❌ la ingesta falló (${reason})`);
-        outcomes.push({ result, changed: false, snapshots: 0 });
+        outcomes.push({ result, changed: false, snapshots: 0, redundant: 0 });
       }
     }
 
@@ -239,9 +292,10 @@ export async function refreshLeaderboard(): Promise<void> {
 
     const changedCount = outcomes.filter((o) => o.changed).length;
     const total = outcomes.reduce((acc, o) => acc + o.snapshots, 0);
+    const redundant = outcomes.reduce((acc, o) => acc + o.redundant, 0);
     console.log(
-      `\n${changedCount}/${outcomes.length} brackets con publicación nueva — ` +
-        `${total} snapshots insertados.`,
+      `\n${changedCount}/${outcomes.length} brackets con cambio de población — ` +
+        `${total} snapshots insertados, ${redundant} entradas descartadas por no cambiar nada.`,
     );
 
     const pruned = prune(new Date(batch.fetchedAt));
@@ -269,25 +323,40 @@ async function recordFetch(
   result: FetchedLeaderboard,
   {
     changed,
+    published,
     snapshots,
-    hash,
+    redundant,
+    populationHash,
     note,
-  }: { changed: boolean; snapshots: number; hash?: string | null; note?: string | null },
+  }: {
+    /** ¿Cambió la población, y por tanto se ingirió? */
+    changed: boolean;
+    /** ¿Republicó Blizzard? null = no se pudo mirar (regla 5). */
+    published: boolean | null;
+    snapshots: number;
+    redundant?: number;
+    /** Explícito a null cuando la ingesta falló: ver el catch del job. */
+    populationHash?: string | null;
+    note?: string | null;
+  },
 ): Promise<void> {
   await pool.query(
     `insert into leaderboard_fetches
-       (region, season_id, bracket, fetched_at, content_hash, entry_count, changed,
-        ingested_snapshots, note)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+       (region, season_id, bracket, fetched_at, content_hash, population_hash, entry_count,
+        changed, published, ingested_snapshots, redundant_entries, note)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
     [
       batch.region,
       batch.seasonId,
       result.bracket,
       batch.fetchedAt,
-      hash === undefined ? (result.file?.hash ?? null) : hash,
+      result.file?.hash ?? null,
+      populationHash === undefined ? (result.file?.populationHash ?? null) : populationHash,
       result.entries,
       changed,
+      published,
       snapshots,
+      redundant ?? 0,
       note ?? result.warning,
     ],
   );

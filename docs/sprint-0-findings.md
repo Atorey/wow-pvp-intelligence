@@ -178,4 +178,20 @@ Al derivar `last_active_snapshot_date` de `season_match_statistics.played` (ADR 
 
 **Consecuencia**: hoy el 100 % de la población entra en la ventana por primera observación (`first-seen`) y no por subida vista del contador. Está declarado en cada fila de `population_segments` (`active_by_delta` / `active_by_first_seen`) y el job lo dice al terminar. El primer `played-delta` real llegará cuando haya dos publicaciones de la temporada 42 con juego entre medias.
 
-**Efecto colateral medido**: el 18 de agosto se ingirieron **447.851 snapshots** cuyo contenido no cambiaba en rating ni en partidas. El `content_hash` se mueve porque el `rank` baila con las altas y bajas del corte, así que la comprobación del ADR 0004 no filtra este caso. No contamina la actividad —un contador que no sube no es actividad, se ingiera una vez o veinte—, pero sí el volumen: se trata en #53, dentro del alcance de #48.
+**Efecto colateral medido**: el 18 de agosto se ingirieron **447.851 snapshots** cuyo contenido no cambiaba en rating ni en partidas, así que la comprobación del ADR 0004 no filtraba este caso. No contamina la actividad —un contador que no sube no es actividad, se ingiera una vez o veinte—, pero sí el volumen. Resuelto el 20 de agosto de 2026 en el [ADR 0009](decisions/0009-ingesta-por-cambio-de-poblacion.md); ver §11.
+
+## 11. Por qué se reingería el leaderboard (#53)
+
+Al medirlo para arreglarlo apareció que la causa no era la que se había supuesto (el `rank` desplazándose con las altas y bajas del corte). De las **148 transiciones** entre publicaciones consecutivas de la temporada 41:
+
+| Qué se movía entre una publicación y la siguiente                                                    | Transiciones |
+| ---------------------------------------------------------------------------------------------------- | -----------: |
+| Solo el `rank`                                                                                       |           36 |
+| Altas o bajas de la lista (población de verdad)                                                      |           49 |
+| **Nada de lo que guardamos** — ni rating, ni partidas, ni won/lost, ni tier, ni rank, ni altas/bajas |       **96** |
+
+En dos tercios de los casos el payload cambiaba por algo que ni siquiera ingerimos. Por eso la huella que decide la ingesta se calcula ahora sobre la proyección exacta de lo que se guarda, ordenada por identidad, y no sobre el payload menos los campos que se nos vayan ocurriendo.
+
+**Y en temporada viva un hash mejor no basta.** En la 42, **246 de 303** publicaciones traen algún cambio real de población —cualquier huella honesta diría "cambió" en el 81 % de las corridas—, pero solo el **18 %** de las filas de cada una lleva información nueva (8.391 de 45.793 pares consecutivos). El resto entra porque _otro_ jugador del bracket jugó. De ahí que el arreglo tenga dos piezas: la huella decide si se ingiere el bracket, y un filtro por fila decide qué se escribe.
+
+**Estado de la tabla al hacer el cambio** (20 de agosto de 2026, EU): 840.240 filas y 264 MB en `character_snapshots`, de las cuales unas 650.000 no aportan información. No se borran aquí: es alcance de #48.
