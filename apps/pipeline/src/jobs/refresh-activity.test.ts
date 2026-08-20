@@ -4,6 +4,7 @@ import {
   computeActivity,
   parseOptions,
   summarizeActivity,
+  withPresence,
   type ComputedActivity,
   type ObservationRow,
 } from "./refresh-activity";
@@ -115,4 +116,45 @@ test("el contador de la búsqueda comparte listón con el del perfil", () => {
   ]);
 
   assert.equal(activities[0]?.evidence, "first-seen");
+});
+
+// --- Presencia (#53) ---
+
+test("el 'le hemos visto' sale de la presencia, no de la última fila de la serie", () => {
+  // Desde #53 los snapshots solo guardan cambios: la serie termina el día en que
+  // cambió algo, no el día en que le vimos. Sin presencia, el proxy se volvería
+  // una tautología (lastSeenAt == lastActiveAt) y el sesgo mediría cero.
+  const [activity] = withPresence(
+    [computed({ lastActiveAt: daysAgo(6), lastSeenAt: daysAgo(6) })],
+    new Map([["a", { characterId: "a", lastSeenAt: NOW }]]),
+  );
+
+  assert.equal(activity?.lastSeenAt.getTime(), NOW.getTime());
+  assert.equal(activity?.lastActiveAt.getTime(), daysAgo(6).getTime());
+  assert.equal(
+    summarizeActivity(
+      withPresence(
+        [computed({ lastActiveAt: daysAgo(6), lastSeenAt: daysAgo(6) })],
+        new Map([["a", { characterId: "a", lastSeenAt: NOW }]]),
+      ),
+    ).medianProxyGapDays,
+    6,
+  );
+});
+
+test("una observación de perfil más reciente que la lista no se pierde", () => {
+  // La presencia solo la deja el leaderboard; un personaje muestreado o buscado
+  // después sigue habiendo sido visto, y la fecha buena es la más reciente.
+  const [activity] = withPresence(
+    [computed({ lastSeenAt: NOW })],
+    new Map([["a", { characterId: "a", lastSeenAt: daysAgo(3) }]]),
+  );
+
+  assert.equal(activity?.lastSeenAt.getTime(), NOW.getTime());
+});
+
+test("sin fila de presencia se deja lo derivado de la serie", () => {
+  const [activity] = withPresence([computed({ lastSeenAt: daysAgo(1) })], new Map());
+
+  assert.equal(activity?.lastSeenAt.getTime(), daysAgo(1).getTime());
 });

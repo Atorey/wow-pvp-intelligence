@@ -34,6 +34,11 @@ import { createPool } from "../db/pool";
  * Eso sí, el contador de cada fuente solo se compara consigo mismo: el del
  * perfil y el del leaderboard no cuentan lo mismo (ver `counterSource` en core),
  * y `search` trae el del perfil porque sale del mismo endpoint.
+ *
+ * Desde #53 los snapshots de leaderboard solo guardan cambios, así que
+ * `observations` cuenta observaciones **con información nueva**, no veces que le
+ * hemos visto. Las veces que le hemos visto están en `character_presence`, y de
+ * ahí sale `last_seen_at` (ver `withPresence`).
  */
 
 const MS_PER_DAY = 86_400_000;
@@ -89,6 +94,45 @@ export interface ObservationRow {
 export interface ComputedActivity extends CharacterActivity {
   characterId: string;
   bracket: string;
+}
+
+/** Cuándo le vimos por última vez en la lista del leaderboard. */
+export interface PresenceRow {
+  characterId: string;
+  lastSeenAt: Date;
+}
+
+/**
+ * Pone el "le hemos visto" de `character_presence` sobre la actividad derivada.
+ *
+ * Desde #53 los snapshots solo guardan cambios, así que la última observación de
+ * la serie ya no dice cuándo le vimos por última vez, sino cuándo cambió por
+ * última vez — que es exactamente `lastActiveAt` y convertiría el proxy en una
+ * tautología. La presencia sí lo sabe.
+ *
+ * Se toma el más reciente de los dos, no el de presencia a secas: la actividad
+ * puede venir de un snapshot de perfil o de búsqueda, fuentes que no dejan
+ * presencia de leaderboard porque no son la lista.
+ *
+ * Sin fila de presencia se deja lo derivado: es un personaje que solo conocemos
+ * por perfil o búsqueda, y ahí la serie sigue siendo toda la observación que hay.
+ *
+ * `firstSeenAt` no se toca: es lo que fecha la evidencia `first-seen`, y moverlo
+ * por un lado sin mover `lastActiveAt` por el otro dejaría la fila diciendo dos
+ * cosas distintas sobre el mismo instante.
+ */
+export function withPresence(
+  activities: readonly ComputedActivity[],
+  presence: ReadonlyMap<string, PresenceRow>,
+): ComputedActivity[] {
+  return activities.map((activity) => {
+    const seen = presence.get(activity.characterId);
+    if (!seen) return activity;
+    return {
+      ...activity,
+      lastSeenAt: new Date(Math.max(activity.lastSeenAt.getTime(), seen.lastSeenAt.getTime())),
+    };
+  });
 }
 
 /**
@@ -220,6 +264,29 @@ async function loadObservations(
   }));
 }
 
+/** Presencia en la lista de un bracket, indexada por personaje. */
+async function loadPresence(
+  pool: pg.Pool,
+  region: string,
+  seasonId: number,
+  bracket: string,
+): Promise<Map<string, PresenceRow>> {
+  const { rows } = await pool.query<{ character_id: string; last_seen_at: Date }>(
+    `select p.character_id, p.last_seen_at
+       from character_presence p
+       join characters c on c.id = p.character_id
+      where c.region = $1 and p.season_id = $2 and p.bracket = $3`,
+    [region, seasonId, bracket],
+  );
+
+  return new Map(
+    rows.map((row) => [
+      row.character_id,
+      { characterId: row.character_id, lastSeenAt: row.last_seen_at },
+    ]),
+  );
+}
+
 /**
  * Escribe la actividad de un bracket.
  *
@@ -294,7 +361,8 @@ export async function rebuildActivity(
 
     for (const bracket of brackets) {
       const observations = await loadObservations(pool, region, seasonId, bracket);
-      const activities = computeActivity(bracket, observations);
+      const presence = await loadPresence(pool, region, seasonId, bracket);
+      const activities = withPresence(computeActivity(bracket, observations), presence);
       if (write) await writeActivity(client, seasonId, computedAt, activities);
       all.push(...activities);
     }

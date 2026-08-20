@@ -14,8 +14,8 @@ Hay además un problema que no existía con la ejecución manual de Sprint 0: **
 
 1. **Runner: cron de GitHub Actions** ([.github/workflows/leaderboard.yml](../../.github/workflows/leaderboard.yml)), cada 3 horas, con `workflow_dispatch` para forzar una corrida.
 2. **Descarga e ingesta en la misma ejecución**, en un único comando `refresh-leaderboard`. El runner es efímero: un fetch sin su ingesta deja el trabajo en un disco que se destruye al terminar.
-3. **La ingesta se decide por contenido, no por reloj.** De cada descarga se guarda el hash del payload de Blizzard en `leaderboard_fetches` (migración 0003). Solo se ingiere cuando el hash difiere del anterior de ese bracket.
-4. **Cada descarga queda registrada**, cambie o no, incluso si falló. Los intervalos entre observaciones con `changed = true` miden la cadencia real de publicación.
+3. ~~**La ingesta se decide por contenido, no por reloj.**~~ De cada descarga se guarda el hash del payload de Blizzard en `leaderboard_fetches` (migración 0003). Solo se ingiere cuando el hash difiere del anterior de ese bracket. **Sustituido el 20 de agosto de 2026 por el [ADR 0009](0009-ingesta-por-cambio-de-poblacion.md)**: el hash del payload se mueve por cosas que no son población —el `rank`, y en 96 de 148 transiciones medidas, nada que guardemos—, así que la ingesta la decide una huella de la población publicada y, dentro de ella, solo se escriben las filas que cambian.
+4. **Cada descarga queda registrada**, cambie o no, incluso si falló. Los intervalos entre observaciones con `changed = true` miden la cadencia real de publicación. (Desde el [ADR 0009](0009-ingesta-por-cambio-de-poblacion.md) esa medición se lee en `published`; `changed` pasa a significar "cambió la población, así que se ingirió".)
 5. **Los JSON descargados son caché con retención corta** (`LEADERBOARD_RETENTION_DAYS`, 3 días por defecto). El histórico está en Postgres.
 
 ## Por qué

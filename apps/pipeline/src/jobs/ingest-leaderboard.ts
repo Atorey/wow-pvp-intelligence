@@ -75,11 +75,21 @@ function readLeaderboardFiles(): { file: string; content: LeaderboardFile }[] {
     }));
 }
 
+/** Lo que dejó una ingesta. `redundant` es el número que #48 necesita para decidir retención. */
+export interface IngestResult {
+  /** Filas nuevas en character_snapshots: las únicas que traen información. */
+  snapshots: number;
+  /** Entradas idénticas a la observación anterior del mismo personaje, no insertadas. */
+  redundant: number;
+  /** Entradas recibidas con identidad resoluble: las que cuentan como presencia. */
+  seen: number;
+}
+
 export async function ingestFile(
   pool: pg.Pool,
   region: string,
   content: LeaderboardFile,
-): Promise<{ snapshots: number }> {
+): Promise<IngestResult> {
   const spec = parseShuffleBracket(content.bracket);
   if (!spec) {
     throw new Error(
@@ -98,7 +108,7 @@ export async function ingestFile(
       `  ⚠️  ${duplicated} entrada(s) del mismo personaje repetidas en la publicación, descartadas.`,
     );
 
-  if (entries.length === 0) return { snapshots: 0 };
+  if (entries.length === 0) return { snapshots: 0, redundant: 0, seen: 0 };
 
   const client = await pool.connect();
   try {
@@ -131,15 +141,61 @@ export async function ingestFile(
     if (skipped > 0)
       console.warn(`  ⚠️  ${skipped} entradas sin character_id resoluble (revisar).`);
 
-    const result = await client.query(
-      `insert into character_snapshots
-         (character_id, captured_at, source, season_id, bracket, class_slug, spec_slug,
-          rating, ladder_rank, matches_played, matches_won, matches_lost, pvp_tier_id)
-       select * from unnest(
-         $1::uuid[], $2::timestamptz[], $3::text[], $4::int[], $5::text[], $6::text[], $7::text[],
-         $8::int[], $9::int[], $10::int[], $11::int[], $12::int[], $13::int[]
+    //    Y solo entra lo que difiere de la observación anterior del mismo
+    //    personaje: sin ese filtro, una publicación entera (5.000 filas) se
+    //    escribe porque *otro* jugador del bracket jugó. Medido sobre la
+    //    temporada 42, solo el 18% de las filas de cada publicación llevaba algo
+    //    nuevo; sobre la 41, ninguna de 647.950 (#53). Lo demás no es un
+    //    histórico más denso, es uno más ruidoso, y engorda la única tabla que
+    //    no podríamos reconstruir.
+    //
+    //    Se compara contra la misma fuente y temporada, nunca contra un snapshot
+    //    de perfil: sus contadores de partidas no cuentan lo mismo (ADR 0008) y
+    //    cruzarlos fabricaría diferencias que nadie jugó. Y contra la observación
+    //    *anterior* (`captured_at <`), para que reingerir un archivo ya ingerido
+    //    siga siendo idempotente en vez de compararse consigo mismo.
+    const result = await client.query<{ received: string; redundant: string; inserted: string }>(
+      `with incoming as (
+         select * from unnest(
+           $1::uuid[], $2::timestamptz[], $3::text[], $4::int[], $5::text[], $6::text[], $7::text[],
+           $8::int[], $9::int[], $10::int[], $11::int[], $12::int[], $13::int[]
+         ) as t(character_id, captured_at, source, season_id, bracket, class_slug, spec_slug,
+                rating, ladder_rank, matches_played, matches_won, matches_lost, pvp_tier_id)
+       ),
+       with_previous as (
+         select i.*,
+                (previous.id is not null
+                 and (i.rating, i.matches_played, i.matches_won, i.matches_lost, i.pvp_tier_id)
+                     is not distinct from
+                     (previous.rating, previous.matches_played, previous.matches_won,
+                      previous.matches_lost, previous.pvp_tier_id)) as redundant
+           from incoming i
+           left join lateral (
+             select s.id, s.rating, s.matches_played, s.matches_won, s.matches_lost, s.pvp_tier_id
+               from character_snapshots s
+              where s.character_id = i.character_id
+                and s.bracket = i.bracket
+                and s.season_id = i.season_id
+                and s.source = 'leaderboard'
+                and s.captured_at < i.captured_at
+              order by s.captured_at desc
+              limit 1
+           ) previous on true
+       ),
+       inserted as (
+         insert into character_snapshots
+           (character_id, captured_at, source, season_id, bracket, class_slug, spec_slug,
+            rating, ladder_rank, matches_played, matches_won, matches_lost, pvp_tier_id)
+         select character_id, captured_at, source, season_id, bracket, class_slug, spec_slug,
+                rating, ladder_rank, matches_played, matches_won, matches_lost, pvp_tier_id
+           from with_previous
+          where not redundant
+         on conflict (character_id, bracket, captured_at) do nothing
+         returning 1
        )
-       on conflict (character_id, bracket, captured_at) do nothing`,
+       select (select count(*) from with_previous)                 as received,
+              (select count(*) from with_previous where redundant) as redundant,
+              (select count(*) from inserted)                      as inserted`,
       [
         rows.map((r) => r.id),
         rows.map(() => content.fetchedAt),
@@ -157,8 +213,37 @@ export async function ingestFile(
       ],
     );
 
+    // 3) Presencia: le hemos visto en la lista, cambiara algo o no.
+    //
+    //    Con el filtro de arriba, `character_snapshots` deja de poder responder
+    //    a "¿cuándo le vimos por última vez?": solo guarda cambios. Ese proxy no
+    //    es decorativo — el ADR 0008 lo conserva para medir con dato delante la
+    //    distancia entre "le hemos visto" y "ha jugado", que es el sesgo que #16
+    //    vino a quitar—, así que vive aquí, a una fila por personaje y temporada
+    //    en vez de una por publicación.
+    //
+    //    El `where` del update es lo que mantiene idempotente reingerir un
+    //    archivo: sin él, cada reingesta sumaría una publicación que nadie hizo.
+    await client.query(
+      `insert into character_presence
+         (character_id, bracket, season_id, first_seen_at, last_seen_at)
+       select id, $2, $3, $4::timestamptz, $4::timestamptz from unnest($1::uuid[]) as id
+       on conflict (character_id, bracket, season_id) do update set
+         first_seen_at = least(character_presence.first_seen_at, excluded.first_seen_at),
+         last_seen_at  = excluded.last_seen_at,
+         publications  = character_presence.publications + 1
+       where excluded.last_seen_at > character_presence.last_seen_at`,
+      [rows.map((r) => r.id), content.bracket, content.seasonId, content.fetchedAt],
+    );
+
     await client.query("commit");
-    return { snapshots: result.rowCount ?? 0 };
+
+    const counts = result.rows[0];
+    return {
+      snapshots: Number(counts?.inserted ?? 0),
+      redundant: Number(counts?.redundant ?? 0),
+      seen: Number(counts?.received ?? 0),
+    };
   } catch (err) {
     await client.query("rollback");
     throw err;
@@ -218,14 +303,22 @@ export async function ingestLeaderboards(): Promise<void> {
     console.log(`Ingiriendo ${files.length} archivo(s) (región ${region})...\n`);
 
     let total = 0;
+    let redundant = 0;
     for (const { file, content } of files) {
       const label = parseShuffleBracket(content.bracket)?.label ?? content.bracket;
-      const { snapshots } = await ingestFile(pool, region, content);
-      total += snapshots;
-      console.log(`→ ${label} (${file}): ${snapshots} snapshots nuevos`);
+      const result = await ingestFile(pool, region, content);
+      total += result.snapshots;
+      redundant += result.redundant;
+      console.log(
+        `→ ${label} (${file}): ${result.snapshots} snapshots nuevos, ` +
+          `${result.redundant} sin cambio respecto a la observación anterior`,
+      );
     }
 
-    console.log(`\nTotal: ${total} snapshots insertados (los repetidos se ignoran).`);
+    console.log(
+      `\nTotal: ${total} snapshots insertados. ` +
+        `${redundant} entradas no traían nada nuevo y no se escribieron (#53).`,
+    );
     await printDistribution(pool);
   } finally {
     await pool.end();
