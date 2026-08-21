@@ -2,7 +2,7 @@
 
 Estado de la validación de datos (Phase 0). Lo que aquí se da por bueno es lo que se ejecutó de verdad contra la API real; lo que está en duda se marca como tal, incluso cuando el issue correspondiente esté cerrado.
 
-Actualizado: 18 de agosto de 2026.
+Actualizado: 21 de agosto de 2026.
 
 ## 1. Endpoints core — funcionan sobre las 13 clases
 
@@ -33,6 +33,8 @@ El riesgo del parche 11.2 (§30) queda cerrado: el campo existe y llega.
 
 ## 3. Cobertura del leaderboard — depende mucho de la spec
 
+> ⚠️ **Todo lo de esta sección es de la temporada 41, terminada el 19 de agosto de 2026, y describe el caso contrario al de hoy.** En una temporada recién empezada el tope de 5.000 no llega a aplicar y lo que falta es la parte alta, no la baja. Los números vigentes están en §12; la decisión de producto que salía de aquí, en §8.1.
+
 Con 15.009 personajes ingeridos de 3 specs, el corte del top 5.000:
 
 | Spec               | Cobertura fiable desde                               |
@@ -53,7 +55,7 @@ Población por segmento en los tramos que interesan hoy:
 
 **Consecuencia de producto**: la acumulación de población por búsqueda de usuario (§12 del plan) pasa de "requisito universal del MVP" a **requisito condicional según la popularidad de la spec**. Para specs muy jugadas no hay Player Gap creíble por debajo de 1800 sin ella.
 
-**Consecuencia de diseño**: el ICP declarado es 1400-2200, pero en las specs más jugadas hoy solo se puede servir desde ~1800. O se lanza con specs de cobertura buena, o la acumulación por búsqueda entra antes del lanzamiento. Es una decisión de producto, no técnica, y sigue sin tomarse.
+~~**Consecuencia de diseño**: el ICP declarado es 1400-2200, pero en las specs más jugadas hoy solo se puede servir desde ~1800. O se lanza con specs de cobertura buena, o la acumulación por búsqueda entra antes del lanzamiento.~~ La disyuntiva no sobrevivió a medirla de nuevo: la acumulación por búsqueda ya está construida (#14) y el perfil de cobertura se invierte con el ciclo de la temporada. Decidido el 21 de agosto de 2026 — ver §8.1 y §12.
 
 ## 4. Muestreo de perfiles completos — hecho
 
@@ -143,7 +145,7 @@ Casi cada jugador tiene un código único. El código completo codifica el árbo
 - **Refresco 24-48h**: repetir la descarga y comprobar que se detectan cambios reales (§32, días 11-12). No ejecutado.
 - ~~**Ampliar a todas las specs** (#13)~~: hecho el 18 de agosto de 2026, ver sección 9.
 - **`adoption_rate` de producto** (#21, #22): lo de la sección 6 es un reporte de Sprint 0, no la agregación persistida que consumirá la web.
-- **GO/NO-GO formal de Sprint 0** (#10).
+- ~~**GO/NO-GO formal de Sprint 0** (#10)~~: el veredicto estaba en §8 desde el 18 de agosto; lo que faltaba eran las dos decisiones de producto que colgaban de él, tomadas el 21 de agosto de 2026 (#56). Este apartado seguía listándolo como pendiente con el issue ya cerrado — el patrón contra el que avisa `CLAUDE.md`.
 
 ## 8. Estado del veredicto
 
@@ -153,10 +155,35 @@ Según el criterio de §32:
 - Gear: fiable ✅ (9.775 filas por slot, con gemas y encantamientos) y **con señal discriminante demostrada** (sección 6.1)
 - Talentos: **disponibles ✅ pero no utilizables todavía** ⚠️ (sección 6.2) — el dato está, la comparación por código exacto no informa
 
-Sigue dando para un **GO**: §32 lo condiciona a que rating y gear sean fiables, y ambos lo son con la comparación real ya hecha. Pero el GO es sobre un Player Gap **de gear**, no el de tres categorías del mockup. Lo que queda abierto son dos decisiones de producto, no de datos:
+Sigue dando para un **GO**: §32 lo condiciona a que rating y gear sean fiables, y ambos lo son con la comparación real ya hecha. Pero el GO es sobre un Player Gap **de gear**, no el de tres categorías del mockup.
 
-1. Con qué specs se lanza, o si la acumulación por búsqueda entra antes (sección 3).
-2. Si #24 (decodificar talentos) entra antes del MVP o se lanza sin la categoría "Talents".
+De ahí colgaban dos decisiones de producto, no de datos. **Ambas tomadas el 21 de agosto de 2026 (#56)**, y con eso Phase 0 queda cerrada de verdad.
+
+### 8.1 Decisión 1 — se lanza con las 40 specs y la cobertura decide (21 de agosto de 2026)
+
+**No hay lista de specs de lanzamiento.** Se ingieren, muestrean y ofrecen las 40, y `canShowComparison()` decide por par `(spec, segmento objetivo)` si hay comparación o si se explica por qué no. Decisión completa, con la medición que la sostiene, en el [ADR 0010](decisions/0010-cobertura-por-segmento.md).
+
+La disyuntiva que dejaba abierta §3 —"o specs de cobertura buena, o la acumulación por búsqueda antes del lanzamiento"— ya no existía cuando fuimos a contestarla:
+
+- **La acumulación por búsqueda está construida** desde que se cerró #14 ([ADR 0006](decisions/0006-acumulacion-de-poblacion-por-busqueda.md)). Lo que falta no es el mecanismo, es el tráfico que lo alimente, y ese no existe antes de lanzar.
+- **Los números de §3 son de una temporada terminada** y describen el caso contrario al de hoy (§12).
+- **El cuello no era la lista de specs.** Hoy `population_segments` tiene 357 filas con n≥30 de población y `gear_sample = 0` en las 1.424: ninguna spec puede pintar un Player Gap, se elija la lista que se elija. Lo que desbloquea el lanzamiento es #66, no una selección de specs.
+
+Tres consecuencias directas: #66 recibe su contrato de muestreo (cuota por par, objetivo 100, suelo 30, gasto de abajo arriba), el mínimo de lanzamiento se cuenta en **pares servibles** y no en specs —y es alcance de #73—, y #58 sube de prioridad porque el estado "sin comparación" deja de ser marginal.
+
+### 8.2 Decisión 2 — se lanza sin la categoría "Talents" (21 de agosto de 2026)
+
+**#24 no entra antes del MVP.** El Player Gap del lanzamiento es **de gear**, y se queda en `priority:mvp-plus`.
+
+Es literalmente el plan de contingencia que §32 del plan ya contemplaba —"GO condicionado: se lanza MVP con Player Gap basado solo en gear/stats"— activado por un motivo distinto del previsto. §32 lo condicionaba a que el dato faltara; el dato está (§2, 594 de 595 perfiles), lo que no sirve es la comparación por código exacto (§6.2). El efecto sobre lo que se puede pintar es el mismo.
+
+**Por qué no al revés**, teniendo el mockup de §13.1 cuatro barras:
+
+- **Gear es la única categoría con señal discriminante demostrada** (§6.1), y stats secundarias y embellishments ni siquiera están en el schema. Meter #24 no daría las cuatro barras, daría dos.
+- **#24 es investigación de duración desconocida** —parsear el árbol de talentos de cada spec contra un formato que Blizzard no documenta como API— y ponerlo en el camino crítico ata la fecha de lanzamiento a algo sin estimar.
+- **La categoría que falta no se disimula, se declara.** La comparación exacta se queda en el reporte marcada con `hasUsableSignal: false` y explicando la limitación antes de enseñar nada, que es lo que ya hace hoy.
+
+Consecuencia inmediata: **#57 queda desbloqueado con la respuesta clara** —la caja "WHAT SEPARATES YOU FROM 2000+?" tiene **una sola categoría**, no cuatro—, y lo que #57 decide es qué enseña esa caja en esas condiciones. Las barras del mockup, con una sola categoría, dejan de tener sentido como forma; la lista de _biggest differences_ sí está completa y cumple el formato fijo de §13.6.
 
 ## 9. Ampliación a todas las specs (#13)
 
@@ -195,3 +222,39 @@ En dos tercios de los casos el payload cambiaba por algo que ni siquiera ingerim
 **Y en temporada viva un hash mejor no basta.** En la 42, **246 de 303** publicaciones traen algún cambio real de población —cualquier huella honesta diría "cambió" en el 81 % de las corridas—, pero solo el **18 %** de las filas de cada una lleva información nueva (8.391 de 45.793 pares consecutivos). El resto entra porque _otro_ jugador del bracket jugó. De ahí que el arreglo tenga dos piezas: la huella decide si se ingiere el bracket, y un filtro por fila decide qué se escribe.
 
 **Estado de la tabla al hacer el cambio** (20 de agosto de 2026, EU): 840.240 filas y 264 MB en `character_snapshots`, de las cuales unas 650.000 no aportan información. No se borran aquí: es alcance de #48.
+
+## 12. Cobertura real al empezar la temporada 42 (#56)
+
+Medido el 21 de agosto de 2026 sobre EU al ir a contestar la decisión 1, porque toda §3 estaba escrita con números de la temporada 41 y esa temporada terminó el 19 de agosto. Snapshot más reciente por personaje y bracket, buckets de 200, sobre las 40 specs.
+
+**La 42 no es una versión pequeña de la 41: es su inversa.**
+
+| Segmento  | Specs con n≥30 en la 41 | Población 41 | Specs con n≥30 en la 42 | Población 42 |
+| --------- | ----------------------: | -----------: | ----------------------: | -----------: |
+| 1200-1400 |                      15 |        3.867 |                      20 |        1.567 |
+| 1400-1600 |                      17 |        6.415 |                      17 |        1.496 |
+| 1600-1800 |                      25 |       14.949 |                      21 |        1.940 |
+| 1800-2000 |                      28 |       29.429 |                      12 |        1.161 |
+| 2000-2200 |                      26 |       20.596 |                   **1** |      **287** |
+| 2200-2400 |                      27 |       18.962 |                       0 |           81 |
+
+Totales: 113.527 personajes en la 41 frente a 17.387 en la 42.
+
+- **El tope de 5.000 no aprieta hoy.** La spec más poblada de la 42 tiene 1.817 personajes (Holy Priest). Es decir, el problema central de §3 —el tope cortando el rango bajo del ICP— **no existe al empezar una temporada**, y el rango 1400-1800 es hoy el mejor cubierto. Volverá cuando la ladder madure.
+- **Lo que falta ahora es el techo.** 2000-2200 tiene 287 personajes en las 40 specs juntas, y solo una llega a n≥30.
+- **Y eso es exactamente lo que rompe el Player Gap**, porque la comparación es contra el segmento **superior**, no contra el del sujeto. Pares servibles en la 42, contando en cuántas specs el segmento siguiente llega a n≥30:
+
+| Segmento del sujeto | Specs con objetivo servible |
+| ------------------- | --------------------------: |
+| 1400-1600           |                          21 |
+| 1600-1800           |                          12 |
+| 1800-2000           |                       **1** |
+| 2000-2200           |                           0 |
+
+**La lista de specs "buenas" tampoco es estable.** Las 3 validadas en Sprint 0 no son las más pobladas de la 42: Holy Priest 1.817, Retribution Paladin 1.354, Arms Warrior 1.286; Frost Mage cae al puesto 12 con 662. Cualquier selección fija habría sido un compromiso con la foto de una semana. Esto es lo que decide la forma de la decisión 1 (§8.1, [ADR 0010](decisions/0010-cobertura-por-segmento.md)).
+
+**El dato más incómodo, y el que de verdad bloquea el MVP**: los agregados del 20 de agosto tienen **1.424 filas en `population_segments`, 357 con n≥30 de población y `gear_sample = 0` en todas**. Los 595 perfiles muestreados (§4) son de la temporada 41 y `refresh-aggregates` agrega solo la vigente (§10), así que **hoy no hay ni un solo segmento capaz de pintar un Player Gap**. No es un fallo: es el [ADR 0007](decisions/0007-agregados-por-segmento.md) haciendo lo que se le pidió, guardar `gear_sample` aparte de `sample_size` para que la falta de gear no se disfrace de población. Y es la razón por la que #66 es el prerrequisito real del MVP, no una tarea de infraestructura que pueda esperar a tener consumidor.
+
+**Lo que queda sin vigilar**: la cobertura servible se mueve durante la temporada —sube según madura la ladder y se desploma en cada reinicio— y no hay nada que lo mida de forma continua. Los números de arriba son una foto sacada a mano para tomar una decisión. Sale como #74.
+
+> Lección de método, hermana de la de §5: un número medido contra la fuente real caduca igual que uno inventado si no se anota **cuándo** y **sobre qué estado del mundo** se midió. §3 no decía nada falso el día que se escribió.
