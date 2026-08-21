@@ -8,6 +8,7 @@ Producto de analítica PvP de WoW. La feature central, y la única razón de ser
 - `apps/pipeline` — ingesta Blizzard → Postgres. CLI: `npm run pipeline -- <comando>`.
 - `db/migrations` — schema versionado. `npm run db:migrate`.
 - `docs/decisions` — ADRs. Si una decisión de arquitectura se revisa, se añade un ADR nuevo.
+- `docs/design` — decisiones de pantalla, jerarquía y estados ([brief](docs/design/brief.md)). Lo que se ve no va a un ADR salvo que sea estructural.
 
 Fase actual: **Phase 0 (Data Feasibility)**, casi cerrada. No hay web todavía; entra en Phase 2.
 
@@ -30,6 +31,7 @@ Fase actual: **Phase 0 (Data Feasibility)**, casi cerrada. No hay web todavía; 
 
 ## Cuidado con
 
+- **El mockup de §13.1 del plan no es maquetable**: promete cuatro barras y solo gear es calculable. La caja Player Gap es una lista, no un panel de barras, y sus tres estados están dibujados en el [brief](docs/design/brief.md#15-los-tres-estados-de-confianza) (#57). Maquetar el ASCII del plan es trabajo perdido.
 - **Talentos**: `talent_loadout_code` se reportó ausente tras el parche 11.2 y de forma desigual por clase. Validado solo sobre 3 clases de 13. No comprometer features que dependan de talentos sin ampliar esa validación.
 - **Cobertura de leaderboard**: depende del punto de la temporada y se invierte con él. En una madura el tope de 5.000 corta el rango bajo del ICP en las specs más jugadas; en una recién empezada el tope no aplica y lo que falta es la parte alta — al empezar la 42, una sola spec llegaba a n≥30 en 2000-2200 ([§12 de findings](docs/sprint-0-findings.md)). No asumir cobertura de ningún tramo: se cuenta por par `(spec, segmento objetivo)` y decide `canShowComparison()` ([ADR 0010](docs/decisions/0010-cobertura-por-segmento.md)).
 - **`character_snapshots` guarda cambios, no visitas**: desde el 20 de agosto de 2026 solo se inserta la fila cuyo `(rating, partidas, tier)` difiere de la observación anterior del mismo personaje ([ADR 0009](docs/decisions/0009-ingesta-por-cambio-de-poblacion.md)). Contar filas para saber cuántas veces hemos visto a alguien mide otra cosa; eso está en `character_presence`.
