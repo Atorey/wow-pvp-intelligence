@@ -1,6 +1,6 @@
 # ADR 0005 — Cola de peticiones con prioridades y presupuesto horario, en proceso
 
-**Fecha**: 17 de agosto de 2026 · **Estado**: aceptada (implementa el "diseño obligatorio" de §28 del plan; no cierra la fila "Jobs" de §29)
+**Fecha**: 17 de agosto de 2026 · **Estado**: aceptada (implementa el "diseño obligatorio" de §28 del plan; no cierra la fila "Jobs" de §29) · **Revisado en parte el 22 de agosto de 2026 por el [ADR 0013](0013-web-serverless-y-cuota-en-postgres.md)**: el presupuesto deja de ser por proceso. La cola sigue ordenando y espaciando dentro de cada uno
 
 ## Contexto
 
@@ -19,7 +19,7 @@ El contexto que condiciona la decisión: no hay web ni API desplegada (entra en 
 2. **Dos techos a la vez**: espaciado fijo por segundo, y ventana deslizante horaria sobre las peticiones ya concedidas.
 3. **Las tres prioridades de §28**, una por job: `on-demand` (reservada para #14) > `batch` (leaderboard) > `aggregate` (`sample-profiles`, que alimenta los agregados de población).
 4. **Una cola por proceso, compartida por todos los `BlizzardClient`.** El límite de Blizzard es por client ID: dos clientes con su propia cola se repartirían el doble de cuota de la que existe.
-5. **El presupuesto es por proceso, con margen**: 24.000 req/h por defecto sobre un techo real de 36.000 (`BLIZZARD_REQUESTS_PER_HOUR`).
+5. ~~**El presupuesto es por proceso, con margen**~~: 24.000 req/h por defecto sobre un techo real de 36.000 (`BLIZZARD_REQUESTS_PER_HOUR`). **Revisado el 22 de agosto de 2026 por el [ADR 0013](0013-web-serverless-y-cuota-en-postgres.md)**: con la web sirviéndose desde funciones efímeras, un presupuesto que no sobrevive al proceso se multiplica por el número de invocaciones. La cuenta pasa a una tabla de Postgres que todos comparten, y `BLIZZARD_REQUESTS_PER_HOUR` deja de ser un margen para ser el techo global.
 6. **Al agotar la ventana, la cola espera** a que se libere, y lo avisa por consola.
 7. **Un 429 con `Retry-After` pausa la cola entera**, también lo urgente. El que ha pedido esperar es Blizzard; colarse solo gastaría cuota en otro 429.
 8. **Cada job imprime su gasto al terminar** (peticiones por prioridad, % de la ventana horaria, esperas por cuota).
@@ -35,7 +35,7 @@ El contexto que condiciona la decisión: no hay web ni API desplegada (entra en 
 ## Consecuencias
 
 - **La prioridad hoy no cambia nada observable**, y conviene decirlo sin adornos: todos los jobs son secuenciales, así que casi nunca hay dos candidatos compitiendo por un turno. Es superficie preparada y probada (con reloj inyectable) para #14, que es donde empezará a decidir algo de verdad.
-- **El presupuesto por proceso es una aproximación.** Dos jobs lanzados a la vez pueden sumar 48.000 req/h si alguien sube el límite por `.env`; el margen del default es lo único que lo evita. Si el proyecto llega a tener varios procesos concurrentes de forma habitual, esto necesita un ADR nuevo, no un ajuste de variable.
+- **El presupuesto por proceso es una aproximación.** Dos jobs lanzados a la vez pueden sumar 48.000 req/h si alguien sube el límite por `.env`; el margen del default es lo único que lo evita. Si el proyecto llega a tener varios procesos concurrentes de forma habitual, esto necesita un ADR nuevo, no un ajuste de variable. **Llegó a serlo con la web (issue #60), y ese ADR es el [0013](0013-web-serverless-y-cuota-en-postgres.md).**
 - **Un censo de `sample-profiles` (22.000-32.000 peticiones) puede quedarse esperando** hasta que la ventana se libere, y por tanto durar más de una hora en vez de agotar la cuota y dejar al resto del sistema sin nada. Es el intercambio buscado, pero hay que lanzarlo sabiéndolo: el aviso por consola existe para que un job parado no se confunda con uno colgado.
 - **Riesgo de inanición asumido**: un flujo sostenido de peticiones `on-demand` podría dejar sin turno a los agregados. A los volúmenes del MVP no es un escenario real; si llega a serlo, la respuesta es una reserva mínima de cuota por prioridad, no subir el techo.
 - **Los reintentos consumen presupuesto**, porque consumen cuota real. Un `tryGet` con 3 reintentos cuenta 4 peticiones.
