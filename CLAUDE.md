@@ -25,9 +25,11 @@ Fase actual: **Phase 0 (Data Feasibility)**, casi cerrada. No hay web todavía; 
 
 - Comentarios y documentación en español; identificadores en inglés.
 - Los comentarios explican **por qué**, no qué hace la línea siguiente.
+- **Los comentarios no citan issues** (`#57`, "ver #66"): el número no explica nada a quien lee el código y envejece en cuanto el issue se cierra. Si el porqué está en una decisión, se enlaza el ADR; si no, se escribe el porqué. La trazabilidad con el issue va en el mensaje de commit y en los docs.
 - TypeScript estricto (`exactOptionalPropertyTypes`, `noUncheckedIndexedAccess` incluidos). Se ejecuta con `tsx`, sin paso de build.
 - Tests con `node:test` para lógica pura y para lo que se pueda probar con reloj inyectable.
 - Antes de dar algo por terminado: `npm run typecheck && npm test && npm run format:check`.
+- **Nunca `git commit` ni `git push` sin que se haya pedido explícitamente en esa conversación.** Se deja el trabajo en el working tree y se dice qué hay cambiado; el commit lo decide quien revisa, no el agente.
 
 ## Cuidado con
 
