@@ -2,7 +2,7 @@
 
 Estado de la validación de datos (Phase 0). Lo que aquí se da por bueno es lo que se ejecutó de verdad contra la API real; lo que está en duda se marca como tal, incluso cuando el issue correspondiente esté cerrado.
 
-Actualizado: 21 de agosto de 2026.
+Actualizado: 22 de agosto de 2026.
 
 ## 1. Endpoints core — funcionan sobre las 13 clases
 
@@ -253,8 +253,102 @@ Totales: 113.527 personajes en la 41 frente a 17.387 en la 42.
 
 **La lista de specs "buenas" tampoco es estable.** Las 3 validadas en Sprint 0 no son las más pobladas de la 42: Holy Priest 1.817, Retribution Paladin 1.354, Arms Warrior 1.286; Frost Mage cae al puesto 12 con 662. Cualquier selección fija habría sido un compromiso con la foto de una semana. Esto es lo que decide la forma de la decisión 1 (§8.1, [ADR 0010](decisions/0010-cobertura-por-segmento.md)).
 
-**El dato más incómodo, y el que de verdad bloquea el MVP**: los agregados del 20 de agosto tienen **1.424 filas en `population_segments`, 357 con n≥30 de población y `gear_sample = 0` en todas**. Los 595 perfiles muestreados (§4) son de la temporada 41 y `refresh-aggregates` agrega solo la vigente (§10), así que **hoy no hay ni un solo segmento capaz de pintar un Player Gap**. No es un fallo: es el [ADR 0007](decisions/0007-agregados-por-segmento.md) haciendo lo que se le pidió, guardar `gear_sample` aparte de `sample_size` para que la falta de gear no se disfrace de población. Y es la razón por la que #66 es el prerrequisito real del MVP, no una tarea de infraestructura que pueda esperar a tener consumidor.
+**El dato más incómodo, y el que de verdad bloquea el MVP**: los agregados del 20 de agosto tienen **1.424 filas en `population_segments`, 357 con n≥30 de población y `gear_sample = 0` en todas**. <sup>Corregido el 22 de agosto: esas dos cifras son el acumulado de la tabla entera, no la corrida del 20, que tuvo 400 filas y 144 con n≥30 — ver §13.1. El `gear_sample = 0` sí es de la corrida y se mantiene.</sup> Los 595 perfiles muestreados (§4) son de la temporada 41 y `refresh-aggregates` agrega solo la vigente (§10), así que **hoy no hay ni un solo segmento capaz de pintar un Player Gap**. No es un fallo: es el [ADR 0007](decisions/0007-agregados-por-segmento.md) haciendo lo que se le pidió, guardar `gear_sample` aparte de `sample_size` para que la falta de gear no se disfrace de población. Y es la razón por la que #66 es el prerrequisito real del MVP, no una tarea de infraestructura que pueda esperar a tener consumidor.
 
 **Lo que queda sin vigilar**: la cobertura servible se mueve durante la temporada —sube según madura la ladder y se desploma en cada reinicio— y no hay nada que lo mida de forma continua. Los números de arriba son una foto sacada a mano para tomar una decisión. Sale como #74.
 
 > Lección de método, hermana de la de §5: un número medido contra la fuente real caduca igual que uno inventado si no se anota **cuándo** y **sobre qué estado del mundo** se midió. §3 no decía nada falso el día que se escribió.
+
+## 13. Qué se puede servir hoy fuera de cobertura (#58)
+
+Medido el 22 de agosto de 2026 sobre EU para contestar #58: **qué ve exactamente un jugador de 1650 el día del lanzamiento.** Todo lo de abajo sale de la corrida diaria de agregados `computed_at = 2026-08-22T05:41:36Z` (temporada 42) y de `character_snapshots`.
+
+### 13.1 Corrección de dos números de §12
+
+Las "1.424 filas en `population_segments`, 357 con n≥30" de §12 **no son la corrida del 20 de agosto**: son el acumulado de toda la tabla en el momento de mirarla. Cada corrida inserta un juego nuevo de filas y nunca actualiza el anterior ([ADR 0007](decisions/0007-agregados-por-segmento.md), punto 3), así que contar la tabla entera cuenta los mismos segmentos tantas veces como días lleva el job.
+
+| Corrida     | Filas | Con n≥30 | Población | Acumulado de la tabla |
+| ----------- | ----: | -------: | --------: | --------------------: |
+| 19 ago (×3) |   198 |        0 |       746 |                   594 |
+| 20 ago      |   400 |      144 |    11.306 |                   994 |
+| 21 ago      |   430 |      213 |    17.944 |             **1.424** |
+| 22 ago      |   439 |      257 |    23.654 |                 1.863 |
+
+La cifra por corrida del día que se escribió §12 era **400 filas y 144 con n≥30**, no 1.424 y 357. La conclusión no cambia —`gear_sample = 0` en todas, en las tres corridas y en la de hoy— pero el tamaño del dato sí, y es el número que se cita en el contexto del [ADR 0010](decisions/0010-cobertura-por-segmento.md). Corregido ahí también.
+
+Es la misma lección de §12 aplicada a nosotros mismos: un agregado append-only se lee por `computed_at`, nunca en total.
+
+### 13.2 No hay ni un perfil dentro de la temporada vigente
+
+En las 439 filas de la corrida del 22 de agosto:
+
+| Denominador         |  Valor |
+| ------------------- | -----: |
+| `sample_size`       | 23.654 |
+| `item_level_sample` |  **0** |
+| `gear_sample`       |  **0** |
+| `talent_sample`     |  **0** |
+| `excluded_search`   |  **0** |
+
+Cero perfiles significa cero en todo lo que la caja Player Gap pinta: ni la lista de diferencias, ni el solapamiento de gear, ni **la mediana de item level del segmento objetivo**, que no existe en ninguna de las 439 filas. Es decir, al lanzar hoy la caja está en estado `insufficient` por la causa (b) del [brief](design/brief.md#15-los-tres-estados-de-confianza) —hay gente, no tenemos su equipo— en el 100 % de los casos, sin excepción.
+
+### 13.3 La población sí llega, y llega justo donde vive el ICP
+
+Distribución de la corrida del 22 de agosto, con las specs que alcanzan `MIN_SAMPLE_MEDIUM` en cada segmento:
+
+| Segmento  | Brackets | Población | Con n≥30 | Con gear≥30 |
+| --------- | -------: | --------: | -------: | ----------: |
+| 1200-1400 |       35 |     2.019 |       23 |           0 |
+| 1400-1600 |       35 |     1.910 |       24 |           0 |
+| 1600-1800 |       37 |     2.504 |       25 |           0 |
+| 1800-2000 |       36 |     1.648 |       16 |           0 |
+| 2000-2200 |       30 |       400 |        4 |           0 |
+| 2200-2400 |       26 |       127 |        0 |           0 |
+
+Comparado con el 21 de agosto (§12), el techo sube deprisa: 2000-2200 pasa de 1 spec con n≥30 a 4, y de 287 personajes a 400 en un día. La banda alta se está llenando sola; la de gear no se llena sola.
+
+### 13.4 Cuánta gente tendría objetivo, si tuviéramos su gear
+
+Contando por par `(bracket, segmento del sujeto)` con el objetivo en el segmento inmediatamente superior ([ADR 0010](decisions/0010-cobertura-por-segmento.md), decisión 2):
+
+| Segmento del sujeto | Sujetos | Objetivo poblado (n≥30) | Con Player Gap (gear≥30) |
+| ------------------- | ------: | ----------------------: | -----------------------: |
+| 1400-1600           |   1.910 |                   1.774 |                    **0** |
+| 1600-1800           |   2.504 |                   1.995 |                    **0** |
+| 1800-2000           |   1.648 |                     679 |                    **0** |
+| 2000-2200           |     400 |                       0 |                    **0** |
+
+Y por personaje real, sobre los 23.768 pares `(personaje, bracket)` observados en la temporada 42: **20.293 (85,4 %) tienen el segmento objetivo poblado y 0 tienen Player Gap.**
+
+Los dos números importan por separado y dicen cosas distintas:
+
+- **85,4 %** es lo que el producto podrá servir cuando #66 corra. El cuello no es la población.
+- **0 %** es lo que sirve hoy. Y hoy no es un caso raro: es todo el mundo.
+
+### 13.5 El caso de la issue: un jugador de 1650
+
+De los 37 brackets con población en 1600-1800, **25 llegan a n≥30 en el segmento del sujeto**; de esos 25, **16 tienen 1800-2000 poblado y 9 no**. Ninguno de los 25 tiene gear.
+
+Los tres primeros por población, y los tres últimos que aún no llegan:
+
+| Bracket                       | n en 1600-1800 | n en 1800-2000 | Objetivo |
+| ----------------------------- | -------------: | -------------: | -------- |
+| `shuffle-priest-holy`         |            474 |            285 | poblado  |
+| `shuffle-warrior-arms`        |            182 |            125 | poblado  |
+| `shuffle-rogue-assassination` |            166 |            122 | poblado  |
+| …                             |                |                |          |
+| `shuffle-rogue-subtlety`      |             34 |             10 | no llega |
+| `shuffle-monk-mistweaver`     |             33 |             23 | no llega |
+| `shuffle-druid-feral`         |             31 |              9 | no llega |
+
+Concretando en el bracket más poblado, que es el caso más favorable posible: un **Holy Priest a 1650** el 22 de agosto de 2026 está por encima de **1.598 de los 2.282** Holy Priest observados esta temporada (percentil 70), tiene **477** en su propio segmento y **286** en el de arriba, y el tope observado de su spec es 2.709. Nada de eso necesita un solo perfil: sale de la población del leaderboard, que es censo observado y no muestra.
+
+Lo que **no** se le puede decir a ese jugador: qué lleva el segmento de arriba, cuánto item level le falta, ni ninguna de las cifras de contexto de [§1.3 del brief](design/brief.md#13-decisión--la-caja-es-una-lista-no-un-panel-de-barras).
+
+### 13.6 `excluded_search` es cero, y no puede ser otra cosa todavía
+
+La pregunta abierta del [ADR 0007](decisions/0007-agregados-por-segmento.md) —cuánta población nos deja fuera excluir `source = 'search'` del denominador— **hoy tiene respuesta y es cero**: 0 en las 439 filas de la corrida del 22 de agosto y 0 en las seis corridas que existen. En toda la base de datos hay **3 snapshots de búsqueda, de 2 personajes, los tres de la temporada 41**.
+
+No es que la exclusión salga barata: es que el mecanismo que la haría cara —tráfico de usuarios buscándose— no existe antes de lanzar. Medir `excluded_search` hoy no informa la decisión, la pospone. Lo que sí se puede fijar hoy es cuándo deja de ser cero de forma relevante, y eso es el [ADR 0011](decisions/0011-fuera-de-cobertura-se-describe-no-se-compara.md).
+
+Un detalle que la revisión tendrá que tener en cuenta cuando llegue: los snapshots de búsqueda **traen gear** ([lookup-character.ts](../apps/pipeline/src/jobs/lookup-character.ts)). La exclusión no deja fuera solo rating en 1400-1800; deja fuera el único gear que el tráfico puede aportar en el tramo que el leaderboard no cubre en temporada madura. Eso hace la decisión más cara de lo que parecía cuando se tomó, y es un argumento para el disparador, no contra él.
