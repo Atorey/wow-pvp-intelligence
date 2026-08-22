@@ -2,9 +2,9 @@
 
 Dónde se deciden las cosas que se ven. Los ADR de `docs/decisions` son de arquitectura; meter ahí "el tema es oscuro" los diluye, así que las decisiones de pantalla, jerarquía y estados viven aquí ([#65](https://github.com/Atorey/wow-pvp-intelligence/issues/65)).
 
-Hoy este documento contiene dos secciones: **el contenido de la caja Player Gap**, que era lo que bloqueaba al resto ([#57](https://github.com/Atorey/wow-pvp-intelligence/issues/57)), y **la página fuera de cobertura** ([#58](https://github.com/Atorey/wow-pvp-intelligence/issues/58)), que es lo que se ve cuando esa caja no tiene con qué llenarse — hoy, siempre. El sistema visual —tokens, tipografía, tema, componentes— es #65 y aún no está escrito.
+Hoy este documento contiene tres secciones: **el contenido de la caja Player Gap**, que era lo que bloqueaba al resto ([#57](https://github.com/Atorey/wow-pvp-intelligence/issues/57)); **la página fuera de cobertura** ([#58](https://github.com/Atorey/wow-pvp-intelligence/issues/58)), que es lo que se ve cuando esa caja no tiene con qué llenarse — hoy, siempre; y **el idioma, la marca y el tono de voz** ([#59](https://github.com/Atorey/wow-pvp-intelligence/issues/59)), que condicionan todo lo que se escriba a partir de ahora. El sistema visual —tokens, tipografía, tema, componentes— es #65 y aún no está escrito.
 
-> **El idioma del copy está sin decidir (#59).** Los textos de los wireframes se escriben en inglés, como el copy del plan (§13.1, §13.6), y son **provisionales**. Lo que este documento fija es la estructura de la caja y **qué dice cada hueco**, no en qué idioma lo dice. Cuando #59 decida, se traducen los strings sin tocar el layout.
+> **El idioma ya está decidido (#59): el producto es bilingüe inglés/español, con el inglés como idioma fuente.** El inglés de los wireframes de §1 y §2 deja de ser provisional en cuanto a la lengua — lo que sigue siendo provisional es la redacción concreta, no el idioma. La parte estructural de esa decisión (prefijo de locale, slugs, `hreflang`, dónde vive el copy) está en el [ADR 0012](../decisions/0012-producto-bilingue.md); lo que se ve y lo que se dice, en la [§3](#3-idioma-marca-y-tono-de-voz).
 
 ---
 
@@ -244,7 +244,7 @@ El orden no es negociable en un punto: **el bloque 3 va después del 2, nunca an
 
 ### 2.4 Wireframe — un Holy Priest a 1650, el día del lanzamiento
 
-Los números son los medidos el 22 de agosto de 2026 en `shuffle-priest-holy`, no inventados. Copy provisional en inglés (ver la nota de idioma de la cabecera, #59).
+Los números son los medidos el 22 de agosto de 2026 en `shuffle-priest-holy`, no inventados. El copy está en inglés porque el inglés es el idioma fuente ([§3.2](#32-el-idioma-del-copy), [ADR 0012](../decisions/0012-producto-bilingue.md)); la versión en español dice lo mismo y ocupa más, que es la restricción que hereda #65.
 
 ```
 ┌──────────────────────────────────┐
@@ -336,3 +336,100 @@ Los números son los medidos el 22 de agosto de 2026 en `shuffle-priest-holy`, n
 - **[#65](https://github.com/Atorey/wow-pvp-intelligence/issues/65) hereda dos componentes más**: la fila de cifra con denominador y el bloque de ausencia declarada.
 - **[#26](https://github.com/Atorey/wow-pvp-intelligence/issues/26) tiene su suelo**: una página que solo contiene la explicación no se indexa (decisión 9 del ADR 0011). Las reglas finas siguen siendo suyas.
 - **Esto no arregla el MVP, lo hace presentable.** Mientras #66 no corra, la caja está vacía en el 100 % de las visitas y el punto 6 de §25 del plan no se puede demostrar con el bloque 3.
+
+---
+
+## 3. Idioma, marca y tono de voz
+
+### 3.1 Qué se decide aquí
+
+Las §1 y §2 fijaron qué dice cada hueco de la pantalla dejando fuera **en qué idioma y con qué voz** lo dice ([#59](https://github.com/Atorey/wow-pvp-intelligence/issues/59)). Sin eso, cada string que se escriba a partir de ahora es una decisión tomada por omisión y repetida cientos de veces.
+
+El reparto con `docs/decisions`: la parte estructural del bilingüe —prefijo de locale, slugs, `hreflang`, canonicalización y por qué el copy no puede vivir en `packages/core`— es del [ADR 0012](../decisions/0012-producto-bilingue.md), porque cambia rutas y capas. Aquí queda lo que se ve: **el idioma, el nombre, el tagline y las reglas de voz**.
+
+### 3.2 El idioma del copy
+
+**El producto se publica en inglés y en español desde el día 1, con el inglés como idioma fuente**: el copy se escribe primero en inglés y el español es traducción, nunca al revés ([ADR 0012](../decisions/0012-producto-bilingue.md)).
+
+Para maquetar, tres consecuencias que se ven:
+
+- **Los wireframes de §1 y §2 son la versión fuente**, no un marcador de posición. El layout no cambia entre idiomas; cambian los strings.
+- **El español ocupa más y hay que maquetar para el largo, no para el corto.** `No comparison yet.` son 18 caracteres; `Todavía no hay comparación.` son 27, en cajas dibujadas a ~34 de ancho donde §23 prohíbe el scroll horizontal. Ningún componente puede depender de que el texto quepa en una línea.
+- **La terminología del juego no se traduce en ninguna de las dos versiones**: `rating`, `gear`, `bracket`, `spec`, `item level`, `Solo Shuffle`, y los nombres de clase, especialización e item. La evidencia está en el propio plan, que llama a su persona principal "el que quiere subir de tier" (§4) sin traducir "tier".
+
+### 3.3 El nombre — One Rung
+
+**El producto se llama One Rung**, en el dominio **`onerung.io`**.
+
+Un _rung_ es el peldaño de una escalera, y _ladder_ es el término nativo para las clasificaciones en competitivo. El nombre dice, literalmente, **un peldaño** — que es la promesa exacta del producto y una regla escrita: _"el objetivo por defecto es siempre el siguiente segmento, no la cima"_ (§13.5).
+
+Por qué este y no otro:
+
+- **Nombra el escalón, no la cima.** El ICP son los 1400-2200 (§4) y la persona principal es la que quiere subir un tier. Un nombre que evoca la élite —salón de la fama, campeón, gladiador— le dice a ese usuario "esto no es para ti" en la primera pantalla, y contradice §13.5 antes de que se cargue un solo dato.
+- **No nombra el modo.** Un peldaño sirve igual para el rating de arena que para la puntuación de Mythic+, así que el nombre no cierra la puerta a PvE si algún día se abre. Los nombres de mapa de arena o de facción de BG sí la cerraban.
+- **Cumple §7 sin excepciones**: corto, memorable, no empieza por `PvP-` y no contiene `-log` ni `-tracker`.
+- **No usa IP de Blizzard.** Ni marca registrada, ni lore, ni nombre de logro. No hay nada que revisar antes de registrar.
+
+**Sobre la extensión.** `.io` está en la lista de ccTLD que Google trata como genéricos —sin señal de país— junto a `.ai`, `.co`, `.me` y `.tv`; **`.gg` no está en esa lista**. Con §22 haciendo del SEO programático un canal de adquisición central y §39 contando la autoridad de dominio como moat que tarda años, un TLD que geolocaliza el sitio a Guernsey es un riesgo caro de deshacer. `.io` es además la convención de los competidores directos (Murlok.io, Raider.io).
+
+### 3.4 Qué se descartó, y por qué
+
+Anotado para no volver a proponerlo. Cada descarte es por una regla del producto, no por gusto:
+
+| Familia                      | Ejemplos                                                  | Por qué no                                                                                                        |
+| ---------------------------- | --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| **Nombra la cima**           | Hall of Champions, Feats of Strength, Champion, Gladiator | Contradice §13.5 y excluye al ICP en la primera palabra                                                           |
+| **Suena a base de datos**    | Charbase, CombatDB                                        | §7 avisa expresamente de no sonar a "otra base de datos"                                                          |
+| **Promete catálogo**         | Gearary, Talentary, Buildary, Classary                    | El producto **describe** lo que lleva el escalón de arriba, **no cataloga** (§1.8)                                |
+| **Nombra lo que no tenemos** | Statforge                                                 | Las stats secundarias son la única categoría marcada como imposible en §1.2                                       |
+| **Ata a un modo**            | Mugambala, Tolbarad, Frostwolf, Combatant                 | Cierran la puerta a PvE y atan la marca a una modalidad o una facción                                             |
+| **Colisiona con Blizzard**   | Armoryx, Vaultara, Warband, Nexora, Arcanum               | _Armory_, _Great Vault_, _Warband_, _The Nexus_ y _arcano_ son terminología viva del juego o producto de Blizzard |
+| **Promete resultado**        | The Climb                                                 | _Climb_ promete ascenso; el producto tiene prohibido prometer que algo sube el rating (§9.2)                      |
+
+### 3.5 El tagline
+
+§7 propone _"See what separates you from the players above you."_ Se ajusta a:
+
+> **"See what separates you from the next rung."**
+> **"Mira qué te separa del siguiente escalón."**
+
+Hace el mismo trabajo, ata el nombre a la promesa y corrige una imprecisión: _"the players above you"_ es compatible con "la cima", y el objetivo por defecto es el **segmento inmediato** (§13.5). Ninguna de las dos versiones lleva verbo de recomendación ni promesa de resultado: _separates_ y _separa_ describen un estado, no un camino.
+
+### 3.6 El tono de voz
+
+Reglas verificables, no adjetivos. El tono aquí no es cosmético: es donde se cumple o se incumple el principio de correlación (§9.2).
+
+1. **Declarativo, nunca imperativo.** El copy afirma lo que se ha medido. Ninguna frase de datos empieza por un verbo dirigido al usuario.
+2. **La cifra primero, la lectura después.** "41% (128/312) up there" y debajo qué significa. Nunca la interpretación sola.
+3. **La fracción manda, el porcentaje acompaña** (§2.5). Primero "1.598 de 2.282", después "percentil 70".
+4. **Primera persona del plural para lo que es nuestro.** "We've only loaded the gear of 4 of them" — cuando la carencia es de muestreo se dice quién falla, no se pasiviza en "no hay datos disponibles".
+5. **Nada de fechas ni de ETA** (§2.5). "It's filling in" es intención; "next week" es una promesa de calendario que no controlamos.
+6. **Sin superlativos ni hype.** Ni "mejor", ni "óptimo", ni "definitivo". El producto no tiene una opinión sobre qué build es buena.
+7. **La incertidumbre se declara, no se disculpa.** El estado `insufficient` no pide perdón ni promete: explica qué falta y cuánto (§1.5).
+8. **"Observed", nunca "players"** (§2.5), con la definición a la vista una vez por página.
+
+### 3.7 Reglas propias del español
+
+El español rompe la no-causalidad más fácil que el inglés, y conviene tenerlo escrito antes de traducir el primer string:
+
+- **"Para" + infinitivo introduce finalidad, y la finalidad es causalidad.** "Lo que lleva el 41% de 2000-2200" es correcto; "qué llevar para subir a 2000" es una traducción fluida y una violación de la regla 3 del proyecto. Lo mismo con el subjuntivo de finalidad ("para que subas").
+- **Tuteo, nunca "usted".** Es el registro de la comunidad; el "usted" convierte una herramienta entre partidas en un informe bancario.
+- **Español neutro**, sin voseo ni localismos: el público hispanohablante de WoW no está en un solo país.
+- **Números a la española**: coma decimal y punto de millar ("1.598 de 2.282", "85,4 %"). En la versión inglesa, al revés. Es el detalle que delata una traducción hecha de prisa.
+- **La terminología del juego se deja en inglés** (§3.2), incluso cuando exista traducción oficial en el cliente.
+
+### 3.8 Qué no se dice nunca, en ninguno de los dos idiomas
+
+- Verbos de recomendación en el copy de datos: _change_, _try_, _pick_, _should_, _cambia_, _prueba_, _deberías_.
+- "Mejor build", "build óptima", "el meta correcto".
+- Cualquier construcción que ligue una variable a un resultado de rating: _"raise your rating"_, _"para subir"_.
+- Comparaciones contra el top 100 o contra la cima como objetivo (§13.5, §1.8).
+- Promesas con fecha.
+
+### 3.9 Consecuencias
+
+- **[#20](https://github.com/Atorey/wow-pvp-intelligence/issues/20), [#25](https://github.com/Atorey/wow-pvp-intelligence/issues/25) y [#65](https://github.com/Atorey/wow-pvp-intelligence/issues/65) quedan desbloqueadas.** Lo estructural que necesitan —rutas con locale, `hreflang`, indexación por locale— está en el [ADR 0012](../decisions/0012-producto-bilingue.md).
+- **#20 hereda un requisito nuevo**: la página de metodología existe en las dos lenguas y es donde vive la definición de _observed_ que §2.5 exige tener a la vista.
+- **#65 hereda el nombre y una restricción medible**: los componentes se tokenizan para el texto más largo de los dos idiomas (§3.2), no para el inglés.
+- **Queda una acción fuera del repo**: registrar `onerung.io`. Al no haber IP de Blizzard de por medio, no hay revisión previa que hacer.
+- **El tagline de §7 del plan queda sustituido** por el de §3.5. Es el único punto donde este documento corrige al plan en vez de desarrollarlo.
