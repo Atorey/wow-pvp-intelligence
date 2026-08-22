@@ -10,8 +10,11 @@ dist/
 
 # Datos crudos/derivados generados por el pipeline: regenerables desde los jobs,
 # pueden pesar mucho (leaderboards completos) y varían de una máquina a otra.
-data/
-reports/
+# Anclados a la raíz con la barra inicial: son REPO_ROOT/data y REPO_ROOT/reports.
+# Sin ella, "data/" ignora cualquier carpeta con ese nombre a cualquier
+# profundidad — y se llevó por delante packages/data entera sin decir nada.
+/data/
+/reports/
 
 # Sistema / editor
 .DS_Store

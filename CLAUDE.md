@@ -5,6 +5,7 @@ Producto de analítica PvP de WoW. La feature central, y la única razón de ser
 ## Estructura
 
 - `packages/core` — dominio compartido pipeline↔web. Sin dependencias externas.
+- `packages/data` — lecturas de servicio contra Postgres, las que pinta una página ([ADR 0014](docs/decisions/0014-capa-de-lectura-compartida.md)). Recibe el ejecutor, no lo crea. Ni escrituras ni consultas de cálculo: esas siguen en el pipeline.
 - `apps/pipeline` — ingesta Blizzard → Postgres. CLI: `npm run pipeline -- <comando>`.
 - `db/migrations` — schema versionado. `npm run db:migrate`.
 - `docs/decisions` — ADRs. Si una decisión de arquitectura se revisa, se añade un ADR nuevo.
@@ -38,4 +39,5 @@ Fase actual: **Phase 0 (Data Feasibility)**, casi cerrada. No hay web todavía; 
 - **Cobertura de leaderboard**: depende del punto de la temporada y se invierte con él. En una madura el tope de 5.000 corta el rango bajo del ICP en las specs más jugadas; en una recién empezada el tope no aplica y lo que falta es la parte alta — al empezar la 42, una sola spec llegaba a n≥30 en 2000-2200 ([§12 de findings](docs/sprint-0-findings.md)). No asumir cobertura de ningún tramo: se cuenta por par `(spec, segmento objetivo)` y decide `canShowComparison()` ([ADR 0010](docs/decisions/0010-cobertura-por-segmento.md)).
 - **`character_snapshots` guarda cambios, no visitas**: desde el 20 de agosto de 2026 solo se inserta la fila cuyo `(rating, partidas, tier)` difiere de la observación anterior del mismo personaje ([ADR 0009](docs/decisions/0009-ingesta-por-cambio-de-poblacion.md)). Contar filas para saber cuántas veces hemos visto a alguien mide otra cosa; eso está en `character_presence`.
 - **`matches_played` no es comparable entre fuentes**: el contador del perfil da un número sistemáticamente menor que el del leaderboard para el mismo personaje y bracket (595 de 595 casos medidos). Restarlos fabrica actividad que nadie jugó ([ADR 0008](docs/decisions/0008-ventana-de-actividad-por-partidas-jugadas.md)); solo se compara cada fuente consigo misma.
+- **`population_segments.confidence` mide población, no base de comparación**: hay filas guardadas como `high` con `gear_sample = 0` (#76). La confianza de una comparación se deriva del denominador de esa cifra con `confidenceFor()`, nunca se lee de la columna — `packages/data` no la selecciona siquiera ([ADR 0014](docs/decisions/0014-capa-de-lectura-compartida.md), decisión 6).
 - **Los issues cerrados no siempre están respaldados por el repo** (#3 y #7 se cerraron con trabajo que no estaba en el código). Verificar antes de dar algo por hecho.

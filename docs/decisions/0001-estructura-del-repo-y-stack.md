@@ -32,4 +32,5 @@ Stack, siguiendo §29 del plan: TypeScript en todo, Postgres (Supabase), `tsx` p
 - `npm run typecheck` y `npm test` cubren todo el monorepo desde la raíz.
 - El `.env` es único y vive en la raíz: un solo sitio para los secretos.
 - Cuando entre `apps/web`, traerá su propio tsconfig extendiendo `tsconfig.base.json`, sin tocar nada más.
+- **Ampliado el 22 de agosto de 2026 por el [ADR 0014](0014-capa-de-lectura-compartida.md)**: el reparto de arriba no tenía sitio para las lecturas que comparten pipeline y web —`core` es dominio puro y esto necesita `pg`—, así que aparece `packages/data`. La regla de fondo no cambia: lo que se duplicaría es un riesgo de producto, no de mantenimiento.
 - Un job nuevo que llame a `fetch` directamente en vez de a `BlizzardClient` rompe el throttling global. Está documentado en el README del pipeline, pero no hay nada que lo impida automáticamente.
