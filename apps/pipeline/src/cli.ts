@@ -66,7 +66,7 @@ function printHelp(): void {
   console.log("  --limit N      personajes por bucket (default 100; 0 = censo del bucket)");
   console.log("  --segments R,R rating de entrada de cada segmento (default 1800,2000)");
   console.log("  --seed S       semilla del muestreo (misma semilla = misma muestra)");
-  console.log("  --specs K,K    specs a muestrear, p.ej. mage-frost (default: las que ingiere)");
+  console.log("  --specs S,S    specs a muestrear, p.ej. frost-mage (default: las que ingiere)");
   console.log("  --run ID       reanuda un run anterior sin volver a gastar cuota");
   console.log("\nOpciones de lookup-character:");
   console.log("  --character R/N  personaje a buscar; se puede repetir");

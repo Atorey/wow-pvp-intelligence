@@ -562,9 +562,9 @@ Build · Gear · Talents · Stats · Trends  ← detalle progresivo (progressive
 ```
 /
 /player/{region}/{realm}/{name}              → perfil + Player Gap
-/spec/{class}-{spec}                         → overview de spec
-/spec/{class}-{spec}/{bracket}               → overview por bracket
-/spec/{class}-{spec}/{bracket}/{rating-range} → página de segmento (alto valor SEO)
+/spec/{spec}-{class}                         → overview de spec (p.ej. frost-mage)
+/spec/{spec}-{class}/{bracket}               → overview por bracket
+/spec/{spec}-{class}/{bracket}/{rating-range} → página de segmento (alto valor SEO)
 /compare/{char1}-vs-{char2}                  → comparación jugador vs jugador (MVP+)
 /meta/{bracket}                              → meta analytics
 /trends                                      → tendencias generales
