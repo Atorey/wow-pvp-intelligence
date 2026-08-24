@@ -135,7 +135,48 @@ export function requireSpec(classSlug: string, specSlug: string): SpecEntry {
   return spec;
 }
 
-/** Clave estable para agrupar por spec en memoria/BD/URLs: "mage-frost". */
-export function specKey(spec: SpecEntry): string {
-  return `${spec.classSlug}-${spec.specSlug}`;
+/**
+ * Slug canónico de una spec: "frost-mage". Única forma en todo el proyecto —
+ * la misma en las URL del sitio, en la agrupación en memoria y en la entrada del
+ * CLI del pipeline (ADR 0016).
+ *
+ * Va en orden spec-clase, al revés que el bracket de Blizzard
+ * ("shuffle-mage-frost"): es el `label` en minúsculas y con guiones, que es como
+ * se lee y como se busca la spec. La regla se comprueba en los tests contra el
+ * catálogo entero, así que una spec nueva con `label` incoherente rompe ahí.
+ *
+ * El orden importa poco por dentro y mucho por fuera: la URL se indexa y luego
+ * no se puede cambiar sin quemar el posicionamiento, mientras que la clave
+ * interna no está persistida en ninguna parte (la BD guarda `class_slug` y
+ * `spec_slug` por separado). Por eso el orden lo decide el lado público.
+ */
+export function specSlug(spec: SpecEntry): string {
+  return `${spec.specSlug}-${spec.classSlug}`;
+}
+
+/**
+ * Inverso de specSlug, resuelto contra el catálogo y nunca partiendo el string.
+ *
+ * "frost-death-knight" tiene tres tramos y solo el catálogo sabe dónde acaba la
+ * spec: partir por guiones daría spec "frost" y clase "death-knight" por suerte,
+ * pero "beast-mastery-hunter" daría spec "beast" y clase "mastery-hunter".
+ */
+export function parseSpecSlug(slug: string): SpecEntry | undefined {
+  return ALL_SPECS.find((spec) => specSlug(spec) === slug);
+}
+
+/**
+ * Igual que parseSpecSlug pero falla ruidosamente, con el mismo criterio que
+ * requireSpec: para entrada de usuario y configuración estática, donde un slug
+ * mal escrito debe romper antes de gastar cuota o de servir una página vacía.
+ */
+export function requireSpecSlug(slug: string): SpecEntry {
+  const spec = parseSpecSlug(slug);
+  if (!spec) {
+    throw new Error(
+      `Spec desconocida: "${slug}". El slug va en orden spec-clase ` +
+        `(p.ej. frost-mage, frost-death-knight). Catálogo en @wowpvp/core.`,
+    );
+  }
+  return spec;
 }

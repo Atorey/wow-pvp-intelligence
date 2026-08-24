@@ -1,5 +1,5 @@
 import type pg from "pg";
-import { specKey, type SpecEntry } from "@wowpvp/core";
+import { specSlug, type SpecEntry } from "@wowpvp/core";
 import { BlizzardClient, blizzardUsage } from "../blizzard/client";
 import { formatUsage } from "../blizzard/request-queue";
 import { getCharacterLookupTtlMinutes, getDatabaseUrl, getRegion } from "../config";
@@ -300,7 +300,7 @@ export async function lookupCharacter(deps: LookupDeps, ref: CharacterRef): Prom
   // acabaría contando en el adoption_rate de un segmento donde nadie la ha visto.
   const active = activeSpecOf(profile);
   const wearsGear = (spec: SpecEntry): boolean =>
-    active !== null && specKey(active) === specKey(spec);
+    active !== null && specSlug(active) === specSlug(spec);
 
   const seasonOf = seasonResolver(deps.client);
 

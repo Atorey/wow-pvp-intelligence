@@ -3,8 +3,11 @@ import { test } from "node:test";
 import {
   ALL_SPECS,
   parseShuffleBracket,
+  parseSpecSlug,
   requireSpec,
+  requireSpecSlug,
   shuffleBracketId,
+  specSlug,
   unknownShuffleBrackets,
 } from "./specs";
 
@@ -66,4 +69,43 @@ test("el agregado y los brackets de otros modos no cuentan como desconocidos", (
   // "shuffle-overall" no es una spec, y 2v2/blitz son otros modos: ninguno debe
   // disparar el aviso de "spec nueva sin ingerir".
   assert.deepEqual(unknownShuffleBrackets(["shuffle-overall", "2v2", "blitz-mage-frost"]), []);
+});
+
+test("el slug canónico va en orden spec-clase y se resuelve de vuelta", () => {
+  const frost = requireSpec("mage", "frost");
+  assert.equal(specSlug(frost), "frost-mage");
+  assert.deepEqual(parseSpecSlug("frost-mage"), frost);
+});
+
+test("el slug no es el orden del bracket de Blizzard", () => {
+  // Las dos formas conviven a propósito y en orden inverso: "shuffle-mage-frost"
+  // es lo que pide la API y "frost-mage" lo que se publica. Que "mage-frost" no
+  // resuelva es la decisión, no un descuido (ADR 0016).
+  assert.equal(parseSpecSlug("mage-frost"), undefined);
+  assert.equal(shuffleBracketId(requireSpec("mage", "frost")), "shuffle-mage-frost");
+});
+
+test("el slug de toda spec es su label en minúsculas y con guiones", () => {
+  // La regla que hace el slug predecible sin consultar el catálogo. Se comprueba
+  // sobre las 40 para que una spec nueva con label incoherente rompa aquí.
+  for (const spec of ALL_SPECS) {
+    assert.equal(specSlug(spec), spec.label.toLowerCase().replaceAll(" ", "-"), spec.label);
+  }
+});
+
+test("el slug no se parte por guiones", () => {
+  // "beast-mastery-hunter" tiene tres tramos y solo el catálogo sabe dónde acaba
+  // la spec: partir por guiones daría spec "beast" y clase "mastery-hunter".
+  assert.deepEqual(parseSpecSlug("beast-mastery-hunter"), requireSpec("hunter", "beast-mastery"));
+  assert.deepEqual(parseSpecSlug("frost-death-knight"), requireSpec("death-knight", "frost"));
+});
+
+test("el catálogo no tiene slugs duplicados", () => {
+  const slugs = ALL_SPECS.map(specSlug);
+  assert.equal(new Set(slugs).size, slugs.length);
+});
+
+test("un slug desconocido no se adivina; en configuración estática rompe", () => {
+  assert.equal(parseSpecSlug("fireball-mage"), undefined);
+  assert.throws(() => requireSpecSlug("fireball-mage"), /Spec desconocida/);
 });

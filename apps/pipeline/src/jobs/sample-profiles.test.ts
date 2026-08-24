@@ -2,18 +2,19 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { parseSpecSelection, specsFromManifest } from "./sample-profiles";
 
-test("--specs resuelve las claves contra el catálogo", () => {
-  const specs = parseSpecSelection("mage-frost, warrior-fury");
+test("--specs resuelve los slugs contra el catálogo", () => {
+  const specs = parseSpecSelection("frost-mage, fury-warrior");
   assert.deepEqual(
     specs.map((s) => s.label),
     ["Frost Mage", "Fury Warrior"],
   );
 });
 
-test("--specs no parte la clave por guiones", () => {
-  // "death-knight-frost" tiene tres tramos y solo el catálogo sabe dónde acaba
-  // la clase. Partir por guiones daría clase "death" y spec "knight-frost".
-  const specs = parseSpecSelection("death-knight-frost");
+test("--specs no parte el slug por guiones", () => {
+  // "frost-death-knight" tiene tres tramos y solo el catálogo sabe dónde acaba
+  // la spec. Partir por guiones daría spec "frost" y clase "death-knight" por
+  // casualidad, pero "beast-mastery-hunter" daría spec "beast".
+  const specs = parseSpecSelection("frost-death-knight");
   assert.deepEqual(specs[0], {
     classSlug: "death-knight",
     specSlug: "frost",
@@ -22,7 +23,9 @@ test("--specs no parte la clave por guiones", () => {
 });
 
 test("una spec inexistente en --specs rompe antes de gastar cuota", () => {
-  assert.throws(() => parseSpecSelection("mage-fireball"), /Spec desconocida en --specs/);
+  assert.throws(() => parseSpecSelection("fireball-mage"), /Spec desconocida/);
+  // El orden del bracket de Blizzard no vale como slug, y falla ruidosamente.
+  assert.throws(() => parseSpecSelection("mage-frost"), /Spec desconocida/);
   assert.throws(() => parseSpecSelection("  ,  "), /no nombra ninguna spec/);
 });
 

@@ -2,15 +2,14 @@ import fs from "node:fs";
 import path from "node:path";
 import type pg from "pg";
 import {
-  ALL_SPECS,
   DEFAULT_SEGMENT_SCALE,
   canShowComparison,
   confidenceFor,
   formatSegment,
   parseShuffleBracket,
+  requireSpecSlug,
   segmentFor,
   shuffleBracketId,
-  specKey,
   type ConfidenceLevel,
   type RatingSegment,
   type SpecEntry,
@@ -146,32 +145,25 @@ interface BucketReport {
 // --- Argumentos ---
 
 /**
- * Specs de --specs, resueltas contra el catálogo y nunca partiendo el string.
+ * Specs de --specs, resueltas contra el catálogo por su slug canónico.
  *
- * "death-knight-frost" no se puede separar en clase y spec por guiones (el
- * mismo motivo por el que existe parseShuffleBracket): se compara la clave
- * entera contra specKey(). Un slug que no exista rompe aquí, antes de gastar
- * cuota, en vez de muestrear en silencio menos specs de las que creías.
+ * El slug entero se compara contra el catálogo, nunca se parte por guiones:
+ * "beast-mastery-hunter" daría spec "beast" y clase "mastery-hunter". Un slug
+ * que no exista rompe aquí, antes de gastar cuota, en vez de muestrear en
+ * silencio menos specs de las que creías.
  */
 export function parseSpecSelection(value: string): SpecEntry[] {
-  const keys = value
+  const slugs = value
     .split(",")
     .map((k) => k.trim())
     .filter((k) => k.length > 0);
-  if (keys.length === 0) {
-    throw new Error(`--specs="${value}" no nombra ninguna spec. Ejemplo: mage-frost,warrior-fury.`);
+  if (slugs.length === 0) {
+    throw new Error(`--specs="${value}" no nombra ninguna spec. Ejemplo: frost-mage,fury-warrior.`);
   }
 
-  return keys.map((key) => {
-    const spec = ALL_SPECS.find((s) => specKey(s) === key);
-    if (!spec) {
-      throw new Error(
-        `Spec desconocida en --specs: "${key}". Se usa la clave classSlug-specSlug ` +
-          `(p.ej. mage-frost, death-knight-frost). Catálogo en @wowpvp/core.`,
-      );
-    }
-    return spec;
-  });
+  // requireSpecSlug ya explica la forma del slug y dónde está el catálogo: el
+  // mensaje se escribe una sola vez, donde se define el formato.
+  return slugs.map(requireSpecSlug);
 }
 
 /**
