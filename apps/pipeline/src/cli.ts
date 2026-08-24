@@ -1,4 +1,5 @@
 import { migrate } from "./db/migrate";
+import { backfillNameFold } from "./jobs/backfill-name-fold";
 import { fetchLeaderboards } from "./jobs/fetch-leaderboard";
 import { ingestLeaderboards } from "./jobs/ingest-leaderboard";
 import { lookupCharacters } from "./jobs/lookup-character";
@@ -46,6 +47,10 @@ const COMMANDS: Record<string, { run: (args: string[]) => Promise<void>; help: s
   "player-gap": {
     run: playerGap,
     help: "Genera el Player Gap de un personaje contra el siguiente segmento [--run --character --top --rating]",
+  },
+  "backfill-name-fold": {
+    run: backfillNameFold,
+    help: "Rellena characters.name_fold en las filas anteriores a #70 [--dry-run]",
   },
   migrate: {
     run: migrate,

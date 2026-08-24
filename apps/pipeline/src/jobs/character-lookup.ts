@@ -8,40 +8,6 @@
 import { findSpec, parseShuffleBracket, type SpecEntry } from "@wowpvp/core";
 import { specNameToSlug, type ProfileResponse } from "./profile-mapping";
 
-/** Un personaje tal como lo nombra quien busca: reino y nombre, ya normalizados. */
-export interface CharacterRef {
-  realmSlug: string;
-  nameSlug: string;
-}
-
-/**
- * "Twisting-Nether/Anatorey" → { realmSlug: "twisting-nether", nameSlug: "anatorey" }.
- *
- * El nombre se pasa a minúsculas y nada más: **no** se le quitan los acentos.
- * Es lo mismo que hace la ingesta de leaderboard (`name.toLowerCase()`), y la
- * identidad en BD es (region, realm_slug, name_slug) — si la búsqueda
- * normalizara distinto que la ingesta, el mismo personaje entraría dos veces y
- * su histórico quedaría partido en dos.
- */
-export function parseCharacterRef(value: string): CharacterRef {
-  const parts = value.split("/");
-  const [realm, name] = parts;
-
-  if (parts.length !== 2 || !realm?.trim() || !name?.trim()) {
-    throw new Error(
-      `"${value}" no tiene la forma reino/nombre (p.ej. twisting-nether/anatorey). ` +
-        `El reino es el slug: "Twisting Nether" → twisting-nether.`,
-    );
-  }
-
-  return { realmSlug: realm.trim().toLowerCase(), nameSlug: name.trim().toLowerCase() };
-}
-
-/** Cómo se escribe una referencia para logs y mensajes de error. */
-export function formatCharacterRef(ref: CharacterRef): string {
-  return `${ref.realmSlug}/${ref.nameSlug}`;
-}
-
 // --- Brackets ---
 
 export interface PvpSummaryResponse {

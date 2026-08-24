@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { nameSlug } from "@wowpvp/core";
 import { BlizzardClient } from "../blizzard/client";
 import { REPORTS_DIR } from "../config";
 
@@ -41,7 +42,9 @@ async function validateCharacter(
   client: BlizzardClient,
   input: CharacterInput,
 ): Promise<CharacterReport> {
-  const base = `/profile/wow/character/${input.realmSlug}/${input.name.toLowerCase()}`;
+  const base =
+    `/profile/wow/character/${encodeURIComponent(input.realmSlug)}` +
+    `/${encodeURIComponent(nameSlug(input.name))}`;
   const report: CharacterReport = {
     input,
     profile: "fail",

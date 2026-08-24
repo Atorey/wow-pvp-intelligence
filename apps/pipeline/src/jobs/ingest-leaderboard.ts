@@ -5,6 +5,7 @@ import {
   DEFAULT_SEGMENT_SCALE,
   confidenceFor,
   formatSegment,
+  nameSlug,
   parseShuffleBracket,
   segmentFor,
 } from "@wowpvp/core";
@@ -44,7 +45,7 @@ export function dedupeEntries(entries: LeaderboardEntry[]): LeaderboardEntry[] {
   // Ordenamos por rank en vez de fiarnos del orden recibido: cuál de las dos
   // apariciones sobrevive no puede depender de cómo venga serializado el JSON.
   for (const entry of [...entries].sort((a, b) => a.rank - b.rank)) {
-    const identity = `${entry.character.realm.slug}|${entry.character.name.toLowerCase()}`;
+    const identity = identityKey(entry.character.realm.slug, nameSlug(entry.character.name));
     const id = entry.character.id;
     const hasId = typeof id === "number";
 
@@ -122,7 +123,7 @@ export async function ingestFile(
       region,
       entries.map((e) => ({
         realmSlug: e.character.realm.slug,
-        nameSlug: e.character.name.toLowerCase(),
+        nameSlug: nameSlug(e.character.name),
         nameDisplay: e.character.name,
         faction: e.faction?.type ?? null,
         blizzardCharacterId: e.character.id ?? null,
@@ -133,7 +134,7 @@ export async function ingestFile(
     //    captured_at = fetchedAt del archivo, no now(): así reingerir el mismo
     //    archivo choca contra el índice único y no duplica población.
     const rows = entries.flatMap((e) => {
-      const id = idByKey.get(identityKey(e.character.realm.slug, e.character.name.toLowerCase()));
+      const id = idByKey.get(identityKey(e.character.realm.slug, nameSlug(e.character.name)));
       return id ? [{ id, entry: e }] : [];
     });
 

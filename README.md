@@ -37,6 +37,7 @@ Para conseguir las credenciales de Blizzard, ver [apps/pipeline/README.md](apps/
 | `npm run pipeline -- validate-endpoints`            | Valida perfil/rating/equipo/talentos contra personajes reales          |
 | `npm run pipeline -- fetch-leaderboard`             | Descarga el leaderboard de Solo Shuffle de las specs activas           |
 | `npm run pipeline -- ingest-leaderboard`            | Carga lo descargado en Postgres e imprime la distribución por segmento |
+| `npm run pipeline -- backfill-name-fold`            | Rellena `characters.name_fold` tras aplicar la migración 0008          |
 | `npm run db:migrate`                                | Aplica las migraciones pendientes                                      |
 | `npm run typecheck` / `npm test` / `npm run format` | Calidad                                                                |
 

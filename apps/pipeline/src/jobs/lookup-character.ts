@@ -1,5 +1,12 @@
 import type pg from "pg";
-import { specSlug, type SpecEntry } from "@wowpvp/core";
+import {
+  formatCharacterRef,
+  nameSlug,
+  parseCharacterRef,
+  specSlug,
+  type CharacterRef,
+  type SpecEntry,
+} from "@wowpvp/core";
 import { BlizzardClient, blizzardUsage } from "../blizzard/client";
 import { formatUsage } from "../blizzard/request-queue";
 import { getCharacterLookupTtlMinutes, getDatabaseUrl, getRegion } from "../config";
@@ -8,11 +15,8 @@ import { createPool } from "../db/pool";
 import { insertProfileSnapshot } from "../db/snapshots";
 import {
   activeSpecOf,
-  formatCharacterRef,
   isProfileFresh,
-  parseCharacterRef,
   shuffleBracketsFromSummary,
-  type CharacterRef,
   type PvpSummaryResponse,
   type ShuffleBracketRef,
 } from "./character-lookup";
@@ -307,8 +311,8 @@ export async function lookupCharacter(deps: LookupDeps, ref: CharacterRef): Prom
   // Identidad canónica de Blizzard cuando la trae: quien busca puede haber
   // escrito el reino de otra forma, y la identidad tiene que coincidir con la
   // que usa la ingesta de leaderboard o el mismo jugador entraría dos veces.
-  const realmSlug = profile.realm?.slug ?? ref.realmSlug;
-  const nameSlug = (profile.name ?? ref.nameSlug).toLowerCase();
+  const realm = profile.realm?.slug ?? ref.realmSlug;
+  const name = nameSlug(profile.name ?? ref.nameSlug);
 
   const client = await deps.pool.connect();
   try {
@@ -316,15 +320,15 @@ export async function lookupCharacter(deps: LookupDeps, ref: CharacterRef): Prom
 
     const idByKey = await upsertCharacters(client, deps.region, [
       {
-        realmSlug,
-        nameSlug,
+        realmSlug: realm,
+        nameSlug: name,
         nameDisplay: profile.name ?? ref.nameSlug,
         faction: profile.faction?.type ?? null,
         blizzardCharacterId: typeof profile.id === "number" ? profile.id : null,
       },
     ]);
 
-    const characterId = idByKey.get(identityKey(realmSlug, nameSlug));
+    const characterId = idByKey.get(identityKey(realm, name));
     if (!characterId) {
       throw new Error(`No se pudo resolver el id interno de ${formatCharacterRef(ref)}.`);
     }

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { PlayerBuild } from "@wowpvp/core";
-import { selectActive } from "./player-gap";
+import { parseCharacterRef, type PlayerBuild } from "@wowpvp/core";
+import { matchersFor, selectActive } from "./player-gap";
 
 const AT = new Date("2026-08-19T12:00:00Z");
 const DAY = 86_400_000;
@@ -95,4 +95,46 @@ test("la ventana se mide desde el momento del run, no desde ahora", () => {
   assert.equal(selectActive(population, activity, AT, forced).population.length, 1);
   const later = new Date(AT.getTime() + 10 * DAY);
   assert.equal(selectActive(population, activity, later, forced).population.length, 0);
+});
+
+// --- matchersFor ---
+
+const meta = (realmSlug: string, nameSlug: string) => ({ realmSlug, nameSlug, nameDisplay: "" });
+
+test("matchersFor casa la forma canónica exacta", () => {
+  const match = matchersFor(parseCharacterRef("magtheridon/Artháslegend"));
+
+  assert.equal(match.exact(meta("magtheridon", "artháslegend")), true);
+  assert.equal(match.exact(meta("magtheridon", "arthaslegend")), false);
+});
+
+test("matchersFor casa por plegado a quien escribe sin acentos", () => {
+  const match = matchersFor(parseCharacterRef("magtheridon/Arthaslegend"));
+
+  assert.equal(match.folded(meta("magtheridon", "artháslegend")), true);
+  assert.equal(match.folded(meta("magtheridon", "ártháslegend")), true);
+});
+
+test("matchersFor separa los dos criterios en vez de mezclarlos", () => {
+  // Es lo que permite a quien llama probar primero el exacto: en Magtheridon
+  // hay cuatro Arthaslegend distintos, y quien escribe el nombre con sus
+  // acentos tiene que recibir al suyo, no al primero que se le parezca.
+  const match = matchersFor(parseCharacterRef("magtheridon/artháslegend"));
+
+  assert.equal(match.exact(meta("magtheridon", "arthaslegend")), false);
+  assert.equal(match.folded(meta("magtheridon", "arthaslegend")), true);
+});
+
+test("matchersFor pliega también el reino", () => {
+  const match = matchersFor(parseCharacterRef("Confrerie du Thorium/Alice"));
+
+  assert.equal(match.exact(meta("confrérie-du-thorium", "alice")), false);
+  assert.equal(match.folded(meta("confrérie-du-thorium", "alice")), true);
+});
+
+test("matchersFor sin personaje pedido no casa con nadie", () => {
+  const match = matchersFor(null);
+
+  assert.equal(match.exact(meta("magtheridon", "arthaslegend")), false);
+  assert.equal(match.folded(meta("magtheridon", "arthaslegend")), false);
 });

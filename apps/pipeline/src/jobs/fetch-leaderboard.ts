@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { shuffleBracketId, unknownShuffleBrackets, type SpecEntry } from "@wowpvp/core";
+import { nameSlug, shuffleBracketId, unknownShuffleBrackets, type SpecEntry } from "@wowpvp/core";
 import { BlizzardClient, blizzardUsage } from "../blizzard/client";
 import { formatUsage } from "../blizzard/request-queue";
 import { LEADERBOARD_DIR } from "../config";
@@ -64,7 +64,7 @@ interface PopulationEntry {
 function populationKey(entry: PopulationEntry): string {
   const id = entry.character?.id;
   if (typeof id === "number") return `id:${id}`;
-  return `n:${entry.character?.realm?.slug ?? ""}|${(entry.character?.name ?? "").toLowerCase()}`;
+  return `n:${entry.character?.realm?.slug ?? ""}|${nameSlug(entry.character?.name ?? "")}`;
 }
 
 /**

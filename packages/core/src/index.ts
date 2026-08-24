@@ -1,5 +1,6 @@
 export * from "./types";
 export * from "./specs";
+export * from "./characters";
 export * from "./segments";
 export * from "./confidence";
 export * from "./activity";
