@@ -207,6 +207,35 @@ Escribe dos archivos por personaje en `reports/`: un `.json` auditable con los d
 
 Lo que la comparación **no** incluye, y cada reporte declara: stats secundarias y embellishments (el schema no los guarda), y talentos por nodo (#24 — ver el hallazgo de la sección 6.2 de [sprint-0-findings](../../docs/sprint-0-findings.md), la coincidencia exacta de código no da señal utilizable).
 
+### `seed`
+
+```bash
+# una Postgres local, la que sea; esta es la que usa el CI
+docker run -d --name wowpvp-dev -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=wowpvp \
+  -p 5432:5432 postgres:16-alpine
+
+DATABASE_URL=postgres://postgres:postgres@localhost:5432/wowpvp npm run db:migrate
+DATABASE_URL=postgres://postgres:postgres@localhost:5432/wowpvp npm run pipeline -- seed --reset
+```
+
+Siembra el dataset de desarrollo: ~600 personajes de dos temporadas repartidos por escalones de rating, con perfiles, gear real y talentos. Es el prerrequisito para trabajar la web sin una copia de producción ni credenciales de Blizzard, y lo decide el [ADR 0018](../../docs/decisions/0018-dataset-de-desarrollo.md).
+
+**Solo escribe en una base local, y no hay flag para saltárselo.** El comando inventa población; en la base real eso falsea los tamaños de muestra sobre los que el producto declara su confianza, y el histórico es append-only.
+
+**No siembra `population_segments` ni `aggregate_snapshots`.** Escribe observaciones y después ejecuta `refresh-aggregates` sobre ellas, igual que en producción. Por eso lo que sale por pantalla al final del comando es el log del job real: si un escalón dice `insufficient`, es porque lo es.
+
+**Misma semilla, mismo dataset**, hasta el último item (`--seed` la cambia). Las fechas sí se anclan al momento de sembrar: `refresh-aggregates` recorta por ventana de actividad contra su propio reloj, así que un dataset con fechas fijas se quedaría sin población en cuanto pasaran dos semanas.
+
+Lo que cubre, y por qué está cada cosa, se imprime al arrancar. En resumen: dos escalones con confianza `high`, uno con población suficiente y gear insuficiente ([#76](https://github.com/Atorey/wow-pvp-intelligence/issues/76)), uno vacío del todo, una spec entera fuera de cobertura, dos temporadas conviviendo y once personajes con nombre fijo que se pueden teclear en una URL —incluidos tres que pliegan al mismo `name_fold` sin ser la misma persona ([ADR 0017](../../docs/decisions/0017-forma-canonica-de-personaje.md))—.
+
+**El dataset es más generoso que la producción de hoy, a propósito.** En la temporada 42 real no hay un solo segmento capaz de pintar un Player Gap ([§13 de findings](../../docs/sprint-0-findings.md)). Desarrollar solo contra los escalones llenos del seed es desarrollar contra un mundo que todavía no existe: los escalones vacíos están ahí para que la pantalla que hoy se ve siempre también se pruebe.
+
+| Opción              | Qué hace                                                                                                                                                                |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--reset`           | Vacía las tablas antes de sembrar. Sin esto se suma a lo que hubiera: con la misma semilla añade observaciones a los mismos personajes, con otra añade población nueva. |
+| `--seed S`          | Semilla del generador.                                                                                                                                                  |
+| `--skip-aggregates` | No encadena `refresh-aggregates` al terminar.                                                                                                                           |
+
 ### `migrate`
 
 Aplica las migraciones pendientes de `db/migrations/`. Ver [db/README.md](../../db/README.md).

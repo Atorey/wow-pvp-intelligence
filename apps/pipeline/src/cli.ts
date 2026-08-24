@@ -8,6 +8,7 @@ import { refreshActivity } from "./jobs/refresh-activity";
 import { refreshAggregates } from "./jobs/refresh-aggregates";
 import { refreshLeaderboard } from "./jobs/refresh-leaderboard";
 import { sampleProfiles } from "./jobs/sample-profiles";
+import { seed } from "./jobs/seed";
 import { validateEndpoints } from "./jobs/validate-endpoints";
 
 /** `args` son los argumentos posteriores al comando; los jobs sin opciones lo ignoran. */
@@ -52,6 +53,10 @@ const COMMANDS: Record<string, { run: (args: string[]) => Promise<void>; help: s
     run: backfillNameFold,
     help: "Rellena characters.name_fold en las filas anteriores a #70 [--dry-run]",
   },
+  seed: {
+    run: seed,
+    help: "Siembra el dataset de desarrollo en una base LOCAL [--reset --seed --skip-aggregates]",
+  },
   migrate: {
     run: migrate,
     help: "Aplica las migraciones pendientes de db/migrations/",
@@ -83,6 +88,10 @@ function printHelp(): void {
   console.log("  --rating R     rating de entrada del segmento de los sujetos (default 1800)");
   console.log("  --window D     ventana de actividad en días (7, 14 o 30; default: la de §13.4)");
   console.log("  --all          sin filtro de actividad (reproduce reportes anteriores a #16)");
+  console.log("\nOpciones de seed (solo contra una base local; no hay flag para saltárselo):");
+  console.log("  --reset        vacía las tablas antes de sembrar");
+  console.log("  --seed S       semilla del generador (misma semilla = mismo dataset)");
+  console.log("  --skip-aggregates  no encadena refresh-aggregates al terminar");
 }
 
 const command = process.argv[2];

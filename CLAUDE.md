@@ -8,6 +8,7 @@ Producto de analítica PvP de WoW. La feature central, y la única razón de ser
 - `packages/data` — lecturas de servicio contra Postgres, las que pinta una página ([ADR 0014](docs/decisions/0014-capa-de-lectura-compartida.md)). Recibe el ejecutor, no lo crea. Ni escrituras ni consultas de cálculo: esas siguen en el pipeline.
 - `apps/pipeline` — ingesta Blizzard → Postgres. CLI: `npm run pipeline -- <comando>`.
 - `db/migrations` — schema versionado. `npm run db:migrate`.
+- Para trabajar con datos sin copiar producción: `npm run pipeline -- seed --reset` sobre una Postgres **local** ([ADR 0018](docs/decisions/0018-dataset-de-desarrollo.md)). Siembra observaciones y deja que `refresh-aggregates` calcule los agregados; se niega a escribir en cualquier host que no sea esta máquina.
 - `docs/decisions` — ADRs. Si una decisión de arquitectura se revisa, se añade un ADR nuevo.
 - `docs/design` — decisiones de pantalla, jerarquía y estados ([brief](docs/design/brief.md)). Lo que se ve no va a un ADR salvo que sea estructural.
 
