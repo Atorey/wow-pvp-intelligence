@@ -4,15 +4,19 @@ import type pg from "pg";
 import {
   ACTIVITY_WINDOWS,
   computePlayerGap,
+  foldSlug,
+  formatCharacterRef,
   formatSegment,
   isActiveWithin,
   nextSegment,
+  parseCharacterRef,
   pickActivityWindow,
   segmentFor,
   shuffleBracketId,
   type ActivityWindowDays,
   type AdoptionRate,
   type PlayerBuild,
+  type CharacterRef,
   type PlayerGap,
   type RatingSegment,
   type SpecEntry,
@@ -45,8 +49,8 @@ const VALID_WINDOWS: readonly number[] = Object.values(ACTIVITY_WINDOWS);
 
 interface Options {
   runId: string | null;
-  /** "realm/nombre" si se pide un personaje concreto; si no, se eligen 3 sujetos. */
-  character: string | null;
+  /** El personaje pedido a mano; null = se eligen 3 sujetos. */
+  character: CharacterRef | null;
   topDifferences: number;
   topTalentCodes: number;
   subjectRating: number;
@@ -112,10 +116,7 @@ function parseOptions(args: string[]): Options {
         options.runId = value;
         break;
       case "--character":
-        if (!value.includes("/")) {
-          throw new Error(`--character="${value}" debe tener la forma reino/nombre.`);
-        }
-        options.character = value.toLowerCase();
+        options.character = parseCharacterRef(value);
         break;
       case "--top": {
         const parsed = Number(value);
@@ -667,12 +668,39 @@ function toJson(context: ReportContext): unknown {
 
 // --- Orquestación ---
 
+/**
+ * Los dos criterios con los que se busca al personaje pedido en `--character`,
+ * en el orden en que se aplican.
+ *
+ * Son dos y no uno porque el plegado no distingue a personajes que sí lo son:
+ * en la población acumulada hay 1.626 grupos que colisionan al plegar los
+ * acentos. Sin el criterio exacto delante, pedir `--character magtheridon/
+ * artháslegend` podría reportar a cualquiera de los otros tres Arthaslegend de
+ * ese reino.
+ */
+export interface RequestedMatch {
+  exact: (meta: CharacterMeta) => boolean;
+  folded: (meta: CharacterMeta) => boolean;
+}
+
+export function matchersFor(ref: CharacterRef | null): RequestedMatch {
+  if (!ref) return { exact: () => false, folded: () => false };
+
+  const folded = { realm: foldSlug(ref.realmSlug), name: foldSlug(ref.nameSlug) };
+
+  return {
+    exact: (meta) => meta.realmSlug === ref.realmSlug && meta.nameSlug === ref.nameSlug,
+    folded: (meta) =>
+      foldSlug(meta.realmSlug) === folded.realm && foldSlug(meta.nameSlug) === folded.name,
+  };
+}
+
 async function reportFor(
   pool: pg.Pool,
   manifest: RunManifest,
   spec: SpecEntry,
   options: Options,
-  matchesRequested: (meta: CharacterMeta) => boolean,
+  requestedMatch: RequestedMatch,
 ): Promise<ReportContext | null> {
   const bracket = shuffleBracketId(spec);
   const { builds, meta, itemNames, activity } = await loadPopulation(
@@ -683,11 +711,18 @@ async function reportFor(
   );
   if (builds.length === 0) return null;
 
+  // Se busca primero la forma canónica y solo después la plegada: el plegado
+  // casa varios personajes reales y distintos (`artháslegend` y `arthaslegend`
+  // son dos personas), así que quien escriba el nombre exacto tiene que recibir
+  // al suyo y no al primero que se le parezca.
+  const findBy = (matches: (meta: CharacterMeta) => boolean): PlayerBuild | undefined =>
+    builds.find((build) => {
+      const info = meta.get(build.characterId);
+      return info ? matches(info) : false;
+    });
+
   const requested = options.character
-    ? builds.find((build) => {
-        const info = meta.get(build.characterId);
-        return info ? matchesRequested(info) : false;
-      })
+    ? (findBy(requestedMatch.exact) ?? findBy(requestedMatch.folded))
     : undefined;
   if (options.character && !requested) return null;
 
@@ -754,9 +789,7 @@ function write(context: ReportContext): { json: string; markdown: string } {
 export async function playerGap(args: string[]): Promise<void> {
   const options = parseOptions(args);
   const manifest = loadManifest(options.runId);
-  const [requestedRealm, requestedName] = (options.character ?? "").split("/");
-  const matchesRequested = (meta: CharacterMeta): boolean =>
-    meta.realmSlug === requestedRealm && meta.nameSlug === requestedName;
+  const requestedMatch = matchersFor(options.character);
 
   const pool = createPool();
   try {
@@ -764,14 +797,14 @@ export async function playerGap(args: string[]): Promise<void> {
 
     const contexts: ReportContext[] = [];
     for (const spec of SPECS_TO_INGEST) {
-      const context = await reportFor(pool, manifest, spec, options, matchesRequested);
+      const context = await reportFor(pool, manifest, spec, options, requestedMatch);
       if (context) contexts.push(context);
     }
 
     if (contexts.length === 0) {
       throw new Error(
         options.character
-          ? `No hay perfil de "${options.character}" en el run ${manifest.runId}.`
+          ? `No hay perfil de "${formatCharacterRef(options.character)}" en el run ${manifest.runId}.`
           : `El run ${manifest.runId} no tiene perfiles cargados en Postgres. ` +
               `¿Ejecutaste sample-profiles contra esta base de datos?`,
       );

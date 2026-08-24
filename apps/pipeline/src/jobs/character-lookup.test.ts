@@ -1,11 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import {
-  activeSpecOf,
-  isProfileFresh,
-  parseCharacterRef,
-  shuffleBracketsFromSummary,
-} from "./character-lookup";
+import { activeSpecOf, isProfileFresh, shuffleBracketsFromSummary } from "./character-lookup";
 
 const HOST = "https://eu.api.blizzard.com";
 const BASE = `${HOST}/profile/wow/character/ragnaros/alice`;
@@ -15,28 +10,6 @@ function summary(brackets: string[]): { brackets: { href: string }[] } {
     brackets: brackets.map((b) => ({ href: `${BASE}/pvp-bracket/${b}?namespace=profile-eu` })),
   };
 }
-
-// --- parseCharacterRef ---
-
-test("parseCharacterRef normaliza reino y nombre a minúsculas", () => {
-  assert.deepEqual(parseCharacterRef("Twisting-Nether/Anatorey"), {
-    realmSlug: "twisting-nether",
-    nameSlug: "anatorey",
-  });
-});
-
-test("parseCharacterRef conserva los acentos del nombre", () => {
-  // La ingesta de leaderboard guarda name.toLowerCase() sin tocar los acentos.
-  // Si la búsqueda los quitara, el mismo personaje entraría con dos identidades
-  // y su histórico quedaría partido en dos.
-  assert.deepEqual(parseCharacterRef("sanguino/Ánatorey").nameSlug, "ánatorey");
-});
-
-test("parseCharacterRef rechaza lo que no tiene forma reino/nombre", () => {
-  for (const malo of ["anatorey", "reino/", "/nombre", "a/b/c", "  /  "]) {
-    assert.throws(() => parseCharacterRef(malo), /reino\/nombre/);
-  }
-});
 
 // --- shuffleBracketsFromSummary ---
 

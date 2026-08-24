@@ -1,3 +1,4 @@
+import { foldSlug } from "@wowpvp/core";
 import type pg from "pg";
 
 /**
@@ -10,7 +11,14 @@ import type pg from "pg";
  * histórico de alguien por el lado que se olvidara de actualizar.
  */
 
-/** Una identidad tal como la trae la fuente. `null` es "no venía", no "no tiene". */
+/**
+ * Una identidad tal como la trae la fuente. `null` es "no venía", no "no tiene".
+ *
+ * No lleva `nameFold`: es derivado de `nameSlug` y lo calcula el upsert. Si
+ * pudiera pasarse por fuera, una fuente podría guardar un plegado incoherente
+ * con su propio nombre y ese personaje dejaría de aparecer en las búsquedas sin
+ * que nada fallara.
+ */
 export interface CharacterIdentity {
   realmSlug: string;
   nameSlug: string;
@@ -40,6 +48,7 @@ export async function upsertCharacters(
 
   const realmSlugs = identities.map((i) => i.realmSlug);
   const nameSlugs = identities.map((i) => i.nameSlug);
+  const nameFolds = nameSlugs.map(foldSlug);
   const displayNames = identities.map((i) => i.nameDisplay);
   const factions = identities.map((i) => i.faction);
   const blizzardIds = identities.map((i) => i.blizzardCharacterId);
@@ -63,9 +72,10 @@ export async function upsertCharacters(
     `update characters c
         set realm_slug = u.realm_slug,
             name_slug = u.name_slug,
+            name_fold = u.name_fold,
             name_display = u.name_display
-       from unnest($2::bigint[], $3::text[], $4::text[], $5::text[])
-            as u(blizzard_character_id, realm_slug, name_slug, name_display)
+       from unnest($2::bigint[], $3::text[], $4::text[], $5::text[], $6::text[])
+            as u(blizzard_character_id, realm_slug, name_slug, name_display, name_fold)
       where c.region = $1
         and c.blizzard_character_id = u.blizzard_character_id
         and (c.realm_slug, c.name_slug) is distinct from (u.realm_slug, u.name_slug)
@@ -75,7 +85,7 @@ export async function upsertCharacters(
              and other.realm_slug = u.realm_slug
              and other.name_slug = u.name_slug
              and other.id <> c.id)`,
-    [region, blizzardIds, realmSlugs, nameSlugs, displayNames],
+    [region, blizzardIds, realmSlugs, nameSlugs, displayNames, nameFolds],
   );
 
   // 0b) Lo que no se pudo reconciliar (el nombre nuevo ya está ocupado) suelta
@@ -101,14 +111,23 @@ export async function upsertCharacters(
   //    "no tiene" (regla 5), y borrar un id ya conocido rompería la
   //    reconciliación del paso 0 en la siguiente corrida.
   await client.query(
-    `insert into characters (region, realm_slug, name_slug, name_display, faction, blizzard_character_id)
-     select * from unnest($1::text[], $2::text[], $3::text[], $4::text[], $5::text[], $6::bigint[])
+    `insert into characters (region, realm_slug, name_slug, name_fold, name_display, faction, blizzard_character_id)
+     select * from unnest($1::text[], $2::text[], $3::text[], $4::text[], $5::text[], $6::text[], $7::bigint[])
      on conflict (region, realm_slug, name_slug)
      do update set name_display = excluded.name_display,
+                   name_fold = excluded.name_fold,
                    faction = coalesce(excluded.faction, characters.faction),
                    blizzard_character_id = coalesce(excluded.blizzard_character_id,
                                                     characters.blizzard_character_id)`,
-    [identities.map(() => region), realmSlugs, nameSlugs, displayNames, factions, blizzardIds],
+    [
+      identities.map(() => region),
+      realmSlugs,
+      nameSlugs,
+      nameFolds,
+      displayNames,
+      factions,
+      blizzardIds,
+    ],
   );
 
   // 2) Resolver los ids recién insertados/actualizados.
