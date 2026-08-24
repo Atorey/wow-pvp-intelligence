@@ -2,7 +2,7 @@
 
 Dónde se deciden las cosas que se ven. Los ADR de `docs/decisions` son de arquitectura; meter ahí "el tema es oscuro" los diluye, así que las decisiones de pantalla, jerarquía y estados viven aquí ([#65](https://github.com/Atorey/wow-pvp-intelligence/issues/65)).
 
-Hoy este documento contiene tres secciones: **el contenido de la caja Player Gap**, que era lo que bloqueaba al resto ([#57](https://github.com/Atorey/wow-pvp-intelligence/issues/57)); **la página fuera de cobertura** ([#58](https://github.com/Atorey/wow-pvp-intelligence/issues/58)), que es lo que se ve cuando esa caja no tiene con qué llenarse — hoy, siempre; y **el idioma, la marca y el tono de voz** ([#59](https://github.com/Atorey/wow-pvp-intelligence/issues/59)), que condicionan todo lo que se escriba a partir de ahora. El sistema visual —tokens, tipografía, tema, componentes— es #65 y aún no está escrito.
+Hoy este documento contiene cuatro secciones: **el contenido de la caja Player Gap**, que era lo que bloqueaba al resto ([#57](https://github.com/Atorey/wow-pvp-intelligence/issues/57)); **la página fuera de cobertura** ([#58](https://github.com/Atorey/wow-pvp-intelligence/issues/58)), que es lo que se ve cuando esa caja no tiene con qué llenarse — hoy, siempre; **el idioma, la marca y el tono de voz** ([#59](https://github.com/Atorey/wow-pvp-intelligence/issues/59)), que condicionan todo lo que se escriba a partir de ahora; y **la atribución y la no afiliación** ([#68](https://github.com/Atorey/wow-pvp-intelligence/issues/68)), que es la única parte de la interfaz que no está ahí por decisión de producto. El sistema visual —tokens, tipografía, tema, componentes— es #65 y aún no está escrito.
 
 > **El idioma ya está decidido (#59): el producto es bilingüe inglés/español, con el inglés como idioma fuente.** El inglés de los wireframes de §1 y §2 deja de ser provisional en cuanto a la lengua — lo que sigue siendo provisional es la redacción concreta, no el idioma. La parte estructural de esa decisión (prefijo de locale, slugs, `hreflang`, dónde vive el copy) está en el [ADR 0012](../decisions/0012-producto-bilingue.md); lo que se ve y lo que se dice, en la [§3](#3-idioma-marca-y-tono-de-voz).
 
@@ -433,3 +433,112 @@ El español rompe la no-causalidad más fácil que el inglés, y conviene tenerl
 - **#65 hereda el nombre y una restricción medible**: los componentes se tokenizan para el texto más largo de los dos idiomas (§3.2), no para el inglés.
 - **Queda una acción fuera del repo**: registrar `onerung.io`. Al no haber IP de Blizzard de por medio, no hay revisión previa que hacer.
 - **El tagline de §7 del plan queda sustituido** por el de §3.5. Es el único punto donde este documento corrige al plan en vez de desarrollarlo.
+
+---
+
+## 4. Atribución y no afiliación
+
+### 4.1 Qué se decide aquí
+
+Las §1–§3 deciden lo que el producto quiere enseñar. Esta sección es la única que decide algo que la interfaz **tiene que** enseñar, quiera o no: la cláusula 2.m de la ToU de Blizzard obliga a identificar la fuente de los datos _"clearly and conspicuously"_ y de forma que no parezca respaldo ([#68](https://github.com/Atorey/wow-pvp-intelligence/issues/68)).
+
+El reparto con `docs/decisions`: qué permite y qué prohíbe cada documento de Blizzard —monetización, redistribución, iconos, revalidación a 30 días— es del [ADR 0015](../decisions/0015-uso-de-la-api-de-blizzard-y-de-su-propiedad-intelectual.md), porque cambia el modelo de datos y el de negocio. Aquí queda lo que se ve: **la línea exacta, dónde se pone, qué la hace "conspicua" y qué desaparece de la pantalla por su culpa**.
+
+### 4.2 La línea, en las dos lenguas
+
+Una sola línea con las dos afirmaciones que la cláusula pide juntas —de dónde salen los datos, y que Blizzard no respalda esto—. En inglés, que es el idioma fuente ([ADR 0012](../decisions/0012-producto-bilingue.md)):
+
+> **EN** — Game data from the Blizzard® Developer APIs. One Rung is not affiliated with, endorsed by, or sponsored by Blizzard Entertainment, Inc. World of Warcraft® and Blizzard® are trademarks of Blizzard Entertainment, Inc.
+>
+> **ES** — Datos del juego obtenidos de las Blizzard® Developer APIs. One Rung no está afiliado a Blizzard Entertainment, Inc., ni cuenta con su respaldo ni con su patrocinio. World of Warcraft® y Blizzard® son marcas de Blizzard Entertainment, Inc.
+
+Por qué está redactada así y no de otra forma:
+
+- **La fuente va primero.** Es la mitad que da crédito, y es la que un aviso mal escrito se salta. "No estamos afiliados" a solas cumple lo que protege a Blizzard y omite lo que la cláusula pide de verdad, que es decir de dónde sale el dato.
+- **"Game data", no "data".** El sitio muestra dos cosas: lo que viene de Blizzard y lo que calculamos nosotros. El Player Gap, los porcentajes de adopción y los segmentos son cálculo propio sobre dato ajeno, y la línea no debe sugerir que Blizzard publica una cifra que hemos hecho nosotros.
+- **Tres verbos en la negación, no uno.** _Affiliated / endorsed / sponsored_ es la fórmula que usa la propia cláusula (_"endorsing or affiliated"_) ampliada al patrocinio. En español, "afiliado / respaldo / patrocinio" hace el mismo trabajo sin calcar la sintaxis inglesa.
+- **Sin disculpa y sin adorno.** La regla 7 de [§3.6](#36-el-tono-de-voz) vale también aquí: se declara, no se pide perdón. Nada de "por supuesto, todo el mérito es de Blizzard".
+- **`One Rung` sin ®.** La marca propia todavía no está registrada; ponerle el símbolo sería afirmar algo que no es cierto. Los símbolos de esta línea son los de Blizzard, y van en su primera aparición, como piden sus guidelines de marca.
+
+### 4.3 Dónde va, y qué hace que sea "conspicua"
+
+En el pie, en **todas** las páginas de las dos lenguas, renderizada desde el layout y no repetida página a página.
+
+_Conspicuous_ es una condición verificable, así que se escribe como tal. La línea cumple cuatro cosas:
+
+1. **Se lee sin interactuar.** No está detrás de un enlace, un acordeón, un modal ni un "más información".
+2. **Es texto de cuerpo, no letra pequeña.** El tamaño mínimo del sistema tipográfico (#65), nunca uno por debajo, y el contraste de texto secundario del tema — no el de un texto deshabilitado.
+3. **Está en el flujo, no flotando.** Nada de superponerla a un fondo ilustrado ni de meterla en una franja que colapse en móvil.
+4. **Cabe en tres líneas de móvil sin truncar.** El español ocupa más ([§3.2](#32-el-idioma-del-copy)); el componente se maqueta para la versión larga y nunca lleva `ellipsis`.
+
+```
+┌──────────────────────────────────┐
+│  … contenido de la página …      │
+│                                  │
+├──────────────────────────────────┤
+│  Methodology · Privacy · Español │
+│                                  │
+│  Game data from the Blizzard®    │
+│  Developer APIs. One Rung is not │
+│  affiliated with, endorsed by,   │
+│  or sponsored by Blizzard        │
+│  Entertainment, Inc. World of    │
+│  Warcraft® and Blizzard® are     │
+│  trademarks of Blizzard          │
+│  Entertainment, Inc.             │
+└──────────────────────────────────┘
+```
+
+La navegación del pie va **encima** de la línea. Un aviso legal empujado por debajo de tres columnas de enlaces se lee como el pie de imprenta que nadie mira, y es justo lo contrario de lo que pide la cláusula.
+
+### 4.4 Dónde no aparece nunca la marca ajena
+
+`Blizzard` y `World of Warcraft` aparecen en esta línea y en la página de metodología ([#20](https://github.com/Atorey/wow-pvp-intelligence/issues/20)), donde la procedencia se explica en prosa. En ningún otro sitio:
+
+- Ni en el nombre del producto, el logo, el dominio o el favicon.
+- Ni en el `<title>` de ninguna página, ni en un `meta description`, ni en un slug — la 2.m lo prohíbe expresamente para el título y la URL, y §22 hace del SEO un canal central, así que la tentación es real y conviene tenerla escrita.
+- Ni como adorno: nada de cabeceras "Powered by Blizzard", sellos, ni el logotipo de Blizzard en ninguna parte. Un logo ajeno en la cabecera es exactamente la apariencia de respaldo que la cláusula prohíbe.
+
+Los nombres de clase, spec, item, bracket y temporada **sí** se usan con normalidad y sin símbolo: nombrar `Frost Mage` o `Solo Shuffle` es describir lo que la página describe, y ya estaba decidido que no se traducen ([§3.2](#32-el-idioma-del-copy)).
+
+### 4.5 Los iconos de item: qué se ve cuando no hay icono
+
+El [ADR 0015](../decisions/0015-uso-de-la-api-de-blizzard-y-de-su-propiedad-intelectual.md) decide que el icono se sirve desde el CDN de Blizzard y no se re-aloja. La consecuencia visible es que **el icono puede no llegar** —403, URL retirada, red— y eso deja de ser un caso raro para pasar a ser un estado que hay que dibujar.
+
+La regla es la del resto del producto: **la fila de gear no depende del icono**. El icono acompaña; el nombre y el item level son la información. Sin icono, el hueco se reserva y la fila no se recoloca:
+
+```
+  ┌────┐
+  │ 🛡  │  Vest of the Winter Wolf          642
+  └────┘
+  ┌────┐
+  │    │  Bracers of the Silent Vigil       639     ← sin icono, mismo layout
+  └────┘
+```
+
+Lo que **no** se hace: ni un texto de error, ni un icono roto del navegador, ni un _placeholder_ con la palabra "missing". Un hueco vacío del tamaño correcto es información suficiente y no llama la atención sobre un fallo que al jugador no le sirve de nada. Cómo se resuelve y se cachea la URL es de [#67](https://github.com/Atorey/wow-pvp-intelligence/issues/67).
+
+### 4.6 Lo que no va a existir en la interfaz
+
+Anotado aquí para que no se diseñe y luego haya que quitarlo. Ninguna de estas piezas puede aparecer en una pantalla mientras el producto dependa de esta API ([ADR 0015](../decisions/0015-uso-de-la-api-de-blizzard-y-de-su-propiedad-intelectual.md), decisiones 4-6):
+
+| Pieza                                               | Por qué no                                                    |
+| --------------------------------------------------- | ------------------------------------------------------------- |
+| Badge "Pro", candado, o cualquier marca de _gating_ | No hay tier de pago: no hay nada que bloquear                 |
+| Upsell, banner de suscripción, comparador de planes | Igual                                                         |
+| Botón de exportar (CSV, imagen, informe)            | La Data no sale de la aplicación                              |
+| Muro de donación antes de ver una cifra             | Prohibido expresamente, incluso siendo voluntario             |
+| Vídeo previo a una función                          | Prohibido expresamente                                        |
+| Cualquier espacio publicitario                      | Ni en MVP ni en Beta; un modelo futuro necesita su propio ADR |
+| "Mis personajes" ligados a una cuenta de Battle.net | No se asocian personajes a una persona                        |
+
+La consecuencia de diseño no es solo restar: **las tres pantallas del MVP no tienen ninguna zona reservada a comercio**, y eso libera el sitio donde en un producto equivalente iría el upsell. Lo que ocupa ese hueco es la explicación del método, que es lo que este producto vende.
+
+### 4.7 Consecuencias
+
+- **[#62](https://github.com/Atorey/wow-pvp-intelligence/issues/62) y [#65](https://github.com/Atorey/wow-pvp-intelligence/issues/65) heredan un componente de layout** —el pie con la línea de §4.2— con cuatro requisitos medibles (§4.3), no con un "ponerlo visible".
+- **[#67](https://github.com/Atorey/wow-pvp-intelligence/issues/67) hereda un estado que dibujar**: la fila de gear sin icono de §4.5, con el hueco reservado.
+- **[#22](https://github.com/Atorey/wow-pvp-intelligence/issues/22) y [#17](https://github.com/Atorey/wow-pvp-intelligence/issues/17) dejan de poder asumir que el icono siempre llega**, que es lo que se asume por omisión al maquetar con datos de prueba.
+- **[#20](https://github.com/Atorey/wow-pvp-intelligence/issues/20) hereda un tercer requisito**, además de la definición de _observed_ ([§3.9](#39-consecuencias)) y de existir en dos lenguas: explicar la procedencia del dato en prosa, que es lo que la línea del pie no puede hacer en tres renglones.
+- **La página de privacidad pasa a ser obligatoria y entra en la navegación del pie**, con contenido condicionado por la ToU ([ADR 0015](../decisions/0015-uso-de-la-api-de-blizzard-y-de-su-propiedad-intelectual.md), decisión 9). Qué dice es de [#69](https://github.com/Atorey/wow-pvp-intelligence/issues/69).
+- **Queda una acción fuera del repo**: registrar la aplicación en el portal de desarrollo de Blizzard con el nombre y la URL definitivos, que es lo que exige la cláusula 2.a.
