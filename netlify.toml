@@ -1,0 +1,29 @@
+# Despliegue de apps/web. La decisión de servir la web serverless y en Netlify,
+# con sus motivos, está en docs/decisions/0013-web-serverless-y-cuota-en-postgres.md.
+#
+# La base del build es la raíz del repo, no apps/web: la web depende de
+# @wowpvp/core y @wowpvp/data por workspaces de npm, y una instalación hecha
+# dentro de apps/web no los ve.
+
+[build]
+  command = "npm run web:build"
+  publish = "apps/web/.next"
+
+[build.environment]
+  # La misma que usa CI. Sin fijarla, Netlify elige por su cuenta y el build
+  # deja de reproducir lo que se probó.
+  NODE_VERSION = "22"
+
+# Runtime de Next para Netlify: convierte el build en funciones. Netlify lo
+# instala solo al leerlo aquí; declararlo explícitamente en vez de confiar en
+# la autodetección es lo que hace que funcione con la app fuera de la raíz.
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+[context.production.environment]
+  NEXT_PUBLIC_SITE_URL = "https://onerung.io"
+
+# En previews y ramas no se declara NEXT_PUBLIC_SITE_URL a propósito: la app
+# cae a DEPLOY_PRIME_URL, que es la URL real de ese deploy, y así sus
+# canonicals no apuntan a producción. Además, todo lo que no es el contexto
+# "production" se sirve con noindex (apps/web/src/site.ts).

@@ -2,6 +2,7 @@
 docs/product-plan.md
 
 node_modules/
+apps/web/.next/
 data/
 reports/
 package-lock.json
