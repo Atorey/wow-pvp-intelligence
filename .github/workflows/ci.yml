@@ -8,6 +8,26 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
+    # Postgres desechable para el test de integración del schema (#64). Sin
+    # ella ese test se salta solo y volveríamos al hueco del ADR 0014: una
+    # columna mal escrita en packages/data pasa typecheck y tests y falla en la
+    # primera consulta real. No guarda nada entre corridas: se migra, se siembra
+    # y se tira con el runner.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: wowpvp_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -18,3 +38,8 @@ jobs:
       - run: npm run format:check
       - run: npm run typecheck
       - run: npm test
+        env:
+          # Es la del servicio de arriba, no la de nadie: el test la trunca
+          # antes de sembrar. Va aquí y no en DATABASE_URL a propósito, para que
+          # `npm test` no pueda llevarse por delante una base de desarrollo.
+          TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/wowpvp_test

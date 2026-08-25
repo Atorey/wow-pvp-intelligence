@@ -660,7 +660,13 @@ function printSegments(segments: readonly ComputedSegment[]): void {
 
 // --- Job ---
 
-export async function refreshAggregates(args: string[]): Promise<void> {
+/**
+ * `borrowedPool` existe para el seed y su test de integración, que ya tienen
+ * abierta la base contra la que quieren agregar. Sin él, la única forma de
+ * agregar sobre otra base sería reescribir el job — y entonces lo que
+ * comprobaría el test no sería este job.
+ */
+export async function refreshAggregates(args: string[], borrowedPool?: pg.Pool): Promise<void> {
   const options = parseOptions(args);
   const region = getRegion();
   const now = new Date();
@@ -675,7 +681,7 @@ export async function refreshAggregates(args: string[]): Promise<void> {
       `población desde ${cutoff.toISOString()}`,
   );
 
-  const pool = createPool();
+  const pool = borrowedPool ?? createPool();
   try {
     const { seasonId, seasons } = await resolveSeason(pool, region, cutoff);
     if (seasons.length > 1) {
@@ -770,6 +776,8 @@ export async function refreshAggregates(args: string[]): Promise<void> {
       );
     }
   } finally {
-    await pool.end();
+    // El pool prestado lo cierra quien lo abrió: cerrarlo aquí dejaría sin base
+    // a lo que venga después en la misma corrida.
+    if (!borrowedPool) await pool.end();
   }
 }

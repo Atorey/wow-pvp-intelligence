@@ -1,0 +1,2014 @@
+{
+  "note": "Catálogo de items para el dataset de desarrollo (npm run pipeline -- seed). Los item_id y sus nombres son reales: salen de contar el equipo de los 593 perfiles del muestreo de Sprint 0 (run-20260814T121556, temporada 41, EU), así que la forma de la distribución —un item dominante por slot y una cola larga— es la observada, no una inventada. Los personajes del seed sí son ficticios.",
+  "source": "data/profiles/run-20260814T121556 (temporada 41, EU, 593 perfiles)",
+  "fields": {
+    "weight": "Veces que se observó el item en ese slot. Es la probabilidad relativa con la que el generador lo reparte.",
+    "itemLevel": "Mediana del nivel de objeto observado para ese item."
+  },
+  "specs": {
+    "frost-mage": {
+      "BACK": [
+        {
+          "itemId": 255374,
+          "name": "Galactic Gladiator's Drape",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 106
+        },
+        {
+          "itemId": 255338,
+          "name": "Galactic Aspirant's Cloak",
+          "quality": "RARE",
+          "itemLevel": 217,
+          "weight": 21
+        },
+        {
+          "itemId": 258575,
+          "name": "Rigid Scale Greatcloak",
+          "quality": "EPIC",
+          "itemLevel": 289,
+          "weight": 13
+        },
+        {
+          "itemId": 250055,
+          "name": "Voidbreaker's Encryption",
+          "quality": "EPIC",
+          "itemLevel": 276,
+          "weight": 9
+        },
+        {
+          "itemId": 239656,
+          "name": "Adherent's Silken Shroud",
+          "quality": "EPIC",
+          "itemLevel": 285,
+          "weight": 8
+        }
+      ],
+      "CHEST": [
+        {
+          "itemId": 239685,
+          "name": "Thalassian Competitor's Cloth Tunic",
+          "quality": "EPIC",
+          "itemLevel": 239,
+          "weight": 84
+        },
+        {
+          "itemId": 250063,
+          "name": "Voidbreaker's Robe",
+          "quality": "EPIC",
+          "itemLevel": 285,
+          "weight": 51
+        },
+        {
+          "itemId": 255357,
+          "name": "Galactic Gladiator's Silk Robe",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 41
+        },
+        {
+          "itemId": 255263,
+          "name": "Galactic Aspirant's Silk Robe",
+          "quality": "RARE",
+          "itemLevel": 217,
+          "weight": 7
+        },
+        {
+          "itemId": 255358,
+          "name": "Galactic Gladiator's Silk Gown",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 5
+        }
+      ],
+      "FEET": [
+        {
+          "itemId": 239684,
+          "name": "Thalassian Competitor's Cloth Treads",
+          "quality": "EPIC",
+          "itemLevel": 239,
+          "weight": 93
+        },
+        {
+          "itemId": 255360,
+          "name": "Galactic Gladiator's Silk Treads",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 24
+        },
+        {
+          "itemId": 268282,
+          "name": "Luxurious Loamstriders",
+          "quality": "EPIC",
+          "itemLevel": 298,
+          "weight": 16
+        },
+        {
+          "itemId": 255300,
+          "name": "Galactic Aspirant's Silk Footwraps",
+          "quality": "RARE",
+          "itemLevel": 217,
+          "weight": 12
+        },
+        {
+          "itemId": 255883,
+          "name": "Galactic Warmonger's Slippers",
+          "quality": "EPIC",
+          "itemLevel": 243,
+          "weight": 11
+        }
+      ],
+      "FINGER_1": [
+        {
+          "itemId": 255607,
+          "name": "Galactic Gladiator's Ring",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 64
+        },
+        {
+          "itemId": 240951,
+          "name": "Thalassian Competitor's Signet",
+          "quality": "EPIC",
+          "itemLevel": 242,
+          "weight": 57
+        },
+        {
+          "itemId": 255331,
+          "name": "Galactic Aspirant's Ring",
+          "quality": "RARE",
+          "itemLevel": 217,
+          "weight": 16
+        },
+        {
+          "itemId": 251217,
+          "name": "Occlusion of Void",
+          "quality": "EPIC",
+          "itemLevel": 289,
+          "weight": 8
+        },
+        {
+          "itemId": 255609,
+          "name": "Galactic Gladiator's Signet",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 8
+        }
+      ],
+      "FINGER_2": [
+        {
+          "itemId": 240951,
+          "name": "Thalassian Competitor's Signet",
+          "quality": "EPIC",
+          "itemLevel": 242,
+          "weight": 62
+        },
+        {
+          "itemId": 255607,
+          "name": "Galactic Gladiator's Ring",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 43
+        },
+        {
+          "itemId": 255331,
+          "name": "Galactic Aspirant's Ring",
+          "quality": "RARE",
+          "itemLevel": 217,
+          "weight": 18
+        },
+        {
+          "itemId": 255609,
+          "name": "Galactic Gladiator's Signet",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 14
+        },
+        {
+          "itemId": 268290,
+          "name": "Sporecaller's Blooming Loop",
+          "quality": "EPIC",
+          "itemLevel": 298,
+          "weight": 10
+        }
+      ],
+      "HANDS": [
+        {
+          "itemId": 250061,
+          "name": "Voidbreaker's Gloves",
+          "quality": "EPIC",
+          "itemLevel": 256,
+          "weight": 86
+        },
+        {
+          "itemId": 255361,
+          "name": "Galactic Gladiator's Silk Gloves",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 86
+        },
+        {
+          "itemId": 255273,
+          "name": "Galactic Aspirant's Silk Gloves",
+          "quality": "RARE",
+          "itemLevel": 217,
+          "weight": 11
+        },
+        {
+          "itemId": 239653,
+          "name": "Martyr's Gloves",
+          "quality": "EPIC",
+          "itemLevel": 259,
+          "weight": 4
+        },
+        {
+          "itemId": 255362,
+          "name": "Galactic Gladiator's Silk Handwraps",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 2
+        }
+      ],
+      "HEAD": [
+        {
+          "itemId": 250060,
+          "name": "Voidbreaker's Veil",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 154
+        },
+        {
+          "itemId": 255364,
+          "name": "Galactic Gladiator's Silk Cap",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 26
+        },
+        {
+          "itemId": 255307,
+          "name": "Galactic Aspirant's Silk Cover",
+          "quality": "RARE",
+          "itemLevel": 217,
+          "weight": 4
+        },
+        {
+          "itemId": 255363,
+          "name": "Galactic Gladiator's Silk Hat",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 3
+        },
+        {
+          "itemId": 277792,
+          "name": "Venom-Cursed Dragonhawk's Plumage",
+          "quality": "EPIC",
+          "itemLevel": 285,
+          "weight": 3
+        }
+      ],
+      "LEGS": [
+        {
+          "itemId": 255365,
+          "name": "Galactic Gladiator's Silk Leggings",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 113
+        },
+        {
+          "itemId": 250059,
+          "name": "Voidbreaker's Britches",
+          "quality": "EPIC",
+          "itemLevel": 276,
+          "weight": 63
+        },
+        {
+          "itemId": 255279,
+          "name": "Galactic Aspirant's Silk Leggings",
+          "quality": "RARE",
+          "itemLevel": 217,
+          "weight": 10
+        },
+        {
+          "itemId": 255366,
+          "name": "Galactic Gladiator's Silk Trousers",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 4
+        },
+        {
+          "itemId": 193750,
+          "name": "Wind Soarer's Breeches",
+          "quality": "EPIC",
+          "itemLevel": 292,
+          "weight": 2
+        }
+      ],
+      "MAIN_HAND": [
+        {
+          "itemId": 255622,
+          "name": "Galactic Gladiator's Staff",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 141
+        },
+        {
+          "itemId": 245770,
+          "name": "Aln'hara Cane",
+          "quality": "EPIC",
+          "itemLevel": 295,
+          "weight": 13
+        },
+        {
+          "itemId": 258218,
+          "name": "Skybreaker's Blade",
+          "quality": "EPIC",
+          "itemLevel": 298,
+          "weight": 9
+        },
+        {
+          "itemId": 193707,
+          "name": "Final Grade",
+          "quality": "EPIC",
+          "itemLevel": 285,
+          "weight": 3
+        },
+        {
+          "itemId": 251201,
+          "name": "Corespark Multitool",
+          "quality": "EPIC",
+          "itemLevel": 298,
+          "weight": 3
+        }
+      ],
+      "NECK": [
+        {
+          "itemId": 255610,
+          "name": "Galactic Gladiator's Necklace",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 93
+        },
+        {
+          "itemId": 240952,
+          "name": "Thalassian Competitor's Amulet",
+          "quality": "EPIC",
+          "itemLevel": 239,
+          "weight": 32
+        },
+        {
+          "itemId": 255334,
+          "name": "Galactic Aspirant's Necklace",
+          "quality": "RARE",
+          "itemLevel": 217,
+          "weight": 20
+        },
+        {
+          "itemId": 268291,
+          "name": "Rotmire's Sporeheart",
+          "quality": "EPIC",
+          "itemLevel": 298,
+          "weight": 17
+        },
+        {
+          "itemId": 50228,
+          "name": "Barbed Ymirheim Choker",
+          "quality": "EPIC",
+          "itemLevel": 276,
+          "weight": 8
+        }
+      ],
+      "OFF_HAND": [
+        {
+          "itemId": 245769,
+          "name": "Aln'hara Lantern",
+          "quality": "EPIC",
+          "itemLevel": 295,
+          "weight": 7
+        },
+        {
+          "itemId": 258523,
+          "name": "Nezhar's Netherclaw",
+          "quality": "EPIC",
+          "itemLevel": 298,
+          "weight": 3
+        },
+        {
+          "itemId": 159667,
+          "name": "Vessel of Last Rites",
+          "quality": "EPIC",
+          "itemLevel": 292,
+          "weight": 2
+        },
+        {
+          "itemId": 245870,
+          "name": "Thalassian Competitor's Lamp",
+          "quality": "EPIC",
+          "itemLevel": 242,
+          "weight": 2
+        },
+        {
+          "itemId": 255923,
+          "name": "Galactic Warmonger's Lantern",
+          "quality": "EPIC",
+          "itemLevel": 243,
+          "weight": 2
+        }
+      ],
+      "SHIRT": [
+        {
+          "itemId": 52019,
+          "name": "Precious's Ribbon",
+          "quality": "UNCOMMON",
+          "itemLevel": 1,
+          "weight": 6
+        },
+        {
+          "itemId": 268274,
+          "name": "Blinky's Collar",
+          "quality": "UNCOMMON",
+          "itemLevel": 1,
+          "weight": 4
+        },
+        {
+          "itemId": 2575,
+          "name": "Red Linen Shirt",
+          "quality": "UNCOMMON",
+          "itemLevel": 1,
+          "weight": 3
+        },
+        {
+          "itemId": 3428,
+          "name": "Common Gray Shirt",
+          "quality": "UNCOMMON",
+          "itemLevel": 1,
+          "weight": 3
+        },
+        {
+          "itemId": 6833,
+          "name": "White Tuxedo Shirt",
+          "quality": "UNCOMMON",
+          "itemLevel": 1,
+          "weight": 3
+        }
+      ],
+      "SHOULDER": [
+        {
+          "itemId": 250058,
+          "name": "Voidbreaker's Leyline Nexi",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 159
+        },
+        {
+          "itemId": 255367,
+          "name": "Galactic Gladiator's Silk Mantle",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 14
+        },
+        {
+          "itemId": 251085,
+          "name": "Mantle of Dark Devotion",
+          "quality": "EPIC",
+          "itemLevel": 289,
+          "weight": 9
+        },
+        {
+          "itemId": 251213,
+          "name": "Nysarra's Mantle",
+          "quality": "EPIC",
+          "itemLevel": 289,
+          "weight": 3
+        },
+        {
+          "itemId": 239650,
+          "name": "Martyr's Mantle",
+          "quality": "EPIC",
+          "itemLevel": 285,
+          "weight": 2
+        }
+      ],
+      "TABARD": [
+        {
+          "itemId": 5976,
+          "name": "Guild Tabard",
+          "quality": "UNCOMMON",
+          "itemLevel": 1,
+          "weight": 14
+        },
+        {
+          "itemId": 69210,
+          "name": "Renowned Guild Tabard",
+          "quality": "EPIC",
+          "itemLevel": 1,
+          "weight": 11
+        },
+        {
+          "itemId": 157758,
+          "name": "Ren'dorei Tabard",
+          "quality": "RARE",
+          "itemLevel": 1,
+          "weight": 9
+        },
+        {
+          "itemId": 168100,
+          "name": "Alliance Tabard",
+          "quality": "COMMON",
+          "itemLevel": 2,
+          "weight": 6
+        },
+        {
+          "itemId": 43349,
+          "name": "Tabard of Brute Force",
+          "quality": "EPIC",
+          "itemLevel": 1,
+          "weight": 4
+        }
+      ],
+      "TRINKET_1": [
+        {
+          "itemId": 255614,
+          "name": "Galactic Gladiator's Insignia of Alacrity",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 80
+        },
+        {
+          "itemId": 255616,
+          "name": "Galactic Gladiator's Medallion",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 41
+        },
+        {
+          "itemId": 249343,
+          "name": "Gaze of the Alnseer",
+          "quality": "EPIC",
+          "itemLevel": 289,
+          "weight": 13
+        },
+        {
+          "itemId": 255328,
+          "name": "Galactic Aspirant's Insignia of Alacrity",
+          "quality": "RARE",
+          "itemLevel": 217,
+          "weight": 13
+        },
+        {
+          "itemId": 255327,
+          "name": "Galactic Aspirant's Medallion",
+          "quality": "RARE",
+          "itemLevel": 217,
+          "weight": 11
+        }
+      ],
+      "TRINKET_2": [
+        {
+          "itemId": 255616,
+          "name": "Galactic Gladiator's Medallion",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 68
+        },
+        {
+          "itemId": 255614,
+          "name": "Galactic Gladiator's Insignia of Alacrity",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 45
+        },
+        {
+          "itemId": 255327,
+          "name": "Galactic Aspirant's Medallion",
+          "quality": "RARE",
+          "itemLevel": 217,
+          "weight": 26
+        },
+        {
+          "itemId": 249343,
+          "name": "Gaze of the Alnseer",
+          "quality": "EPIC",
+          "itemLevel": 298,
+          "weight": 13
+        },
+        {
+          "itemId": 249346,
+          "name": "Vaelgor's Final Stare",
+          "quality": "EPIC",
+          "itemLevel": 298,
+          "weight": 11
+        }
+      ],
+      "WAIST": [
+        {
+          "itemId": 239682,
+          "name": "Thalassian Competitor's Cloth Sash",
+          "quality": "EPIC",
+          "itemLevel": 239,
+          "weight": 76
+        },
+        {
+          "itemId": 255369,
+          "name": "Galactic Gladiator's Silk Cord",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 62
+        },
+        {
+          "itemId": 255287,
+          "name": "Galactic Aspirant's Silk Cord",
+          "quality": "RARE",
+          "itemLevel": 217,
+          "weight": 14
+        },
+        {
+          "itemId": 250057,
+          "name": "Voidbreaker's Sage Cord",
+          "quality": "EPIC",
+          "itemLevel": 289,
+          "weight": 13
+        },
+        {
+          "itemId": 239649,
+          "name": "Martyr's Waistwrap",
+          "quality": "EPIC",
+          "itemLevel": 285,
+          "weight": 5
+        }
+      ],
+      "WRIST": [
+        {
+          "itemId": 255372,
+          "name": "Galactic Gladiator's Silk Armbands",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 101
+        },
+        {
+          "itemId": 239648,
+          "name": "Martyr's Bindings",
+          "quality": "EPIC",
+          "itemLevel": 285,
+          "weight": 21
+        },
+        {
+          "itemId": 239677,
+          "name": "Thalassian Competitor's Cloth Bands",
+          "quality": "EPIC",
+          "itemLevel": 239,
+          "weight": 18
+        },
+        {
+          "itemId": 255322,
+          "name": "Galactic Aspirant's Silk Bindings",
+          "quality": "RARE",
+          "itemLevel": 217,
+          "weight": 15
+        },
+        {
+          "itemId": 244739,
+          "name": "Thalassian Competitor's Cloth Cuffs",
+          "quality": "EPIC",
+          "itemLevel": 242,
+          "weight": 8
+        }
+      ]
+    },
+    "fury-warrior": {
+      "BACK": [
+        {
+          "itemId": 239678,
+          "name": "Thalassian Competitor's Cloth Cloak",
+          "quality": "EPIC",
+          "itemLevel": 242,
+          "weight": 55
+        },
+        {
+          "itemId": 255606,
+          "name": "Galactic Gladiator's Shawl",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 30
+        },
+        {
+          "itemId": 255605,
+          "name": "Galactic Gladiator's Drape",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 25
+        },
+        {
+          "itemId": 239656,
+          "name": "Adherent's Silken Shroud",
+          "quality": "EPIC",
+          "itemLevel": 285,
+          "weight": 17
+        },
+        {
+          "itemId": 249947,
+          "name": "Night Ender's Greatmantle",
+          "quality": "EPIC",
+          "itemLevel": 276,
+          "weight": 10
+        }
+      ],
+      "CHEST": [
+        {
+          "itemId": 249955,
+          "name": "Night Ender's Breastplate",
+          "quality": "EPIC",
+          "itemLevel": 289,
+          "weight": 73
+        },
+        {
+          "itemId": 255588,
+          "name": "Galactic Gladiator's Chestguard",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 62
+        },
+        {
+          "itemId": 255589,
+          "name": "Galactic Gladiator's Chestplate",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 26
+        },
+        {
+          "itemId": 237901,
+          "name": "Thalassian Competitor's Plate Breastplate",
+          "quality": "EPIC",
+          "itemLevel": 242,
+          "weight": 20
+        },
+        {
+          "itemId": 255296,
+          "name": "Galactic Aspirant's Plate Armor",
+          "quality": "RARE",
+          "itemLevel": 217,
+          "weight": 4
+        }
+      ],
+      "FEET": [
+        {
+          "itemId": 255590,
+          "name": "Galactic Gladiator's Plate Warboots",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 82
+        },
+        {
+          "itemId": 249954,
+          "name": "Night Ender's Greatboots",
+          "quality": "EPIC",
+          "itemLevel": 289,
+          "weight": 25
+        },
+        {
+          "itemId": 255267,
+          "name": "Galactic Aspirant's Plate Warboots",
+          "quality": "RARE",
+          "itemLevel": 217,
+          "weight": 14
+        },
+        {
+          "itemId": 237902,
+          "name": "Thalassian Competitor's Plate Sabatons",
+          "quality": "EPIC",
+          "itemLevel": 242,
+          "weight": 13
+        },
+        {
+          "itemId": 244766,
+          "name": "Thalassian Competitor's Plate Dunkers",
+          "quality": "EPIC",
+          "itemLevel": 239,
+          "weight": 12
+        }
+      ],
+      "FINGER_1": [
+        {
+          "itemId": 240951,
+          "name": "Thalassian Competitor's Signet",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 65
+        },
+        {
+          "itemId": 255607,
+          "name": "Galactic Gladiator's Ring",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 30
+        },
+        {
+          "itemId": 255609,
+          "name": "Galactic Gladiator's Signet",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 24
+        },
+        {
+          "itemId": 251217,
+          "name": "Occlusion of Void",
+          "quality": "EPIC",
+          "itemLevel": 289,
+          "weight": 14
+        },
+        {
+          "itemId": 251093,
+          "name": "Omission of Light",
+          "quality": "EPIC",
+          "itemLevel": 289,
+          "weight": 11
+        }
+      ],
+      "FINGER_2": [
+        {
+          "itemId": 240951,
+          "name": "Thalassian Competitor's Signet",
+          "quality": "EPIC",
+          "itemLevel": 242,
+          "weight": 49
+        },
+        {
+          "itemId": 255607,
+          "name": "Galactic Gladiator's Ring",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 42
+        },
+        {
+          "itemId": 255609,
+          "name": "Galactic Gladiator's Signet",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 27
+        },
+        {
+          "itemId": 268290,
+          "name": "Sporecaller's Blooming Loop",
+          "quality": "EPIC",
+          "itemLevel": 298,
+          "weight": 18
+        },
+        {
+          "itemId": 251217,
+          "name": "Occlusion of Void",
+          "quality": "EPIC",
+          "itemLevel": 289,
+          "weight": 16
+        }
+      ],
+      "HANDS": [
+        {
+          "itemId": 249953,
+          "name": "Night Ender's Fists",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 141
+        },
+        {
+          "itemId": 151332,
+          "name": "Voidclaw Gauntlets",
+          "quality": "EPIC",
+          "itemLevel": 289,
+          "weight": 22
+        },
+        {
+          "itemId": 255593,
+          "name": "Galactic Gladiator's Plate Handguards",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 10
+        },
+        {
+          "itemId": 258583,
+          "name": "Incarnadine Gauntlets",
+          "quality": "EPIC",
+          "itemLevel": 289,
+          "weight": 6
+        },
+        {
+          "itemId": 237903,
+          "name": "Thalassian Competitor's Plate Gauntlets",
+          "quality": "EPIC",
+          "itemLevel": 242,
+          "weight": 3
+        }
+      ],
+      "HEAD": [
+        {
+          "itemId": 249952,
+          "name": "Night Ender's Tusks",
+          "quality": "EPIC",
+          "itemLevel": 263,
+          "weight": 136
+        },
+        {
+          "itemId": 255594,
+          "name": "Galactic Gladiator's Plate Helm",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 26
+        },
+        {
+          "itemId": 244738,
+          "name": "Thalassian Competitor's Plate Guard",
+          "quality": "EPIC",
+          "itemLevel": 239,
+          "weight": 18
+        },
+        {
+          "itemId": 255595,
+          "name": "Galactic Gladiator's Plate Helmet",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 3
+        },
+        {
+          "itemId": 49819,
+          "name": "Skeleton Lord's Cranium",
+          "quality": "EPIC",
+          "itemLevel": 289,
+          "weight": 2
+        }
+      ],
+      "LEGS": [
+        {
+          "itemId": 249951,
+          "name": "Night Ender's Chausses",
+          "quality": "EPIC",
+          "itemLevel": 289,
+          "weight": 87
+        },
+        {
+          "itemId": 255596,
+          "name": "Galactic Gladiator's Plate Legguards",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 58
+        },
+        {
+          "itemId": 255597,
+          "name": "Galactic Gladiator's Plate Wargreaves",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 34
+        },
+        {
+          "itemId": 255310,
+          "name": "Galactic Aspirant's Plate Wargreaves",
+          "quality": "RARE",
+          "itemLevel": 217,
+          "weight": 5
+        },
+        {
+          "itemId": 277767,
+          "name": "Venom-Cursed Bear's Greaves",
+          "quality": "EPIC",
+          "itemLevel": 292,
+          "weight": 4
+        }
+      ],
+      "MAIN_HAND": [
+        {
+          "itemId": 265601,
+          "name": "Galactic Gladiator's Greataxe",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 70
+        },
+        {
+          "itemId": 255633,
+          "name": "Galactic Gladiator's Greatsword",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 47
+        },
+        {
+          "itemId": 49802,
+          "name": "Garfrost's Two-Ton Hammer",
+          "quality": "EPIC",
+          "itemLevel": 298,
+          "weight": 16
+        },
+        {
+          "itemId": 251117,
+          "name": "Whirling Voidcleaver",
+          "quality": "EPIC",
+          "itemLevel": 298,
+          "weight": 13
+        },
+        {
+          "itemId": 237915,
+          "name": "Thalassian Competitor's Greatsword",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 9
+        }
+      ],
+      "NECK": [
+        {
+          "itemId": 255610,
+          "name": "Galactic Gladiator's Necklace",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 60
+        },
+        {
+          "itemId": 240952,
+          "name": "Thalassian Competitor's Amulet",
+          "quality": "EPIC",
+          "itemLevel": 242,
+          "weight": 32
+        },
+        {
+          "itemId": 268291,
+          "name": "Rotmire's Sporeheart",
+          "quality": "EPIC",
+          "itemLevel": 298,
+          "weight": 26
+        },
+        {
+          "itemId": 255612,
+          "name": "Galactic Gladiator's Amulet",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 21
+        },
+        {
+          "itemId": 50228,
+          "name": "Barbed Ymirheim Choker",
+          "quality": "EPIC",
+          "itemLevel": 289,
+          "weight": 13
+        }
+      ],
+      "OFF_HAND": [
+        {
+          "itemId": 255633,
+          "name": "Galactic Gladiator's Greatsword",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 47
+        },
+        {
+          "itemId": 265601,
+          "name": "Galactic Gladiator's Greataxe",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 30
+        },
+        {
+          "itemId": 237846,
+          "name": "Blood Knight's Warblade",
+          "quality": "EPIC",
+          "itemLevel": 295,
+          "weight": 21
+        },
+        {
+          "itemId": 255634,
+          "name": "Galactic Gladiator's Morningstar",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 3
+        },
+        {
+          "itemId": 49802,
+          "name": "Garfrost's Two-Ton Hammer",
+          "quality": "EPIC",
+          "itemLevel": 298,
+          "weight": 2
+        }
+      ],
+      "SHIRT": [
+        {
+          "itemId": 52019,
+          "name": "Precious's Ribbon",
+          "quality": "UNCOMMON",
+          "itemLevel": 1,
+          "weight": 9
+        },
+        {
+          "itemId": 151116,
+          "name": "Fashionable Undershirt",
+          "quality": "RARE",
+          "itemLevel": 1,
+          "weight": 6
+        },
+        {
+          "itemId": 4334,
+          "name": "Formal White Shirt",
+          "quality": "UNCOMMON",
+          "itemLevel": 1,
+          "weight": 5
+        },
+        {
+          "itemId": 268274,
+          "name": "Blinky's Collar",
+          "quality": "UNCOMMON",
+          "itemLevel": 1,
+          "weight": 5
+        },
+        {
+          "itemId": 41248,
+          "name": "Red Lumberjack Shirt",
+          "quality": "UNCOMMON",
+          "itemLevel": 1,
+          "weight": 4
+        }
+      ],
+      "SHOULDER": [
+        {
+          "itemId": 249950,
+          "name": "Night Ender's Pauldrons",
+          "quality": "EPIC",
+          "itemLevel": 263,
+          "weight": 141
+        },
+        {
+          "itemId": 255599,
+          "name": "Galactic Gladiator's Plate Pauldrons",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 38
+        },
+        {
+          "itemId": 251157,
+          "name": "Searing Spaulders",
+          "quality": "EPIC",
+          "itemLevel": 289,
+          "weight": 4
+        },
+        {
+          "itemId": 255598,
+          "name": "Galactic Gladiator's Plate Shoulders",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 2
+        },
+        {
+          "itemId": 277766,
+          "name": "Venom-Cursed Bear's Pauldrons",
+          "quality": "EPIC",
+          "itemLevel": 285,
+          "weight": 2
+        }
+      ],
+      "TABARD": [
+        {
+          "itemId": 5976,
+          "name": "Guild Tabard",
+          "quality": "UNCOMMON",
+          "itemLevel": 1,
+          "weight": 15
+        },
+        {
+          "itemId": 52252,
+          "name": "Tabard of the Lightbringer",
+          "quality": "EPIC",
+          "itemLevel": 14,
+          "weight": 10
+        },
+        {
+          "itemId": 260441,
+          "name": "Galactic Gladiator's Tabard",
+          "quality": "EPIC",
+          "itemLevel": 1,
+          "weight": 10
+        },
+        {
+          "itemId": 264164,
+          "name": "Galactic Gladiator's Tabard",
+          "quality": "EPIC",
+          "itemLevel": 1,
+          "weight": 10
+        },
+        {
+          "itemId": 69210,
+          "name": "Renowned Guild Tabard",
+          "quality": "EPIC",
+          "itemLevel": 1,
+          "weight": 7
+        }
+      ],
+      "TRINKET_1": [
+        {
+          "itemId": 255614,
+          "name": "Galactic Gladiator's Insignia of Alacrity",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 65
+        },
+        {
+          "itemId": 255616,
+          "name": "Galactic Gladiator's Medallion",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 43
+        },
+        {
+          "itemId": 249343,
+          "name": "Gaze of the Alnseer",
+          "quality": "EPIC",
+          "itemLevel": 298,
+          "weight": 26
+        },
+        {
+          "itemId": 249342,
+          "name": "Heart of Ancient Hunger",
+          "quality": "EPIC",
+          "itemLevel": 285,
+          "weight": 16
+        },
+        {
+          "itemId": 255327,
+          "name": "Galactic Aspirant's Medallion",
+          "quality": "RARE",
+          "itemLevel": 217,
+          "weight": 10
+        }
+      ],
+      "TRINKET_2": [
+        {
+          "itemId": 255616,
+          "name": "Galactic Gladiator's Medallion",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 63
+        },
+        {
+          "itemId": 255614,
+          "name": "Galactic Gladiator's Insignia of Alacrity",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 44
+        },
+        {
+          "itemId": 249342,
+          "name": "Heart of Ancient Hunger",
+          "quality": "EPIC",
+          "itemLevel": 298,
+          "weight": 22
+        },
+        {
+          "itemId": 249343,
+          "name": "Gaze of the Alnseer",
+          "quality": "EPIC",
+          "itemLevel": 298,
+          "weight": 17
+        },
+        {
+          "itemId": 255328,
+          "name": "Galactic Aspirant's Insignia of Alacrity",
+          "quality": "RARE",
+          "itemLevel": 217,
+          "weight": 8
+        }
+      ],
+      "WAIST": [
+        {
+          "itemId": 255601,
+          "name": "Galactic Gladiator's Plate Greatbelt",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 57
+        },
+        {
+          "itemId": 255600,
+          "name": "Galactic Gladiator's Plate Girdle",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 39
+        },
+        {
+          "itemId": 249949,
+          "name": "Night Ender's Girdle",
+          "quality": "EPIC",
+          "itemLevel": 289,
+          "weight": 21
+        },
+        {
+          "itemId": 268289,
+          "name": "Girdle of Devouring Rot",
+          "quality": "EPIC",
+          "itemLevel": 298,
+          "weight": 21
+        },
+        {
+          "itemId": 237907,
+          "name": "Thalassian Competitor's Plate Waistguard",
+          "quality": "EPIC",
+          "itemLevel": 242,
+          "weight": 17
+        }
+      ],
+      "WRIST": [
+        {
+          "itemId": 237908,
+          "name": "Thalassian Competitor's Plate Armguards",
+          "quality": "EPIC",
+          "itemLevel": 242,
+          "weight": 51
+        },
+        {
+          "itemId": 237834,
+          "name": "Spellbreaker's Bracers",
+          "quality": "EPIC",
+          "itemLevel": 285,
+          "weight": 41
+        },
+        {
+          "itemId": 255603,
+          "name": "Galactic Gladiator's Plate Vambraces",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 32
+        },
+        {
+          "itemId": 255602,
+          "name": "Galactic Gladiator's Plate Wristguards",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 26
+        },
+        {
+          "itemId": 244742,
+          "name": "Thalassian Competitor's Plate Bindings",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 11
+        }
+      ]
+    },
+    "restoration-shaman": {
+      "BACK": [
+        {
+          "itemId": 255548,
+          "name": "Galactic Gladiator's Shawl",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 71
+        },
+        {
+          "itemId": 239678,
+          "name": "Thalassian Competitor's Cloth Cloak",
+          "quality": "EPIC",
+          "itemLevel": 239,
+          "weight": 23
+        },
+        {
+          "itemId": 249974,
+          "name": "Guardian of the Primal Core",
+          "quality": "EPIC",
+          "itemLevel": 279,
+          "weight": 18
+        },
+        {
+          "itemId": 255339,
+          "name": "Galactic Aspirant's Cape",
+          "quality": "RARE",
+          "itemLevel": 217,
+          "weight": 15
+        },
+        {
+          "itemId": 255547,
+          "name": "Galactic Gladiator's Drape",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 12
+        }
+      ],
+      "CHEST": [
+        {
+          "itemId": 249982,
+          "name": "Embrace of the Primal Core",
+          "quality": "EPIC",
+          "itemLevel": 250,
+          "weight": 164
+        },
+        {
+          "itemId": 255531,
+          "name": "Galactic Gladiator's Chain Tunic",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 13
+        },
+        {
+          "itemId": 255297,
+          "name": "Galactic Aspirant's Armored Tunic",
+          "quality": "RARE",
+          "itemLevel": 217,
+          "weight": 8
+        },
+        {
+          "itemId": 244562,
+          "name": "Thalassian Competitor's Chain Tunic",
+          "quality": "EPIC",
+          "itemLevel": 239,
+          "weight": 6
+        },
+        {
+          "itemId": 239034,
+          "name": "Corrupted Hexxer's Vestments",
+          "quality": "EPIC",
+          "itemLevel": 292,
+          "weight": 1
+        }
+      ],
+      "FEET": [
+        {
+          "itemId": 255533,
+          "name": "Galactic Gladiator's Chain Boots",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 75
+        },
+        {
+          "itemId": 255301,
+          "name": "Galactic Aspirant's Chain Stompers",
+          "quality": "RARE",
+          "itemLevel": 217,
+          "weight": 19
+        },
+        {
+          "itemId": 244561,
+          "name": "Thalassian Competitor's Chain Stompers",
+          "quality": "EPIC",
+          "itemLevel": 239,
+          "weight": 15
+        },
+        {
+          "itemId": 255532,
+          "name": "Galactic Gladiator's Chain Sabatons",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 15
+        },
+        {
+          "itemId": 249981,
+          "name": "Sollerets of the Primal Core",
+          "quality": "EPIC",
+          "itemLevel": 276,
+          "weight": 12
+        }
+      ],
+      "FINGER_1": [
+        {
+          "itemId": 240951,
+          "name": "Thalassian Competitor's Signet",
+          "quality": "EPIC",
+          "itemLevel": 242,
+          "weight": 80
+        },
+        {
+          "itemId": 255609,
+          "name": "Galactic Gladiator's Signet",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 22
+        },
+        {
+          "itemId": 255607,
+          "name": "Galactic Gladiator's Ring",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 16
+        },
+        {
+          "itemId": 151308,
+          "name": "Eredath Seal of Nobility",
+          "quality": "EPIC",
+          "itemLevel": 289,
+          "weight": 7
+        },
+        {
+          "itemId": 255331,
+          "name": "Galactic Aspirant's Ring",
+          "quality": "RARE",
+          "itemLevel": 217,
+          "weight": 7
+        }
+      ],
+      "FINGER_2": [
+        {
+          "itemId": 240951,
+          "name": "Thalassian Competitor's Signet",
+          "quality": "EPIC",
+          "itemLevel": 242,
+          "weight": 86
+        },
+        {
+          "itemId": 255609,
+          "name": "Galactic Gladiator's Signet",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 20
+        },
+        {
+          "itemId": 255333,
+          "name": "Galactic Aspirant's Signet",
+          "quality": "RARE",
+          "itemLevel": 217,
+          "weight": 13
+        },
+        {
+          "itemId": 255331,
+          "name": "Galactic Aspirant's Ring",
+          "quality": "RARE",
+          "itemLevel": 217,
+          "weight": 8
+        },
+        {
+          "itemId": 251217,
+          "name": "Occlusion of Void",
+          "quality": "EPIC",
+          "itemLevel": 276,
+          "weight": 7
+        }
+      ],
+      "HANDS": [
+        {
+          "itemId": 249980,
+          "name": "Earthgrips of the Primal Core",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 156
+        },
+        {
+          "itemId": 255535,
+          "name": "Galactic Gladiator's Chain Handguards",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 16
+        },
+        {
+          "itemId": 255274,
+          "name": "Galactic Aspirant's Chain Gauntlets",
+          "quality": "RARE",
+          "itemLevel": 217,
+          "weight": 11
+        },
+        {
+          "itemId": 255534,
+          "name": "Galactic Gladiator's Chain Gauntlets",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 4
+        },
+        {
+          "itemId": 244583,
+          "name": "Farstrider's Sharpened Claws",
+          "quality": "EPIC",
+          "itemLevel": 285,
+          "weight": 3
+        }
+      ],
+      "HEAD": [
+        {
+          "itemId": 249979,
+          "name": "Locus of the Primal Core",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 147
+        },
+        {
+          "itemId": 244737,
+          "name": "Thalassian Competitor's Mail Visor",
+          "quality": "EPIC",
+          "itemLevel": 239,
+          "weight": 6
+        },
+        {
+          "itemId": 255536,
+          "name": "Galactic Gladiator's Chain Helm",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 6
+        },
+        {
+          "itemId": 249317,
+          "name": "Frenzy's Rebuke",
+          "quality": "EPIC",
+          "itemLevel": 289,
+          "weight": 5
+        },
+        {
+          "itemId": 251119,
+          "name": "Vortex Visage",
+          "quality": "EPIC",
+          "itemLevel": 289,
+          "weight": 5
+        }
+      ],
+      "LEGS": [
+        {
+          "itemId": 249978,
+          "name": "Leggings of the Primal Core",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 131
+        },
+        {
+          "itemId": 255538,
+          "name": "Galactic Gladiator's Chain Leggings",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 25
+        },
+        {
+          "itemId": 255539,
+          "name": "Galactic Gladiator's Chain Breeches",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 10
+        },
+        {
+          "itemId": 255312,
+          "name": "Galactic Aspirant's Chain Wargreaves",
+          "quality": "RARE",
+          "itemLevel": 217,
+          "weight": 6
+        },
+        {
+          "itemId": 244566,
+          "name": "Thalassian Competitor's Chain Leggings",
+          "quality": "EPIC",
+          "itemLevel": 236,
+          "weight": 5
+        }
+      ],
+      "MAIN_HAND": [
+        {
+          "itemId": 255624,
+          "name": "Galactic Gladiator's Scepter",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 91
+        },
+        {
+          "itemId": 267371,
+          "name": "Galactic Gladiator's Ripper",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 20
+        },
+        {
+          "itemId": 50227,
+          "name": "Surgeon's Needle",
+          "quality": "EPIC",
+          "itemLevel": 298,
+          "weight": 11
+        },
+        {
+          "itemId": 255349,
+          "name": "Galactic Aspirant's Scepter",
+          "quality": "RARE",
+          "itemLevel": 217,
+          "weight": 8
+        },
+        {
+          "itemId": 255628,
+          "name": "Galactic Gladiator's Shattered Blade",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 6
+        }
+      ],
+      "NECK": [
+        {
+          "itemId": 240952,
+          "name": "Thalassian Competitor's Amulet",
+          "quality": "EPIC",
+          "itemLevel": 242,
+          "weight": 68
+        },
+        {
+          "itemId": 255612,
+          "name": "Galactic Gladiator's Amulet",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 29
+        },
+        {
+          "itemId": 268291,
+          "name": "Rotmire's Sporeheart",
+          "quality": "EPIC",
+          "itemLevel": 298,
+          "weight": 22
+        },
+        {
+          "itemId": 255610,
+          "name": "Galactic Gladiator's Necklace",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 17
+        },
+        {
+          "itemId": 255336,
+          "name": "Galactic Aspirant's Pendant",
+          "quality": "RARE",
+          "itemLevel": 217,
+          "weight": 13
+        }
+      ],
+      "OFF_HAND": [
+        {
+          "itemId": 255632,
+          "name": "Galactic Gladiator's Bulwark",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 98
+        },
+        {
+          "itemId": 255626,
+          "name": "Galactic Gladiator's Shield",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 21
+        },
+        {
+          "itemId": 237831,
+          "name": "Spellbreaker's Rebuke",
+          "quality": "EPIC",
+          "itemLevel": 295,
+          "weight": 10
+        },
+        {
+          "itemId": 249275,
+          "name": "Bulwark of Noble Resolve",
+          "quality": "EPIC",
+          "itemLevel": 298,
+          "weight": 10
+        },
+        {
+          "itemId": 255350,
+          "name": "Galactic Aspirant's Shield",
+          "quality": "RARE",
+          "itemLevel": 217,
+          "weight": 8
+        }
+      ],
+      "SHIRT": [
+        {
+          "itemId": 52019,
+          "name": "Precious's Ribbon",
+          "quality": "UNCOMMON",
+          "itemLevel": 1,
+          "weight": 8
+        },
+        {
+          "itemId": 268274,
+          "name": "Blinky's Collar",
+          "quality": "UNCOMMON",
+          "itemLevel": 1,
+          "weight": 6
+        },
+        {
+          "itemId": 2575,
+          "name": "Red Linen Shirt",
+          "quality": "UNCOMMON",
+          "itemLevel": 1,
+          "weight": 2
+        },
+        {
+          "itemId": 2577,
+          "name": "Blue Linen Shirt",
+          "quality": "UNCOMMON",
+          "itemLevel": 1,
+          "weight": 2
+        },
+        {
+          "itemId": 4335,
+          "name": "Rich Purple Silk Shirt",
+          "quality": "UNCOMMON",
+          "itemLevel": 1,
+          "weight": 2
+        }
+      ],
+      "SHOULDER": [
+        {
+          "itemId": 249977,
+          "name": "Tempests of the Primal Core",
+          "quality": "EPIC",
+          "itemLevel": 272,
+          "weight": 106
+        },
+        {
+          "itemId": 244564,
+          "name": "Thalassian Competitor's Chain Epaulets",
+          "quality": "EPIC",
+          "itemLevel": 239,
+          "weight": 45
+        },
+        {
+          "itemId": 255540,
+          "name": "Galactic Gladiator's Chain Monnion",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 26
+        },
+        {
+          "itemId": 255285,
+          "name": "Galactic Aspirant's Chain Spaulders",
+          "quality": "RARE",
+          "itemLevel": 217,
+          "weight": 9
+        },
+        {
+          "itemId": 251131,
+          "name": "Jangling Felpaulets",
+          "quality": "EPIC",
+          "itemLevel": 292,
+          "weight": 2
+        }
+      ],
+      "TABARD": [
+        {
+          "itemId": 69210,
+          "name": "Renowned Guild Tabard",
+          "quality": "EPIC",
+          "itemLevel": 1,
+          "weight": 10
+        },
+        {
+          "itemId": 5976,
+          "name": "Guild Tabard",
+          "quality": "UNCOMMON",
+          "itemLevel": 1,
+          "weight": 6
+        },
+        {
+          "itemId": 69209,
+          "name": "Illustrious Guild Tabard",
+          "quality": "RARE",
+          "itemLevel": 1,
+          "weight": 5
+        },
+        {
+          "itemId": 232908,
+          "name": "Astral Gladiator's Tabard",
+          "quality": "EPIC",
+          "itemLevel": 1,
+          "weight": 4
+        },
+        {
+          "itemId": 161329,
+          "name": "Tabard of the Dark Iron",
+          "quality": "RARE",
+          "itemLevel": 1,
+          "weight": 3
+        }
+      ],
+      "TRINKET_1": [
+        {
+          "itemId": 255614,
+          "name": "Galactic Gladiator's Insignia of Alacrity",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 59
+        },
+        {
+          "itemId": 255616,
+          "name": "Galactic Gladiator's Medallion",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 42
+        },
+        {
+          "itemId": 255327,
+          "name": "Galactic Aspirant's Medallion",
+          "quality": "RARE",
+          "itemLevel": 217,
+          "weight": 15
+        },
+        {
+          "itemId": 255328,
+          "name": "Galactic Aspirant's Insignia of Alacrity",
+          "quality": "RARE",
+          "itemLevel": 217,
+          "weight": 14
+        },
+        {
+          "itemId": 249343,
+          "name": "Gaze of the Alnseer",
+          "quality": "EPIC",
+          "itemLevel": 298,
+          "weight": 12
+        }
+      ],
+      "TRINKET_2": [
+        {
+          "itemId": 255616,
+          "name": "Galactic Gladiator's Medallion",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 58
+        },
+        {
+          "itemId": 255614,
+          "name": "Galactic Gladiator's Insignia of Alacrity",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 41
+        },
+        {
+          "itemId": 255327,
+          "name": "Galactic Aspirant's Medallion",
+          "quality": "RARE",
+          "itemLevel": 217,
+          "weight": 19
+        },
+        {
+          "itemId": 249343,
+          "name": "Gaze of the Alnseer",
+          "quality": "EPIC",
+          "itemLevel": 298,
+          "weight": 15
+        },
+        {
+          "itemId": 255328,
+          "name": "Galactic Aspirant's Insignia of Alacrity",
+          "quality": "RARE",
+          "itemLevel": 217,
+          "weight": 14
+        }
+      ],
+      "WAIST": [
+        {
+          "itemId": 244565,
+          "name": "Thalassian Competitor's Chain Girdle",
+          "quality": "EPIC",
+          "itemLevel": 239,
+          "weight": 64
+        },
+        {
+          "itemId": 255542,
+          "name": "Galactic Gladiator's Chain Belt",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 38
+        },
+        {
+          "itemId": 255320,
+          "name": "Galactic Aspirant's Chain Clasp",
+          "quality": "RARE",
+          "itemLevel": 217,
+          "weight": 17
+        },
+        {
+          "itemId": 249976,
+          "name": "Ceinture of the Primal Core",
+          "quality": "EPIC",
+          "itemLevel": 276,
+          "weight": 16
+        },
+        {
+          "itemId": 244581,
+          "name": "Farstrider's Trophy Belt",
+          "quality": "EPIC",
+          "itemLevel": 285,
+          "weight": 10
+        }
+      ],
+      "WRIST": [
+        {
+          "itemId": 255544,
+          "name": "Galactic Gladiator's Chain Wristguards",
+          "quality": "EPIC",
+          "itemLevel": 246,
+          "weight": 75
+        },
+        {
+          "itemId": 255292,
+          "name": "Galactic Aspirant's Chain Wristwraps",
+          "quality": "RARE",
+          "itemLevel": 217,
+          "weight": 21
+        },
+        {
+          "itemId": 244584,
+          "name": "Farstrider's Plated Bracers",
+          "quality": "EPIC",
+          "itemLevel": 285,
+          "weight": 20
+        },
+        {
+          "itemId": 244568,
+          "name": "Thalassian Competitor's Chain Cuffs",
+          "quality": "EPIC",
+          "itemLevel": 239,
+          "weight": 17
+        },
+        {
+          "itemId": 249975,
+          "name": "Cuffs of the Primal Core",
+          "quality": "EPIC",
+          "itemLevel": 289,
+          "weight": 15
+        }
+      ]
+    }
+  }
+}

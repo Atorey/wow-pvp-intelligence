@@ -33,6 +33,19 @@ function mulberry32(state: number): () => number {
 }
 
 /**
+ * Generador determinista a partir de una semilla de texto.
+ *
+ * Se expone porque el muestreo no es lo único que necesita azar reproducible:
+ * el dataset de desarrollo (`seed`) reparte items, ratings y fechas con el
+ * mismo criterio —misma semilla, mismo resultado— y una segunda copia del PRNG
+ * daría dos definiciones de "reproducible" que nadie notaría hasta que
+ * divergieran.
+ */
+export function seededRandom(seed: string): () => number {
+  return mulberry32(hashSeed(seed));
+}
+
+/**
  * Muestra de como mucho `limit` elementos, elegida de forma aleatoria pero
  * determinista a partir de `seed`.
  *
@@ -44,7 +57,7 @@ function mulberry32(state: number): () => number {
  */
 export function takeSample<T>(items: readonly T[], limit: number, seed: string): T[] {
   const shuffled = [...items];
-  const random = mulberry32(hashSeed(seed));
+  const random = seededRandom(seed);
 
   // Fisher-Yates. Se baraja siempre, también en el censo: así el orden de
   // descarga no sigue al de character_id y una ejecución cortada a la mitad
