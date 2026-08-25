@@ -39,12 +39,18 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
   const copy = COPY[locale];
   const other = LOCALES.find((candidate) => candidate !== locale) ?? locale;
 
+  // El andamiaje se maqueta con el sistema visual, no a pelo: si los tokens no
+  // se usan en ningún sitio, nadie se entera de que están mal hasta #17.
   return (
-    <main>
-      <h1>One Rung</h1>
-      <p>{copy.tagline}</p>
-      <p>{copy.status}</p>
-      <Link href={`/${other}`} hrefLang={other}>
+    <main className="mx-auto flex min-h-dvh max-w-measure flex-col justify-center gap-4 px-5 py-8">
+      <h1 className="text-2xl tracking-caps text-accent uppercase">One Rung</h1>
+      <p className="text-lg text-ink">{copy.tagline}</p>
+      <p className="text-sm text-ink-secondary">{copy.status}</p>
+      <Link
+        href={`/${other}`}
+        hrefLang={other}
+        className="text-accent self-start text-sm underline"
+      >
         {COPY[other].switchTo}
       </Link>
     </main>
