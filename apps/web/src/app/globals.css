@@ -1,25 +1,185 @@
+@import "tailwindcss";
+
 /*
- * Reset mínimo y nada más. Los tokens —color, tipografía, espaciado, tema
- * oscuro— son de #65 y aún no están decididos: las variables de abajo están
- * para que el andamiaje se vea, no para que nadie construya sobre ellas.
+ * Sistema visual de One Rung (docs/design/system.md, ADR 0019).
+ *
+ * Tailwind v4 no tiene fichero de configuración: el tema es este bloque. Cada
+ * token de `@theme` genera su utilidad —`--color-surface` da `bg-surface`,
+ * `text-surface`, `border-surface`— y se emite como variable CSS en `:root`.
+ * Escribir un `#hex` o un `[13px]` arbitrario en un componente lo saca del
+ * sistema y de la verificación de contraste de abajo.
+ *
+ * Los ratios anotados están calculados contra el fondo PEOR de cada tema —el
+ * más claro en oscuro, el más oscuro en claro— para que ningún token dependa
+ * de sobre qué superficie se pinta. La anotación dice lo que se midió;
+ * `src/design/contrast.test.ts` lee este fichero y dice lo que vale hoy.
  */
 
-:root {
-  --color-background: #ffffff;
-  --color-text: #111111;
+@theme {
+  /* --- Superficies, de atrás hacia delante ------------------------------- */
+  --color-bg: #0e0f13;
+  --color-surface: #16181f;
+  --color-raised: #1e212a;
+
+  /* Separadores. Son decorativos —la jerarquía la llevan el tamaño y el
+   * espacio, no la línea—, así que no se les exige el 3:1 de componente. */
+  --color-line: #2a2e39;
+  --color-line-strong: #454b5c;
+
+  /* --- Texto -------------------------------------------------------------
+   * Tres niveles, ninguno por debajo de AA sobre cualquier superficie. No hay
+   * un cuarto nivel "deshabilitado": nada en este producto se pinta apagado
+   * para sugerir que existe pero no está disponible. */
+  --color-ink: #e8e6e1; /* 12.89 */
+  --color-ink-secondary: #a8aab4; /* 6.95 */
+  --color-ink-muted: #868a97; /* 4.67 */
+
+  /* --- Acento ------------------------------------------------------------
+   * Oro sobrio, el único color de marca, y nunca portador único de un
+   * significado. */
+  --color-accent: #c8a25a; /* 6.72 */
+  --color-accent-quiet: #8a7440;
+
+  /* --- Aviso de muestra reducida (estado `medium`) -----------------------
+   * El bloque ocupa espacio y lleva texto: el color acompaña, no informa. */
+  --color-warn: #e2b23c; /* 8.17 */
+  --color-warn-surface: #241f12;
+  --color-warn-line: #4a3c1a;
+
+  /* Anillo de foco. A este sí se le exige 3:1 contra todos los fondos, porque
+   * es información de estado y no un adorno. */
+  --color-focus: #e2b23c; /* 8.17 */
+
+  /* --- Calidad de item ---------------------------------------------------
+   * Sale del dato (`character_snapshot_gear.quality`), no de la decoración.
+   * `common` no lleva tinte: es el color de texto del tema. */
+  --color-quality-poor: #9d9d9d; /* 5.93 */
+  --color-quality-common: #e8e6e1;
+  --color-quality-uncommon: #1eff00; /* 11.76 */
+  --color-quality-rare: #0c87ff; /* 4.54 */
+  --color-quality-epic: #b65ff2; /* 4.52 */
+  --color-quality-legendary: #ff8000; /* 6.38 */
+  --color-quality-artifact: #e6cc80; /* 10.19 */
+
+  /* --- Tipografía --------------------------------------------------------
+   * `--font-display` la inyecta next/font como `--font-cinzel`; si no carga,
+   * la pila de reserva mantiene el tono serif y el layout no salta. */
+  --font-display:
+    var(--font-cinzel), "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
   --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  /* Escala tipográfica. No existe ningún paso por debajo de 14px: así la
+   * "letra pequeña" que la §4.3 del brief prohíbe para la línea de atribución
+   * no se puede escribir por descuido, porque no hay token con el que hacerlo.
+   * Se redefinen los pasos de Tailwind en vez de añadir nombres nuevos, para
+   * que `text-xs` no siga significando 12px. */
+  --text-xs: 0.875rem; /* 14px — suelo del sistema */
+  --text-xs--line-height: 1.5;
+  --text-sm: 0.9375rem;
+  --text-sm--line-height: 1.5;
+  --text-base: 1rem;
+  --text-base--line-height: 1.5;
+  --text-lg: 1.125rem;
+  --text-lg--line-height: 1.4;
+  --text-xl: 1.375rem;
+  --text-xl--line-height: 1.25;
+  --text-2xl: 1.75rem;
+  --text-2xl--line-height: 1.2;
+
+  --tracking-caps: 0.08em;
+
+  /* Ancho de lectura. El móvil es el caso de diseño (§23 del plan), no una
+   * adaptación posterior: los componentes se maquetan a este ancho y crecen
+   * desde ahí. */
+  --container-measure: 34rem;
 }
 
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
+/* ---------------------------------------------------------------------------
+ * Tema claro
+ *
+ * Solo se redefinen los tokens que cambian de valor; la escala, el espaciado y
+ * la tipografía son las mismas en los dos temas. Funciona porque las utilidades
+ * de Tailwind referencian `var(--color-…)` en vez de incrustar el literal: basta
+ * con reasignar la variable en `:root`.
+ *
+ * El oscuro es el de por defecto, también cuando el sistema no expresa
+ * preferencia — de ahí que el claro sea el que va en `@media` y no al revés.
+ * ------------------------------------------------------------------------- */
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --color-bg: #f7f5f1;
+    --color-surface: #ffffff;
+    --color-raised: #ffffff;
+
+    --color-line: #dfdad1;
+    --color-line-strong: #b4ada1;
+
+    --color-ink: #16181f; /* 16.28 */
+    --color-ink-secondary: #5a5e6b; /* 5.94 */
+    --color-ink-muted: #666a77; /* 4.95 */
+
+    --color-accent: #8a6a22; /* 4.63 */
+    --color-accent-quiet: #a89263;
+
+    --color-warn: #8a5d00; /* 5.29 */
+    --color-warn-surface: #fdf6e6;
+    --color-warn-line: #e0c98c;
+
+    --color-focus: #8a6a22; /* 4.63 */
+
+    /* Resueltos contra #f7f5f1, que es el fondo más oscuro de este tema. */
+    --color-quality-poor: #707070; /* 4.55 */
+    --color-quality-common: #16181f;
+    --color-quality-uncommon: #0f8200; /* 4.58 */
+    --color-quality-rare: #006dd8; /* 4.61 */
+    --color-quality-epic: #a233ee; /* 4.54 */
+    --color-quality-legendary: #b05800; /* 4.55 */
+    --color-quality-artifact: #896d1b; /* 4.52 */
+  }
 }
 
-body {
-  margin: 0;
-  background: var(--color-background);
-  color: var(--color-text);
-  font-family: var(--font-sans);
-  line-height: 1.5;
+/* ---------------------------------------------------------------------------
+ * Base
+ *
+ * Lo mínimo que no se puede expresar como utilidad en el punto de uso. Todo lo
+ * demás se escribe en el componente con clases: aquí no crece una hoja de
+ * estilos paralela.
+ * ------------------------------------------------------------------------- */
+
+@layer base {
+  body {
+    background: var(--color-bg);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    /* Las cifras se leen en columna —porcentajes, fracciones, item levels— y
+     * con numerales proporcionales bailan de fila a fila. */
+    font-variant-numeric: tabular-nums;
+  }
+
+  :where(h1, h2, h3) {
+    font-family: var(--font-display);
+  }
+
+  /* El foco visible es requisito, no preferencia: se define una vez y ningún
+   * componente lo quita. */
+  :where(:focus-visible) {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+
+  /* Un enlace no puede distinguirse solo por color. */
+  :where(a) {
+    text-underline-offset: 0.15em;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Cinzel } from "next/font/google";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 
@@ -9,6 +10,17 @@ import "../globals.css";
 // El layout raíz cuelga del segmento de idioma porque el `lang` del <html>
 // depende del idioma y no hay ninguna página fuera de él: la raíz sin prefijo
 // no llega a renderizarse nunca, la redirige el middleware.
+
+// La tipografía de titular del sistema visual (docs/design/system.md). Se sirve
+// desde nuestro dominio, no desde Google: next/font descarga el fichero en
+// build y lo empaqueta, así que no hay petición a un tercero desde el navegador
+// del jugador ni una fuente que pueda dejar de cargar en tiempo de ejecución.
+const cinzel = Cinzel({
+  subsets: ["latin"],
+  weight: ["600"],
+  display: "swap",
+  variable: "--font-cinzel",
+});
 
 export const metadata: Metadata = {
   // Los hreflang de cada página son rutas relativas y se resuelven contra
@@ -39,7 +51,7 @@ export default async function LocaleLayout({
   if (!isLocale(locale)) notFound();
 
   return (
-    <html lang={locale}>
+    <html lang={locale} className={cinzel.variable}>
       <body>{children}</body>
     </html>
   );

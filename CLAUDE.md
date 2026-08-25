@@ -10,7 +10,7 @@ Producto de analítica PvP de WoW. La feature central, y la única razón de ser
 - `db/migrations` — schema versionado. `npm run db:migrate`.
 - Para trabajar con datos sin copiar producción: `npm run pipeline -- seed --reset` sobre una Postgres **local** ([ADR 0018](docs/decisions/0018-dataset-de-desarrollo.md)). Siembra observaciones y deja que `refresh-aggregates` calcule los agregados; se niega a escribir en cualquier host que no sea esta máquina.
 - `docs/decisions` — ADRs. Si una decisión de arquitectura se revisa, se añade un ADR nuevo.
-- `docs/design` — decisiones de pantalla, jerarquía y estados ([brief](docs/design/brief.md)). Lo que se ve no va a un ADR salvo que sea estructural.
+- `docs/design` — decisiones de pantalla, jerarquía y estados ([brief](docs/design/brief.md)) y el sistema visual: tokens, escala y componentes ([system](docs/design/system.md)). Lo que se ve no va a un ADR salvo que sea estructural.
 
 Fase actual: **Phase 0 (Data Feasibility)**, casi cerrada. No hay web todavía; entra en Phase 2.
 
@@ -29,6 +29,7 @@ Fase actual: **Phase 0 (Data Feasibility)**, casi cerrada. No hay web todavía; 
 - Los comentarios explican **por qué**, no qué hace la línea siguiente.
 - **Los comentarios no citan issues** (`#57`, "ver #66"): el número no explica nada a quien lee el código y envejece en cuanto el issue se cierra. Si el porqué está en una decisión, se enlaza el ADR; si no, se escribe el porqué. La trazabilidad con el issue va en el mensaje de commit y en los docs.
 - TypeScript estricto (`exactOptionalPropertyTypes`, `noUncheckedIndexedAccess` incluidos). Se ejecuta con `tsx`, sin paso de build.
+- **Los estilos son tokens, no literales** ([ADR 0019](docs/decisions/0019-sistema-visual-en-css-con-tailwind.md)). Se escribe `text-ink-secondary`, nunca `text-[#a8aab4]` ni `p-[13px]`. El tema se cambia reasignando variables en `globals.css`: **un `dark:` en un componente es un error**, porque duplica cada decisión de color en el marcado y deja que los dos temas diverjan.
 - Tests con `node:test` para lógica pura y para lo que se pueda probar con reloj inyectable.
 - Antes de dar algo por terminado: `npm run typecheck && npm test && npm run format:check`.
 - **Nunca `git commit` ni `git push` sin que se haya pedido explícitamente en esa conversación.** Se deja el trabajo en el working tree y se dice qué hay cambiado; el commit lo decide quien revisa, no el agente.
