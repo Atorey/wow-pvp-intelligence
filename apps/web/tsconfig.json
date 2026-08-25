@@ -1,0 +1,22 @@
+{
+  // La app trae su propio tsconfig porque necesita cosas que el resto del
+  // monorepo no tiene: JSX, la librería del DOM y el plugin de Next. La base
+  // se hereda entera para que los flags estrictos que protegen al pipeline
+  // (exactOptionalPropertyTypes, noUncheckedIndexedAccess) protejan igual a la
+  // web (ADR 0001).
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "jsx": "preserve",
+    "noEmit": true,
+    "allowJs": true,
+    "isolatedModules": true,
+    "incremental": true,
+    "plugins": [{ "name": "next" }]
+  },
+  // .next/types son las declaraciones que genera el build: no están en un
+  // checkout limpio y por eso el typecheck de CI no puede depender de
+  // ellas, pero excluir .next entero las dejaría fuera también en local.
+  "include": ["next-env.d.ts", "src/**/*.ts", "src/**/*.tsx", ".next/types/**/*.ts"],
+  "exclude": ["node_modules"]
+}

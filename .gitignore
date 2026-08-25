@@ -3,6 +3,12 @@ node_modules/
 dist/
 *.tsbuildinfo
 
+# Build de la web y artefactos del CLI de Netlify. next-env.d.ts SÍ se
+# commitea: sin él, un typecheck en limpio (CI) no tiene las declaraciones
+# de Next y falla antes de compilar nada.
+apps/web/.next/
+.netlify/
+
 # Secretos — nunca se commitean
 .env
 .env.*

@@ -1,0 +1,25 @@
+/*
+ * Reset mínimo y nada más. Los tokens —color, tipografía, espaciado, tema
+ * oscuro— son de #65 y aún no están decididos: las variables de abajo están
+ * para que el andamiaje se vea, no para que nadie construya sobre ellas.
+ */
+
+:root {
+  --color-background: #ffffff;
+  --color-text: #111111;
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--color-background);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  line-height: 1.5;
+}

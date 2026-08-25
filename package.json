@@ -12,11 +12,13 @@
     "apps/*"
   ],
   "scripts": {
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p apps/web",
     "test": "node --import tsx --test \"packages/*/src/**/*.test.ts\" \"apps/*/src/**/*.test.ts\"",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "pipeline": "npm run start --workspace @wowpvp/pipeline --",
+    "web": "npm run dev --workspace @wowpvp/web",
+    "web:build": "npm run build --workspace @wowpvp/web",
     "db:migrate": "npm run pipeline -- migrate"
   },
   "devDependencies": {

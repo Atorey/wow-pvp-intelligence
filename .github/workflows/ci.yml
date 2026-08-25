@@ -43,3 +43,9 @@ jobs:
           # antes de sembrar. Va aquí y no en DATABASE_URL a propósito, para que
           # `npm test` no pueda llevarse por delante una base de desarrollo.
           TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/wowpvp_test
+
+      # El build de la web va aparte del typecheck porque comprueba otra cosa:
+      # una página puede tipar bien y romper al construirse (un componente de
+      # servidor que importa algo de cliente, metadata mal formada). No pide
+      # secretos: no hay ninguna consulta ni ninguna llamada a Blizzard todavía.
+      - run: npm run web:build
