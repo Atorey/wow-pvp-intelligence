@@ -1,0 +1,145 @@
+import type pg from "pg";
+import type { SpecEntry } from "@wowpvp/core";
+import type { BlizzardClient } from "../blizzard/client";
+import { insertProfileSnapshot } from "../db/snapshots";
+import type {
+  EquipmentResponse,
+  GearRow,
+  ProfileResponse,
+  PvpBracketResponse,
+  SpecializationsResponse,
+} from "./profile-mapping";
+
+/**
+ * Qué es "bajar un perfil completo": las cuatro llamadas que lo componen y la
+ * escritura del snapshot que sale de ellas.
+ *
+ * Está aparte porque hay dos jobs que bajan perfiles por segmento —el muestreo
+ * manual de Sprint 0 (`sample-profiles`) y la ingesta continua
+ * (`refresh-profiles`)— y lo que producen acaba en el mismo denominador. Si
+ * cada uno pidiese sus endpoints por su cuenta, un cambio en la forma del
+ * perfil se aplicaría a una parte de la población y no a la otra, y el
+ * `adoption_rate` estaría calculado sobre dos cosas distintas sin que nada lo
+ * dijera.
+ */
+
+/** Respuesta cruda tal cual llega, para poder reprocesarla sin volver a llamar. */
+export interface Captured<T> {
+  status: number;
+  data: T | null;
+}
+
+/** Las cuatro respuestas que hacen falta para un snapshot de perfil. */
+export interface ProfileParts {
+  profile: Captured<ProfileResponse>;
+  bracketStats: Captured<PvpBracketResponse>;
+  equipment: Captured<EquipmentResponse>;
+  specializations: Captured<SpecializationsResponse>;
+}
+
+export interface ProfileTarget {
+  realmSlug: string;
+  nameSlug: string;
+  /** Bracket de shuffle del que se quiere el rating (`shuffle-mage-frost`). */
+  bracket: string;
+}
+
+/** Coste en peticiones de un perfil completo. Lo que convierte presupuesto en personajes. */
+export const REQUESTS_PER_PROFILE = 4;
+
+/**
+ * Baja el perfil completo de un personaje: 4 peticiones.
+ *
+ * Secuenciales y todas por BlizzardClient (regla 4): el throttling es global,
+ * así que lanzarlas en paralelo no las haría más rápidas.
+ *
+ * El bracket ya lo conocemos por la spec ingerida, así que se pide directo en
+ * vez de pasar por pvp-summary como hace la búsqueda bajo demanda (que sí tiene
+ * que descubrir qué brackets juega un personaje cualquiera).
+ */
+export async function fetchProfileParts(
+  client: BlizzardClient,
+  target: ProfileTarget,
+): Promise<ProfileParts> {
+  const base = `/profile/wow/character/${encodeURIComponent(target.realmSlug)}/${encodeURIComponent(target.nameSlug)}`;
+
+  const profile = await client.tryGet<ProfileResponse>(base, "profile");
+  const bracketStats = await client.tryGet<PvpBracketResponse>(
+    `${base}/pvp-bracket/${target.bracket}`,
+    "profile",
+  );
+  const equipment = await client.tryGet<EquipmentResponse>(`${base}/equipment`, "profile");
+  const specializations = await client.tryGet<SpecializationsResponse>(
+    `${base}/specializations`,
+    "profile",
+  );
+
+  return {
+    profile: { status: profile.status, data: profile.data },
+    bracketStats: { status: bracketStats.status, data: bracketStats.data },
+    equipment: { status: equipment.status, data: equipment.data },
+    specializations: { status: specializations.status, data: specializations.data },
+  };
+}
+
+export interface ProfileSnapshotDraft {
+  characterId: string;
+  /** Marca temporal común de la corrida, nunca now(): ver comentario de idempotencia. */
+  capturedAt: string;
+  seasonId: number;
+  bracket: string;
+  spec: SpecEntry;
+  rating: number;
+  stats: PvpBracketResponse;
+  profile: ProfileResponse | null;
+  talentCode: string | null;
+  gear: readonly GearRow[];
+}
+
+/**
+ * Inserta el snapshot y su gear en una transacción. El INSERT en sí vive en
+ * db/snapshots.ts, compartido también con la búsqueda bajo demanda: las tres
+ * fuentes escriben la misma forma de snapshot y solo difieren en el `source`.
+ *
+ * Siempre `source = 'profile'`: lo que entra por aquí lo hemos elegido nosotros
+ * muestreando, no lo ha traído el interés de un usuario por un personaje
+ * concreto (eso es `'search'`, y se excluye del denominador por ADR 0007).
+ *
+ * Devuelve false si el snapshot ya existía, que es lo normal al reanudar o
+ * repetir una corrida.
+ */
+export async function saveProfileSnapshot(
+  pool: pg.Pool,
+  draft: ProfileSnapshotDraft,
+): Promise<boolean> {
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+
+    const { isNew } = await insertProfileSnapshot(client, {
+      characterId: draft.characterId,
+      capturedAt: draft.capturedAt,
+      source: "profile",
+      seasonId: draft.seasonId,
+      bracket: draft.bracket,
+      spec: draft.spec,
+      rating: draft.rating,
+      matchesPlayed: draft.stats.season_match_statistics?.played ?? null,
+      matchesWon: draft.stats.season_match_statistics?.won ?? null,
+      matchesLost: draft.stats.season_match_statistics?.lost ?? null,
+      pvpTierId: draft.stats.tier?.id ?? null,
+      averageItemLevel: draft.profile?.average_item_level ?? null,
+      equippedItemLevel: draft.profile?.equipped_item_level ?? null,
+      talentCode: draft.talentCode,
+      gear: draft.gear,
+    });
+
+    await client.query("commit");
+    return isNew;
+  } catch (err) {
+    await client.query("rollback");
+    throw err;
+  } finally {
+    client.release();
+  }
+}

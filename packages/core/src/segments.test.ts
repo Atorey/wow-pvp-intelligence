@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { allSegments, formatSegment, nextSegment, segmentFor } from "./segments";
+import { allSegments, formatSegment, nextSegment, segmentFor, servesIcpSubjects } from "./segments";
 
 test("un rating cae en el tramo semiabierto [min, max)", () => {
   assert.equal(segmentFor(1840).id, "1800-2000");
@@ -34,4 +34,26 @@ test("la escala es configurable (la distribución cambia cada temporada)", () =>
   const scale = { size: 100, floor: 1000, ceiling: 2000 };
   assert.equal(segmentFor(1450, scale).id, "1400-1500");
   assert.equal(segmentFor(500, scale).id, "1000-1100");
+});
+
+test("un segmento objetivo sirve al ICP por quién tiene debajo, no por su propio rating", () => {
+  // La comparación es contra el segmento superior, así que lo que decide es la
+  // población de sujetos: 1600-1800 sirve a los de 1400-1600, que son ICP.
+  assert.equal(servesIcpSubjects(segmentFor(1700)), true);
+  assert.equal(servesIcpSubjects(segmentFor(2100)), true);
+  // El borde de arriba: 2200-2400 sirve a los de 2000-2200, el último tramo del
+  // ICP; 2400-2600 ya solo sirve a gente por encima de él.
+  assert.equal(servesIcpSubjects(segmentFor(2300)), true);
+  assert.equal(servesIcpSubjects(segmentFor(2500)), false);
+  // Y el de abajo: 1400-1600 sirve a los de 1200-1400, que quedan fuera.
+  assert.equal(servesIcpSubjects(segmentFor(1500)), false);
+});
+
+test("el fondo de la ladder no es ICP por mucha gente que se acumule ahí", () => {
+  // Al empezar una temporada todo el mundo pasa por 200-600, así que ordenar
+  // solo por población mandaría ahí el presupuesto de muestreo.
+  assert.equal(servesIcpSubjects(segmentFor(300)), false);
+  assert.equal(servesIcpSubjects(segmentFor(500)), false);
+  // El primer tramo no tiene a nadie debajo: no sirve a ningún sujeto.
+  assert.equal(servesIcpSubjects(segmentFor(0)), false);
 });
