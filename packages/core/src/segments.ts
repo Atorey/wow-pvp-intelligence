@@ -59,6 +59,35 @@ export function nextSegment(
 }
 
 /**
+ * Rating de los jugadores a los que sirve el producto: 1400-2200 (§4 del plan).
+ *
+ * Vive aquí y no en el job que lo consulta porque decide dónde se gasta la cuota
+ * de muestreo (ADR 0010, decisión 5) y, con ella, a quién se le puede enseñar una
+ * comparación. Es una regla de producto, no un parámetro de un job.
+ */
+export const ICP_RATING_RANGE = { min: 1400, max: 2200 } as const;
+
+/**
+ * ¿Le sirve este segmento **objetivo** a alguien del ICP?
+ *
+ * Lo que decide un Player Gap no es el segmento del sujeto sino el del objetivo
+ * (ADR 0010), así que la pregunta se hace sobre los sujetos que hay debajo: un
+ * segmento objetivo sirve al ICP si el escalón inmediatamente inferior solapa
+ * con el rango. 1600-1800 sirve (debajo está 1400-1600); 400-600 no, por muy
+ * poblado que esté el fondo de la ladder al empezar la temporada.
+ */
+export function servesIcpSubjects(
+  segment: RatingSegment,
+  scale: SegmentScale = DEFAULT_SEGMENT_SCALE,
+): boolean {
+  // Sin nadie debajo no hay sujetos a los que servir, ni en el ICP ni fuera.
+  if (segment.min <= scale.floor) return false;
+
+  const below = segmentFor(segment.min - 1, scale);
+  return below.max > ICP_RATING_RANGE.min && below.min < ICP_RATING_RANGE.max;
+}
+
+/**
  * Todos los tramos de una escala, de menor a mayor, incluido el abierto de
  * arriba. Útil para recorrer agregados sin dejarse ninguno fuera.
  */

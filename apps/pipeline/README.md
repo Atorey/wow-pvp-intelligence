@@ -28,7 +28,7 @@ El horario es el que muerde: 8 req/s sostenidos son 28.800 peticiones en una hor
 
 **Al agotarse la ventana la cola espera**, no falla, y lo avisa por consola. Un job puede quedarse parado hasta que se libere hueco; el aviso está para que eso no se confunda con un cuelgue.
 
-**Prioridades** (§28 del plan): `on-demand` (`lookup-character`, la búsqueda de usuario) > `batch` (leaderboard) > `aggregate` (`sample-profiles`). Cada job declara la suya al construir el cliente: `new BlizzardClient({ priority: "aggregate" })`. Los jobs siguen siendo procesos separados y secuenciales, así que rara vez compiten por un turno; la prioridad decidirá algo de verdad cuando la web de #19 dispare búsquedas mientras corre un muestreo.
+**Prioridades** (§28 del plan): `on-demand` (`lookup-character`, la búsqueda de usuario) > `batch` (leaderboard) > `aggregate` (`sample-profiles` y `refresh-profiles`). Cada job declara la suya al construir el cliente: `new BlizzardClient({ priority: "aggregate" })`. Los jobs siguen siendo procesos separados y secuenciales, así que rara vez compiten por un turno; la prioridad decidirá algo de verdad cuando la web de #19 dispare búsquedas mientras corre un muestreo.
 
 Cada job imprime al terminar lo que ha gastado, por prioridad y en porcentaje de la ventana horaria.
 
@@ -120,6 +120,40 @@ Si un bucket tiene menos personajes que el tope —el caso de Frost Mage en 1800
 
 El reporte queda en `reports/profile-sample-<runId>.json`, con la cobertura de talentos **por clase**: es lo que decide si Player Gap puede prometer talentos o se queda en gear.
 
+### `refresh-profiles`
+
+Mantiene fresca la **base de comparación**: baja perfiles por par `(bracket, segmento)` hasta el objetivo de confianza, dentro de la ventana de actividad y de la temporada vigente. Es lo que hace que `gear_sample` no sea cero, y por tanto lo que hace que Player Gap pueda pintar algo. Corre a diario en [.github/workflows/profiles.yml](../../.github/workflows/profiles.yml) — ver [ADR 0021](../../docs/decisions/0021-ingesta-continua-de-perfiles.md) y el contrato del [ADR 0010](../../docs/decisions/0010-cobertura-por-segmento.md).
+
+```bash
+npm run pipeline -- refresh-profiles --dry-run              # planifica e imprime, sin gastar nada
+npm run pipeline -- refresh-profiles                        # corrida normal, con el presupuesto por defecto
+npm run pipeline -- refresh-profiles --budget 20000         # una puesta al día más agresiva
+npm run pipeline -- refresh-profiles --specs frost-mage     # acotado a una spec
+```
+
+| Opción       | Default                  | Qué hace                                                         |
+| ------------ | ------------------------ | ---------------------------------------------------------------- |
+| `--budget`   | `PROFILE_REFRESH_BUDGET` | Techo de peticiones de la corrida; el plan se recorta para caber |
+| `--dry-run`  | —                        | Planifica e imprime, sin llamar a Blizzard ni escribir           |
+| `--window`   | la de cada par           | Fuerza la ventana de actividad: `7` o `14`                       |
+| `--specs`    | todas                    | Acota la corrida a estas specs                                   |
+| `--segments` | todos                    | Acota a los segmentos objetivo con este rating de entrada        |
+| `--seed`     | constante                | Semilla del muestreo dentro de cada par                          |
+
+**No es `sample-profiles` en bucle.** Aquel congela una muestra en disco para que un hallazgo se pueda auditar; este recalcula en cada corrida quién ha caducado. Comparten las cuatro llamadas y la escritura del snapshot (`profile-capture.ts`), no el estado.
+
+**El presupuesto se gasta primero en el suelo y después en el objetivo.** Se llevan todos los pares que puedan a `MIN_SAMPLE_MEDIUM` (30) antes de subir ninguno hacia `MIN_SAMPLE_HIGH` (100): el mínimo de lanzamiento se cuenta en **pares servibles**, así que muchos pares en `medium` valen más que unos pocos en `high` y el resto sin comparación. El umbral no se toca — sigue decidiéndolo `confidenceFor()`.
+
+**El orden entre pares es el del ADR 0010**: el ICP (1400-2200) entero antes que nada de fuera y, dentro de cada ámbito, más sujetos debajo primero. Un segmento objetivo sin población debajo no se muestrea, por muy poblado que esté: su gear no le serviría a nadie.
+
+Las dos mitades hacen falta. Ordenando solo por sujetos debajo, el presupuesto se va al **fondo de la ladder**: al empezar una temporada todo el mundo pasa por 200-600, así que ahí es donde más población hay y no le sirve a ningún jugador del público objetivo. Qué pares son del ICP lo decide `servesIcpSubjects()` por quién hay **debajo** del segmento objetivo, no por su propio rating.
+
+**La ventana la elige cada par**, con la misma función que el agregado (`pickActivityWindow`), y decide dos cosas a la vez: quién es candidato y qué perfil sigue contando como fresco. Muestrear con una ventana más estrecha que la del agregado sesgaría el gear del segmento hacia sus jugadores más activos sin que ningún número lo delatara.
+
+**Sin estado propio.** Qué falta por bajar se deriva de la población activa cruzada con el último perfil de cada personaje. No hay manifiesto ni tabla de progreso que pueda desincronizarse de lo que publica el agregado — y por eso el job funciona igual en un runner efímero.
+
+El plan se imprime siempre antes de gastar: cuántos pares suben, cuántos se quedan cortos por presupuesto y cuántos no llegan al suelo porque no hay tanta gente activa. Ese último número es cobertura real, no un fallo.
+
 ### `refresh-activity`
 
 Recalcula `last_active_snapshot_date` de cada personaje y bracket a partir de la variación de `season_match_statistics.played`, y lo materializa en `character_activity` (§27 "Active Players", issue #16). No llama a la API. Ver [ADR 0008](../../docs/decisions/0008-ventana-de-actividad-por-partidas-jugadas.md).
@@ -173,7 +207,7 @@ npm run pipeline -- refresh-aggregates --window 30  # fuerza la ventana de "seas
 
 **Los personajes que solo vienen de búsquedas (`source='search'`) no entran** en el agregado, pero se cuentan en `excluded_search`. Entran por sesgo de selección (ADR 0006) y meterlos contaminaría el `n` que sostiene la confianza; el contador está para revisar esa decisión con dato delante, porque el precio es dejar 1400-1800 sin agregados.
 
-**Sin perfiles dentro de la ventana solo se publica la distribución.** El job lo avisa al terminar. La solución es muestrear con la cadencia de la ventana, no ensanchar la ventana.
+**Sin perfiles dentro de la ventana solo se publica la distribución.** El job lo avisa al terminar. La solución es muestrear con la cadencia de la ventana —eso es `refresh-profiles`— y no ensanchar la ventana.
 
 ### `player-gap`
 

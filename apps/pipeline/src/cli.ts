@@ -7,6 +7,7 @@ import { playerGap } from "./jobs/player-gap";
 import { refreshActivity } from "./jobs/refresh-activity";
 import { refreshAggregates } from "./jobs/refresh-aggregates";
 import { refreshLeaderboard } from "./jobs/refresh-leaderboard";
+import { refreshProfiles } from "./jobs/refresh-profiles";
 import { sampleProfiles } from "./jobs/sample-profiles";
 import { seed } from "./jobs/seed";
 import { validateEndpoints } from "./jobs/validate-endpoints";
@@ -36,6 +37,10 @@ const COMMANDS: Record<string, { run: (args: string[]) => Promise<void>; help: s
   "sample-profiles": {
     run: sampleProfiles,
     help: "Baja gear y talentos de una muestra por segmento de rating [--limit --seed --segments --specs --run]",
+  },
+  "refresh-profiles": {
+    run: refreshProfiles,
+    help: "Job diario: mantiene perfiles frescos por segmento con presupuesto [--budget --dry-run]",
   },
   "refresh-activity": {
     run: refreshActivity,
@@ -78,6 +83,15 @@ function printHelp(): void {
   console.log("  --seed S       semilla del muestreo (misma semilla = misma muestra)");
   console.log("  --specs S,S    specs a muestrear, p.ej. frost-mage (default: las que ingiere)");
   console.log("  --run ID       reanuda un run anterior sin volver a gastar cuota");
+  console.log("\nOpciones de refresh-profiles:");
+  console.log(
+    "  --budget N     techo de peticiones de la corrida (default PROFILE_REFRESH_BUDGET)",
+  );
+  console.log("  --dry-run      planifica e imprime, sin llamar a Blizzard ni escribir");
+  console.log("  --window D     fuerza la ventana de actividad (7 o 14; default: la de cada par)");
+  console.log("  --specs S,S    acota la corrida a estas specs, p.ej. frost-mage");
+  console.log("  --segments R,R acota a los segmentos objetivo con este rating de entrada");
+  console.log("  --seed S       semilla del muestreo dentro de cada par");
   console.log("\nOpciones de lookup-character:");
   console.log("  --character R/N  personaje a buscar; se puede repetir");
   console.log("  --force        ignora la caché y vuelve a preguntar a Blizzard");

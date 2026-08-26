@@ -98,6 +98,25 @@ export function getCharacterLookupTtlMinutes(): number {
   return parsed;
 }
 
+/**
+ * Presupuesto de peticiones de una corrida de `refresh-profiles` (ADR 0021).
+ *
+ * Es un tope declarado, no el techo de cuota: a 4 peticiones por personaje son
+ * ~1.500 perfiles por corrida, unos 30 minutos al ritmo medido de 3,2 req/s.
+ * Existe porque el trabajo pendiente crece con la temporada —en una ladder
+ * madura la población se multiplica por seis— y sin tope una corrida diaria
+ * pasaría de pedir media hora de runner a agotar la ventana horaria y quedarse
+ * esperando cuota que necesita el resto del sistema.
+ */
+export function getProfileRefreshBudget(): number {
+  const raw = process.env["PROFILE_REFRESH_BUDGET"];
+  const parsed = raw ? Number(raw) : 6_000;
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error(`PROFILE_REFRESH_BUDGET="${raw}" no es un número de peticiones válido.`);
+  }
+  return parsed;
+}
+
 export function getBlizzardCredentials(): { clientId: string; clientSecret: string } {
   const hint = "Crea un client en https://develop.battle.net/access (ver apps/pipeline/README.md).";
   return {

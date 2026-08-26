@@ -25,17 +25,17 @@ import {
   getRequestsPerHour,
 } from "../config";
 import { createPool } from "../db/pool";
-import { insertProfileSnapshot } from "../db/snapshots";
 import { takeSample } from "../sampling";
 import { SPECS_TO_INGEST } from "../specs-to-ingest";
 import {
+  REQUESTS_PER_PROFILE,
+  fetchProfileParts,
+  saveProfileSnapshot,
+  type ProfileParts,
+} from "./profile-capture";
+import {
   findTalentLoadout,
   mapEquipment,
-  type EquipmentResponse,
-  type GearRow,
-  type ProfileResponse,
-  type PvpBracketResponse,
-  type SpecializationsResponse,
   type TalentOutcome,
   type TalentResult,
 } from "./profile-mapping";
@@ -104,21 +104,12 @@ interface Candidate {
   seasonId: number;
 }
 
-/** Respuesta cruda tal cual se vuelca a disco, para poder reprocesar sin volver a llamar. */
-interface Captured<T> {
-  status: number;
-  data: T | null;
-}
-
-interface ProfileCapture {
+/** Lo que se vuelca a disco: las cuatro respuestas crudas y de quién son. */
+interface ProfileCapture extends ProfileParts {
   realmSlug: string;
   nameSlug: string;
   bracket: string;
   fetchedAt: string;
-  profile: Captured<ProfileResponse>;
-  bracketStats: Captured<PvpBracketResponse>;
-  equipment: Captured<EquipmentResponse>;
-  specializations: Captured<SpecializationsResponse>;
 }
 
 interface BucketReport {
@@ -387,91 +378,22 @@ async function captureProfile(
     return JSON.parse(fs.readFileSync(file, "utf-8")) as ProfileCapture;
   }
 
-  const base = `/profile/wow/character/${encodeURIComponent(candidate.realmSlug)}/${encodeURIComponent(candidate.nameSlug)}`;
-
-  // Cuatro llamadas, secuenciales y todas por BlizzardClient (regla 4): el
-  // throttling es global, lanzarlas en paralelo no las haría más rápidas.
-  //
-  // El bracket de shuffle ya lo conocemos por la spec ingerida, así que se pide
-  // directo en vez de pasar por pvp-summary como hace validate-endpoints (que
-  // sí tiene que descubrir qué brackets juega un personaje cualquiera).
-  const profile = await client.tryGet<ProfileResponse>(base, "profile");
-  const bracketStats = await client.tryGet<PvpBracketResponse>(
-    `${base}/pvp-bracket/${bracket}`,
-    "profile",
-  );
-  const equipment = await client.tryGet<EquipmentResponse>(`${base}/equipment`, "profile");
-  const specializations = await client.tryGet<SpecializationsResponse>(
-    `${base}/specializations`,
-    "profile",
-  );
+  const parts = await fetchProfileParts(client, {
+    realmSlug: candidate.realmSlug,
+    nameSlug: candidate.nameSlug,
+    bracket,
+  });
 
   const capture: ProfileCapture = {
     realmSlug: candidate.realmSlug,
     nameSlug: candidate.nameSlug,
     bracket,
     fetchedAt: new Date().toISOString(),
-    profile: { status: profile.status, data: profile.data },
-    bracketStats: { status: bracketStats.status, data: bracketStats.data },
-    equipment: { status: equipment.status, data: equipment.data },
-    specializations: { status: specializations.status, data: specializations.data },
+    ...parts,
   };
 
   fs.writeFileSync(file, JSON.stringify(capture, null, 2));
   return capture;
-}
-
-// --- Inserción ---
-
-/**
- * Inserta el snapshot de perfil y su gear en una transacción. El INSERT en sí
- * vive en db/snapshots.ts, compartido con la búsqueda bajo demanda: las dos
- * fuentes escriben la misma forma de snapshot y solo difieren en el `source`.
- *
- * Devuelve false si el snapshot ya existía (reanudación o reejecución del run).
- */
-async function insertSnapshot(
-  pool: pg.Pool,
-  manifest: RunManifest,
-  candidate: Candidate,
-  spec: SpecEntry,
-  bracket: string,
-  rating: number,
-  stats: PvpBracketResponse,
-  profile: ProfileResponse | null,
-  talentCode: string | null,
-  gear: GearRow[],
-): Promise<boolean> {
-  const client = await pool.connect();
-  try {
-    await client.query("begin");
-
-    const { isNew } = await insertProfileSnapshot(client, {
-      characterId: candidate.characterId,
-      capturedAt: manifest.sampledAt,
-      source: "profile",
-      seasonId: candidate.seasonId,
-      bracket,
-      spec,
-      rating,
-      matchesPlayed: stats.season_match_statistics?.played ?? null,
-      matchesWon: stats.season_match_statistics?.won ?? null,
-      matchesLost: stats.season_match_statistics?.lost ?? null,
-      pvpTierId: stats.tier?.id ?? null,
-      averageItemLevel: profile?.average_item_level ?? null,
-      equippedItemLevel: profile?.equipped_item_level ?? null,
-      talentCode,
-      gear,
-    });
-
-    await client.query("commit");
-    return isNew;
-  } catch (err) {
-    await client.query("rollback");
-    throw err;
-  } finally {
-    client.release();
-  }
 }
 
 // --- Orquestación de un bucket ---
@@ -546,18 +468,18 @@ async function sampleBucket(
     report.gearRows += gear.length;
     if (typeof capture.profile.data?.average_item_level === "number") report.itemLevelAvailable++;
 
-    const isNew = await insertSnapshot(
-      pool,
-      manifest,
-      candidate,
-      spec,
+    const isNew = await saveProfileSnapshot(pool, {
+      characterId: candidate.characterId,
+      capturedAt: manifest.sampledAt,
+      seasonId: candidate.seasonId,
       bracket,
-      stats.rating,
+      spec,
+      rating: stats.rating,
       stats,
-      capture.profile.data,
-      talent.code,
+      profile: capture.profile.data,
+      talentCode: talent.code,
       gear,
-    );
+    });
     if (isNew) report.snapshots++;
   }
 
@@ -663,7 +585,7 @@ export async function sampleProfiles(args: string[] = []): Promise<void> {
   console.log(`Segmentos: ${segments.map(formatSegment).join(", ")} · specs: ${specs.length}`);
 
   if (manifest.limit > 0) {
-    const cost = buckets * manifest.limit * 4;
+    const cost = buckets * manifest.limit * REQUESTS_PER_PROFILE;
     console.log(`Coste máximo: ${cost} peticiones (4 por personaje).`);
     // Con las 40 specs del catálogo el muestreo por defecto se sale del techo
     // horario, y la cola se para una hora entera a mitad de run. Es recuperable

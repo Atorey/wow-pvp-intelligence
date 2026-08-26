@@ -233,7 +233,7 @@ export function selectByWindow(
  * temporada conviven snapshots de las dos durante días, y sumarlos daría una
  * distribución que no describe ninguna de ellas.
  */
-async function resolveSeason(
+export async function resolveSeason(
   pool: pg.Pool,
   region: string,
   cutoff: Date,
@@ -767,8 +767,8 @@ export async function refreshAggregates(args: string[], borrowedPool?: pg.Pool):
     if (withProfiles === 0) {
       console.log(
         "\n⚠️  Ningún segmento tiene perfiles en la ventana: solo se ha publicado la " +
-          "distribución de población. Para que haya adoption_rate hace falta ejecutar " +
-          "sample-profiles dentro de la ventana de actividad.",
+          "distribución de población. Para que haya adoption_rate tiene que estar corriendo " +
+          "refresh-profiles, que es quien mantiene perfiles dentro de la ventana.",
       );
     } else {
       console.log(

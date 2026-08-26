@@ -1,0 +1,51 @@
+name: Profiles
+
+# Ingesta continua de perfiles por segmento (issue #66, ADR 0021). Es lo que
+# mantiene con gear el denominador de los agregados: sin este job,
+# `gear_sample` vuelve a cero en cuanto los perfiles salen de la ventana de
+# actividad, y con él la única categoría que Player Gap puede pintar.
+on:
+  schedule:
+    # 03:30 UTC: después de la corrida de leaderboard de las 03:00 —de la que
+    # salen los candidatos— y con hora y media de margen antes de la de
+    # agregados (05:30), que es la que convierte estos perfiles en
+    # adoption_rate. Si el cron de Actions se retrasa, el orden sigue siendo el
+    # mismo: cada job lee lo que haya y declara con qué muestra ha trabajado.
+    - cron: "30 3 * * *"
+  workflow_dispatch:
+
+# Dos corridas a la vez gastarían dos veces el presupuesto declarado sobre la
+# misma cuota, que es justo lo que el presupuesto existe para evitar.
+concurrency:
+  group: profiles
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    # El presupuesto por defecto (6.000 peticiones) son ~30 minutos al ritmo
+    # real medido en §4 de findings, que es de 3,2 req/s y no los 8 del
+    # limitador: el cuello es la latencia de 4 llamadas secuenciales por
+    # personaje más el insert de su gear, no el throttling. El margen cubre que
+    # la cola se pare a esperar cuota si coincide con otro job.
+    timeout-minutes: 90
+    env:
+      BLIZZARD_CLIENT_ID: ${{ secrets.BLIZZARD_CLIENT_ID }}
+      BLIZZARD_CLIENT_SECRET: ${{ secrets.BLIZZARD_CLIENT_SECRET }}
+      BLIZZARD_REGION: ${{ vars.BLIZZARD_REGION || 'eu' }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      # Sin definir cae al default del código. Se declara como variable del repo
+      # para poder subirlo o bajarlo sin desplegar nada, que es lo que hará
+      # falta cuando la ladder madure y la población se multiplique.
+      PROFILE_REFRESH_BUDGET: ${{ vars.PROFILE_REFRESH_BUDGET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Idempotentes, y el runner siempre trae el código de main: evita que el
+      # job falle contra un schema viejo.
+      - run: npm run db:migrate
+      - run: npm run pipeline -- refresh-profiles
