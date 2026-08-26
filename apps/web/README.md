@@ -11,15 +11,23 @@ npm run web:build    # el mismo build que corre CI y Netlify
 
 Esto es andamiaje. Lo que existe es la estructura mínima para que las páginas de verdad tengan dónde colgarse:
 
-|        |                                                                                                                                                                                                |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Sí** | El segmento de idioma `/[locale]`, la negociación de `Accept-Language` y los `hreflang` ([ADR 0012](../../docs/decisions/0012-producto-bilingue.md)).                                          |
-| **Sí** | Entornos: qué origen se anuncia y qué se indexa en producción, en preview y en local.                                                                                                          |
-| **No** | Las rutas de producto (`/spec/…`, `/player/…`) y dónde vive el copy: son de #25.                                                                                                               |
-| **No** | Tokens, tipografía, tema y componentes: son de #65. `globals.css` tiene un reset y nada más.                                                                                                   |
-| **No** | El pie con la línea de atribución que exige la ToU de Blizzard (§4 del [brief](../../docs/design/brief.md#4-atribución-y-no-afiliación)). **Tiene que estar antes del primer deploy público.** |
-| **No** | Lecturas contra Postgres. `@wowpvp/data` ya está enlazado, pero ninguna página consulta todavía.                                                                                               |
-| **No** | Llamadas a Blizzard. No las habrá hasta que la cuota viva en Postgres (#81): en serverless cada invocación cree tener el presupuesto entero.                                                   |
+|        |                                                                                                                                                                        |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Sí** | El segmento de idioma `/[locale]`, la negociación de `Accept-Language` y los `hreflang` ([ADR 0012](../../docs/decisions/0012-producto-bilingue.md)).                  |
+| **Sí** | Entornos: qué origen se anuncia y qué se indexa en producción, en preview y en local.                                                                                  |
+| **Sí** | Tokens, tipografía y tema ([ADR 0019](../../docs/decisions/0019-sistema-visual-en-css-con-tailwind.md)). Los componentes de datos llegan con las páginas que los usan. |
+| **Sí** | Las rutas de producto y dónde vive el copy ([ADR 0020](../../docs/decisions/0020-mapa-de-rutas-del-sitio.md)). Las páginas existen y todavía no enseñan datos.         |
+| **Sí** | El pie con la línea de atribución que exige la ToU de Blizzard (§4 del [brief](../../docs/design/brief.md#4-atribución-y-no-afiliación)), renderizado desde el layout. |
+| **No** | Lecturas contra Postgres. `@wowpvp/data` ya está enlazado, pero ninguna página consulta todavía.                                                                       |
+| **No** | Llamadas a Blizzard. No las habrá hasta que la cuota viva en Postgres (#81): en serverless cada invocación cree tener el presupuesto entero.                           |
+
+## Rutas
+
+El mapa entero, con sus reglas y sus porqués, está en el [ADR 0020](../../docs/decisions/0020-mapa-de-rutas-del-sitio.md). Lo que hay que saber para tocar una página:
+
+- **Las rutas se construyen y se parsean en `@wowpvp/core`**, sin prefijo de idioma: `playerPath()`, `specPath()`, `resolvePlayerRoute()`, `resolveSpecRoute()`. Aquí solo se les antepone el locale con `localizedPathname()`. Ninguna página monta una ruta concatenando strings.
+- **Cada página resuelve sus tramos y hace una de tres cosas**: servir, `permanentRedirect()` a la forma canónica, o `notFound()`. Lo que no está en el catálogo es 404, nunca una redirección adivinada.
+- **El copy está en `src/i18n/copy`**, dos diccionarios y ninguna librería. El inglés define la forma: una clave que falte en español rompe el `typecheck`.
 
 ## Idioma
 

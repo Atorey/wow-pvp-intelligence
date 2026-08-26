@@ -5,6 +5,7 @@ Producto de analítica PvP de WoW. La feature central, y la única razón de ser
 ## Estructura
 
 - `packages/core` — dominio compartido pipeline↔web. Sin dependencias externas.
+- `apps/web` — la web pública. Rutas, copy y despliegue en [su README](apps/web/README.md); el mapa de URL y sus reglas, en [ADR 0020](docs/decisions/0020-mapa-de-rutas-del-sitio.md).
 - `packages/data` — lecturas de servicio contra Postgres, las que pinta una página ([ADR 0014](docs/decisions/0014-capa-de-lectura-compartida.md)). Recibe el ejecutor, no lo crea. Ni escrituras ni consultas de cálculo: esas siguen en el pipeline.
 - `apps/pipeline` — ingesta Blizzard → Postgres. CLI: `npm run pipeline -- <comando>`.
 - `db/migrations` — schema versionado. `npm run db:migrate`.
@@ -12,7 +13,7 @@ Producto de analítica PvP de WoW. La feature central, y la única razón de ser
 - `docs/decisions` — ADRs. Si una decisión de arquitectura se revisa, se añade un ADR nuevo.
 - `docs/design` — decisiones de pantalla, jerarquía y estados ([brief](docs/design/brief.md)) y el sistema visual: tokens, escala y componentes ([system](docs/design/system.md)). Lo que se ve no va a un ADR salvo que sea estructural.
 
-Fase actual: **Phase 0 (Data Feasibility)**, casi cerrada. No hay web todavía; entra en Phase 2.
+Fase actual: **Phase 0 (Data Feasibility)**, casi cerrada. La web existe como andamiaje —rutas, sistema visual y copy— y todavía no lee de Postgres.
 
 ## Reglas del proyecto
 
@@ -43,5 +44,6 @@ Fase actual: **Phase 0 (Data Feasibility)**, casi cerrada. No hay web todavía; 
 - **`matches_played` no es comparable entre fuentes**: el contador del perfil da un número sistemáticamente menor que el del leaderboard para el mismo personaje y bracket (595 de 595 casos medidos). Restarlos fabrica actividad que nadie jugó ([ADR 0008](docs/decisions/0008-ventana-de-actividad-por-partidas-jugadas.md)); solo se compara cada fuente consigo misma.
 - **`population_segments.confidence` mide población, no base de comparación**: hay filas guardadas como `high` con `gear_sample = 0` (#76). La confianza de una comparación se deriva del denominador de esa cifra con `confidenceFor()`, nunca se lee de la columna — `packages/data` no la selecciona siquiera ([ADR 0014](docs/decisions/0014-capa-de-lectura-compartida.md), decisión 6).
 - **El nombre de un personaje no se «normaliza» quitando tildes**: la forma canónica es la de Blizzard —minúsculas con los diacríticos intactos— y es a la vez identidad, URL y lo que acepta la API ([ADR 0017](docs/decisions/0017-forma-canonica-de-personaje.md)). Plegar los acentos fundiría personajes distintos: hay 1.626 grupos que colisionan (cuatro Arthaslegend en Magtheridon son cuatro personas). El plegado existe, es `foldSlug()` y sirve **solo para buscar**: devuelve varios resultados y no se persiste como identidad ni se publica como ruta. Los `realm_slug` de Blizzard también llevan acentos (`confrérie-du-thorium`).
+- **Una ruta no se escribe a mano en ningún sitio**: `playerPath()`, `specPath()`, `segmentSlug()` y sus resolutores están en `packages/core` ([ADR 0020](docs/decisions/0020-mapa-de-rutas-del-sitio.md)), sin prefijo de idioma, que lo pone la web. Tres detalles que se adivinan mal: el tramo abierto se escribe `3000-plus` —ni `3000+` ni el `3000-Infinity` que guarda `segment_id`—, la modalidad de la URL es `solo-shuffle` y no el `shuffle-mage-frost` de la columna `bracket` (el puente es `bracketIdFor()`), y los tramos de ruta llegan sin decodificar, así que `ánatorey` entra como `%C3%A1natorey`.
 - **El slug de spec y el bracket de Blizzard van en orden inverso**: `frost-mage` es el slug canónico —el mismo en URLs, en memoria y en `--specs`— y `shuffle-mage-frost` es lo que exige la API ([ADR 0016](docs/decisions/0016-slug-canonico-de-spec.md)). Ni se construyen a mano ni se parten por guiones: `specSlug()`/`parseSpecSlug()` para lo nuestro, `shuffleBracketId()`/`parseShuffleBracket()` para lo de Blizzard.
 - **Los issues cerrados no siempre están respaldados por el repo** (#3 y #7 se cerraron con trabajo que no estaba en el código). Verificar antes de dar algo por hecho.

@@ -1,7 +1,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import dotenv from "dotenv";
-import type { Region } from "@wowpvp/core";
+import { REGIONS, type Region, isRegion } from "@wowpvp/core";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
@@ -23,8 +23,6 @@ export const PROFILES_DIR = path.join(DATA_DIR, "profiles");
 /** Reportes de validación (gitignored). */
 export const REPORTS_DIR = path.join(REPO_ROOT, "reports");
 
-const VALID_REGIONS: readonly Region[] = ["eu", "us", "kr", "tw"];
-
 function required(name: string, hint: string): string {
   const value = process.env[name];
   if (!value) {
@@ -35,13 +33,13 @@ function required(name: string, hint: string): string {
 
 export function getRegion(): Region {
   const raw = (process.env["BLIZZARD_REGION"] ?? "eu").toLowerCase();
-  const region = VALID_REGIONS.find((r) => r === raw);
-  if (!region) {
-    throw new Error(
-      `BLIZZARD_REGION="${raw}" no es válida. Opciones: ${VALID_REGIONS.join(", ")}.`,
-    );
+  // La lista es la de `packages/core` porque la región también es un tramo de
+  // ruta pública: ingerir una que el sitio no sabe publicar deja datos sin
+  // página a la que colgarlos.
+  if (!isRegion(raw)) {
+    throw new Error(`BLIZZARD_REGION="${raw}" no es válida. Opciones: ${REGIONS.join(", ")}.`);
   }
-  return region;
+  return raw;
 }
 
 export function getRequestsPerSecond(): number {

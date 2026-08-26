@@ -7,3 +7,4 @@ export * from "./activity";
 export * from "./stats";
 export * from "./player-gap";
 export * from "./aggregates";
+export * from "./routes";
