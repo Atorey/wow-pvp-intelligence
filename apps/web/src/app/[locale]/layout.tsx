@@ -3,7 +3,9 @@ import { Cinzel } from "next/font/google";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 
-import { LOCALES, isLocale } from "../../i18n/locales";
+import { SiteFooter, SiteHeader } from "../../components/site-chrome";
+import { copyFor } from "../../i18n/copy";
+import { LOCALES, SOURCE_LOCALE, isLocale } from "../../i18n/locales";
 import { isPublicSite, siteUrl } from "../../site";
 import "../globals.css";
 
@@ -22,16 +24,27 @@ const cinzel = Cinzel({
   variable: "--font-cinzel",
 });
 
-export const metadata: Metadata = {
-  // Los hreflang de cada página son rutas relativas y se resuelven contra
-  // esta, así que de aquí depende que un preview no se anuncie como el
-  // dominio de producción.
-  metadataBase: siteUrl(process.env),
-  title: "One Rung",
-  // Todo lo que no es el sitio público sale del índice. Un preview indexado
-  // compite con producción por sus propias URL.
-  ...(isPublicSite(process.env) ? {} : { robots: { index: false, follow: false } }),
-};
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
+  const { locale } = await params;
+  const name = copyFor(isLocale(locale) ? locale : SOURCE_LOCALE).site.name;
+
+  return {
+    // Los hreflang de cada página son rutas relativas y se resuelven contra
+    // esta, así que de aquí depende que un preview no se anuncie como el
+    // dominio de producción.
+    metadataBase: siteUrl(process.env),
+    // La plantilla se define una vez: si cada página compusiera su propio
+    // título, el nombre del producto acabaría escrito de dos formas.
+    title: { template: `%s · ${name}`, default: name },
+    // Todo lo que no es el sitio público sale del índice. Un preview indexado
+    // compite con producción por sus propias URL.
+    ...(isPublicSite(process.env) ? {} : { robots: { index: false, follow: false } }),
+  };
+}
 
 export function generateStaticParams(): { locale: string }[] {
   return LOCALES.map((locale) => ({ locale }));
@@ -52,7 +65,16 @@ export default async function LocaleLayout({
 
   return (
     <html lang={locale} className={cinzel.variable}>
-      <body>{children}</body>
+      {/*
+       * La columna a altura completa mantiene el pie abajo también en las
+       * páginas cortas, que hoy son todas: la línea de atribución flotando a
+       * media pantalla no se lee como parte del documento.
+       */}
+      <body className="flex min-h-dvh flex-col">
+        <SiteHeader locale={locale} />
+        <div className="flex-1">{children}</div>
+        <SiteFooter locale={locale} />
+      </body>
     </html>
   );
 }
