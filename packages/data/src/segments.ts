@@ -224,6 +224,20 @@ export interface AdoptionRead {
   slotGroup: string | null;
   itemId: number | null;
   itemName: string | null;
+  /**
+   * URL del icono en el CDN de Blizzard, del catálogo `item_media` (#67).
+   *
+   * `null` es "no disponible" como manda la regla 5 —el item aún no se ha
+   * resuelto, o la API no publica icono para él— y nunca "este item no tiene
+   * icono que enseñar". Lo que se dibuja con un null es el hueco reservado del
+   * brief §4.5: la fila no se recoloca, porque el nombre y el item level son la
+   * información y el icono solo acompaña.
+   *
+   * Que llegue una URL tampoco garantiza que la imagen cargue: el archivo es de
+   * Blizzard y no se re-aloja (ADR 0015, decisión 7), así que un 403 o una URL
+   * retirada terminan en el mismo hueco.
+   */
+  iconUrl: string | null;
   users: number;
   /**
    * Cuántos no tenían el dato. Están **fuera** del denominador, nunca contados
@@ -241,6 +255,7 @@ interface AdoptionRow {
   slot_group: string | null;
   item_id: string | null;
   item_name: string | null;
+  icon_url: string | null;
   users: number;
   denominator: number;
   unavailable: number;
@@ -268,11 +283,15 @@ export async function readAdoption(
   options: { limit?: number } = {},
 ): Promise<AdoptionRead[]> {
   const { rows } = await db.query<AdoptionRow>(
-    `select variable_kind, variable_key, slot_group, item_id, item_name,
-            users, denominator, unavailable, adoption_rate
-       from aggregate_snapshots
-      where population_segment_id = $1 and variable_kind = $2
-      order by adoption_rate desc, variable_key
+    `select a.variable_kind, a.variable_key, a.slot_group, a.item_id, a.item_name,
+            m.icon_url, a.users, a.denominator, a.unavailable, a.adoption_rate
+       from aggregate_snapshots a
+       -- left join, nunca inner: un item sin icono resuelto sigue siendo una
+       -- adopción que hay que enseñar. Filtrar por el catálogo escondería
+       -- cifras reales por un fallo de ilustración.
+       left join item_media m on m.item_id = a.item_id
+      where a.population_segment_id = $1 and a.variable_kind = $2
+      order by a.adoption_rate desc, a.variable_key
       ${options.limit === undefined ? "" : "limit $3"}`,
     options.limit === undefined ? [segment.rowId, kind] : [segment.rowId, kind, options.limit],
   );
@@ -283,6 +302,7 @@ export async function readAdoption(
     slotGroup: row.slot_group,
     itemId: row.item_id === null ? null : toNumber(row.item_id),
     itemName: row.item_name,
+    iconUrl: row.icon_url,
     users: row.users,
     unavailable: row.unavailable,
     rate: toNumber(row.adoption_rate),

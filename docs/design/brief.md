@@ -516,7 +516,7 @@ La regla es la del resto del producto: **la fila de gear no depende del icono**.
   └────┘
 ```
 
-Lo que **no** se hace: ni un texto de error, ni un icono roto del navegador, ni un _placeholder_ con la palabra "missing". Un hueco vacío del tamaño correcto es información suficiente y no llama la atención sobre un fallo que al jugador no le sirve de nada. Cómo se resuelve y se cachea la URL es de [#67](https://github.com/Atorey/wow-pvp-intelligence/issues/67).
+Lo que **no** se hace: ni un texto de error, ni un icono roto del navegador, ni un _placeholder_ con la palabra "missing". Un hueco vacío del tamaño correcto es información suficiente y no llama la atención sobre un fallo que al jugador no le sirve de nada. Cómo se resuelve y se cachea la URL lo decidió [#67](https://github.com/Atorey/wow-pvp-intelligence/issues/67) en el [ADR 0022](../decisions/0022-catalogo-de-iconos-de-item.md): un catálogo `item_id → url` que se rellena con un job y caduca a los 30 días. Para la pantalla, lo que cambia es que `null` es un estado normal y no un fallo.
 
 ### 4.6 Lo que no va a existir en la interfaz
 

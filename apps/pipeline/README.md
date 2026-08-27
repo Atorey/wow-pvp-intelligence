@@ -28,7 +28,7 @@ El horario es el que muerde: 8 req/s sostenidos son 28.800 peticiones en una hor
 
 **Al agotarse la ventana la cola espera**, no falla, y lo avisa por consola. Un job puede quedarse parado hasta que se libere hueco; el aviso está para que eso no se confunda con un cuelgue.
 
-**Prioridades** (§28 del plan): `on-demand` (`lookup-character`, la búsqueda de usuario) > `batch` (leaderboard) > `aggregate` (`sample-profiles` y `refresh-profiles`). Cada job declara la suya al construir el cliente: `new BlizzardClient({ priority: "aggregate" })`. Los jobs siguen siendo procesos separados y secuenciales, así que rara vez compiten por un turno; la prioridad decidirá algo de verdad cuando la web de #19 dispare búsquedas mientras corre un muestreo.
+**Prioridades** (§28 del plan): `on-demand` (`lookup-character`, la búsqueda de usuario) > `batch` (leaderboard) > `aggregate` (`sample-profiles`, `refresh-profiles` y `resolve-item-media`). Cada job declara la suya al construir el cliente: `new BlizzardClient({ priority: "aggregate" })`. Los jobs siguen siendo procesos separados y secuenciales, así que rara vez compiten por un turno; la prioridad decidirá algo de verdad cuando la web de #19 dispare búsquedas mientras corre un muestreo.
 
 Cada job imprime al terminar lo que ha gastado, por prioridad y en porcentaje de la ventana horaria.
 
@@ -209,6 +209,31 @@ npm run pipeline -- refresh-aggregates --window 30  # fuerza la ventana de "seas
 
 **Sin perfiles dentro de la ventana solo se publica la distribución.** El job lo avisa al terminar. La solución es muestrear con la cadencia de la ventana —eso es `refresh-profiles`— y no ensanchar la ventana.
 
+### `resolve-item-media`
+
+Rellena el catálogo `item_media`: la URL del icono de cada item observado en el gear equipado y en sus gemas (issue #67, [ADR 0022](../../docs/decisions/0022-catalogo-de-iconos-de-item.md)). Una petición por item a `/data/wow/media/item/{id}`, en prioridad `aggregate`.
+
+```bash
+npm run pipeline -- resolve-item-media --dry-run       # cuenta lo pendiente, sin gastar nada
+npm run pipeline -- resolve-item-media                 # corrida normal
+npm run pipeline -- resolve-item-media --budget 10000  # la primera corrida, que paga el catálogo entero
+npm run pipeline -- resolve-item-media --ttl 0         # revalida todas las filas, no solo las caducadas
+```
+
+| Opción      | Default | Qué hace                                                             |
+| ----------- | ------- | -------------------------------------------------------------------- |
+| `--budget`  | `3000`  | Techo de peticiones de la corrida. Una petición = un item            |
+| `--ttl`     | `30`    | Días tras los que una fila se vuelve a preguntar. `0` revalida todas |
+| `--dry-run` | —       | Cuenta lo pendiente e imprime, sin llamar a Blizzard ni escribir     |
+
+**Se guarda la URL, nunca el archivo.** El icono se sirve desde el CDN de Blizzard porque el PNG es Material suyo bajo licencia de uso personal, y re-alojarlo sería ponerlo a disposición del público ([ADR 0015](../../docs/decisions/0015-uso-de-la-api-de-blizzard-y-de-su-propiedad-intelectual.md), decisión 7). Si esa URL deja de responder, la página se maqueta sin icono; no se copia el archivo.
+
+**Preguntado y sin icono se recuerda; un fallo transitorio no.** Un 404 o un 200 sin asset de icono escriben la fila con `icon_url = null`. Un 500 o una caída de red no escriben nada y el item vuelve a estar pendiente. Sin esa distinción, cada corrida vuelve a gastar cuota en los items que la API no resuelve.
+
+**Las filas caducan a los 30 días** aunque el icono no cambie: la cláusula 2.s de la ToU obliga a refrescar todo Data en ese plazo. Los items nunca preguntados van por delante de los que solo hay que revalidar, así que un presupuesto corto se gasta primero en lo que ninguna página puede pintar.
+
+**Los encantamientos no entran.** El 86% de los observados solo trae `enchantment_id`, y la Game Data API no publica media para eso; la vía de terceros está descartada. Los números están en el [ADR 0022](../../docs/decisions/0022-catalogo-de-iconos-de-item.md).
+
 ### `player-gap`
 
 Genera la comparación de un personaje contra el segmento de rating inmediatamente superior (§13 del plan, issue #9). No llama a la API: lee de Postgres lo que `sample-profiles` ya bajó.
@@ -257,6 +282,8 @@ Siembra el dataset de desarrollo: ~600 personajes de dos temporadas repartidos p
 **Solo escribe en una base local, y no hay flag para saltárselo.** El comando inventa población; en la base real eso falsea los tamaños de muestra sobre los que el producto declara su confianza, y el histórico es append-only.
 
 **No siembra `population_segments` ni `aggregate_snapshots`.** Escribe observaciones y después ejecuta `refresh-aggregates` sobre ellas, igual que en producción. Por eso lo que sale por pantalla al final del comando es el log del job real: si un escalón dice `insufficient`, es porque lo es.
+
+**Los iconos vienen resueltos en el JSON del catálogo**, con su URL real del CDN de Blizzard, y se siembran en `item_media` sin llamar a la API — que es lo que `seed` no puede hacer. Así en local se ve la fila de gear con icono, y el hueco vacío del [brief §4.5](../../docs/design/brief.md#45-los-iconos-de-item-qué-se-ve-cuando-no-hay-icono) se prueba quitando una URL en vez de siendo el único estado posible.
 
 **Misma semilla, mismo dataset**, hasta el último item (`--seed` la cambia). Las fechas sí se anclan al momento de sembrar: `refresh-aggregates` recorta por ventana de actividad contra su propio reloj, así que un dataset con fechas fijas se quedaría sin población en cuanto pasaran dos semanas.
 

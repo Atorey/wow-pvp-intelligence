@@ -56,6 +56,7 @@ const BATCH_SIZE = 1_000;
  */
 const SEEDED_TABLES = [
   "aggregate_snapshots",
+  "item_media",
   "population_segments",
   "character_activity",
   "character_presence",
@@ -202,6 +203,7 @@ export async function seedDatabase(
     await insertObservations(client, dataset, idFor);
     await insertPresence(client, dataset, idFor);
     await insertProfiles(client, dataset, idFor);
+    await insertItemMedia(client, dataset);
 
     await client.query("commit");
   } catch (err) {
@@ -339,6 +341,36 @@ async function insertProfiles(
   }
 }
 
+/**
+ * Catálogo de iconos (#67).
+ *
+ * Se siembra entero, no solo los items que le tocaron a alguien: `item_media`
+ * es un catálogo del juego y no depende de qué repartió el generador. Sembrarlo
+ * es lo que hace que en local se vea la fila de gear con icono; sin esto, la
+ * única pantalla observable en desarrollo sería la del hueco vacío, que es el
+ * caso raro y no el normal.
+ *
+ * `resolved_at` se fecha contra el `now` de la corrida, como todo lo demás: con
+ * la fecha real, un dataset sembrado hace más de 30 días saldría entero como
+ * pendiente de revalidar la primera vez que alguien probase el job.
+ */
+async function insertItemMedia(client: pg.PoolClient, dataset: SeedDataset): Promise<void> {
+  const items = [...dataset.itemMedia];
+  if (items.length === 0) return;
+
+  await client.query(
+    `insert into item_media (item_id, icon_url, resolved_at)
+     select * from unnest($1::bigint[], $2::text[], $3::timestamptz[])
+     on conflict (item_id) do update
+        set icon_url = excluded.icon_url, resolved_at = excluded.resolved_at`,
+    [
+      items.map(([itemId]) => itemId),
+      items.map(([, iconUrl]) => iconUrl),
+      items.map(() => dataset.now.toISOString()),
+    ],
+  );
+}
+
 function ratingForProfile(participation: SeedParticipation): number {
   const last = participation.observations[participation.observations.length - 1];
   if (last) return last.rating;
@@ -359,6 +391,10 @@ function printPlan(dataset: SeedDataset): void {
   console.log(
     `${summary.identities} personajes, ${summary.participations} participaciones, ` +
       `${summary.snapshots} snapshots y ${summary.gearRows} filas de gear.`,
+  );
+  const withIcon = [...dataset.itemMedia.values()].filter((icon) => icon !== null).length;
+  console.log(
+    `Catálogo de iconos: ${withIcon} de ${dataset.itemMedia.size} items con URL resuelta (#67).`,
   );
   const seasons = [...summary.bySeason]
     .sort(([a], [b]) => b - a)

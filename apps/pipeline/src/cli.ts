@@ -8,6 +8,7 @@ import { refreshActivity } from "./jobs/refresh-activity";
 import { refreshAggregates } from "./jobs/refresh-aggregates";
 import { refreshLeaderboard } from "./jobs/refresh-leaderboard";
 import { refreshProfiles } from "./jobs/refresh-profiles";
+import { resolveItemMedia } from "./jobs/resolve-item-media";
 import { sampleProfiles } from "./jobs/sample-profiles";
 import { seed } from "./jobs/seed";
 import { validateEndpoints } from "./jobs/validate-endpoints";
@@ -45,6 +46,10 @@ const COMMANDS: Record<string, { run: (args: string[]) => Promise<void>; help: s
   "refresh-activity": {
     run: refreshActivity,
     help: "Recalcula last_active_at por personaje desde las partidas jugadas [--season --dry-run]",
+  },
+  "resolve-item-media": {
+    run: resolveItemMedia,
+    help: "Resuelve el icono de los items observados contra la Media API [--budget --ttl --dry-run]",
   },
   "refresh-aggregates": {
     run: refreshAggregates,

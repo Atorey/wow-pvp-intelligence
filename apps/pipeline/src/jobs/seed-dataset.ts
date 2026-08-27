@@ -66,6 +66,17 @@ export interface CatalogItem {
   itemLevel: number;
   /** Veces que se vio en ese slot. Es la probabilidad relativa de repartirlo. */
   weight: number;
+  /**
+   * URL del icono en el CDN de Blizzard (#67), resuelta una vez contra la Media
+   * API y guardada en el JSON. Va aquí y no se pide al sembrar porque `seed` no
+   * puede llamar a Blizzard: es un comando de base local y hacerlo dependiente
+   * de la red y de la cuota rompería lo que lo hace útil.
+   *
+   * Ausente significa "ese item no resolvió icono", que es exactamente lo que
+   * la web tiene que saber pintar (hueco reservado, brief §4.5). Nunca es el
+   * archivo: se guarda dónde está, no una copia (ADR 0015, decisión 7).
+   */
+  icon?: string;
 }
 
 /** slug de spec → slot → items observados en ese slot, de más a menos frecuente. */
@@ -452,6 +463,13 @@ export interface SeedDataset {
   seed: string;
   identities: SeedIdentity[];
   participations: SeedParticipation[];
+  /**
+   * El catálogo de iconos aplanado: `item_id` → URL, o null si el JSON no trae
+   * ninguna. Viaja con el dataset —y no se relee del disco al escribir— para
+   * que lo que se siembra en `item_media` sea exactamente el catálogo con el
+   * que se repartió el gear.
+   */
+  itemMedia: Map<number, string | null>;
 }
 
 // --- Generación ---
@@ -1042,7 +1060,27 @@ export function buildSeedDataset(options: {
     );
   }
 
-  return { now, seed, identities, participations: withLadderRanks(participations) };
+  return {
+    now,
+    seed,
+    identities,
+    participations: withLadderRanks(participations),
+    itemMedia: flattenItemMedia(catalog),
+  };
+}
+
+/**
+ * Catálogo de iconos, sin repetir items: el mismo `item_id` aparece en varias
+ * specs y `item_media` tiene una fila por item, no una por aparición.
+ */
+export function flattenItemMedia(catalog: ItemCatalog): Map<number, string | null> {
+  const media = new Map<number, string | null>();
+  for (const slots of catalog.values()) {
+    for (const items of slots.values()) {
+      for (const item of items) media.set(item.itemId, item.icon ?? null);
+    }
+  }
+  return media;
 }
 
 /**
