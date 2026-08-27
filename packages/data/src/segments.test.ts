@@ -179,6 +179,7 @@ describe("readAdoption", () => {
         slot_group: "TRINKET_1",
         item_id: "228858",
         item_name: "Signet of the Priory",
+        icon_url: "https://render.worldofwarcraft.com/eu/icons/56/7384535.jpg",
         users: 111,
         denominator: 148,
         unavailable: 2,
@@ -206,6 +207,7 @@ describe("readAdoption", () => {
         slot_group: null,
         item_id: null,
         item_name: null,
+        icon_url: null,
         users: 3,
         denominator: 40,
         unavailable: 110,
@@ -219,6 +221,56 @@ describe("readAdoption", () => {
     assert.equal(adoption.unavailable, 110);
     assert.equal(adoption.provenance.denominator, 40);
     assert.equal(adoption.itemId, null);
+  });
+
+  it("trae el icono del catálogo sin que el item lo lleve encima", async () => {
+    // El icono no vive en aggregate_snapshots: se junta desde item_media (#67),
+    // así que la fila de adopción no cambia de forma cuando se resuelve uno.
+    const db = fakeDb([
+      {
+        variable_kind: "gear-item",
+        variable_key: "228858",
+        slot_group: "TRINKET_1",
+        item_id: "228858",
+        item_name: "Signet of the Priory",
+        icon_url: "https://render.worldofwarcraft.com/eu/icons/56/7384535.jpg",
+        users: 111,
+        denominator: 148,
+        unavailable: 2,
+        adoption_rate: "0.75000000",
+      },
+    ]);
+
+    const [adoption] = await readAdoption(db, segment, "gear-item");
+
+    assert.ok(adoption);
+    assert.equal(adoption.iconUrl, "https://render.worldofwarcraft.com/eu/icons/56/7384535.jpg");
+  });
+
+  it("sin icono resuelto devuelve null, y la adopción sigue saliendo", async () => {
+    // El estado del brief §4.5: hueco reservado, no fila escondida. Por eso el
+    // join es left y por eso null llega tal cual en vez de convertirse en "".
+    const db = fakeDb([
+      {
+        variable_kind: "gear-item",
+        variable_key: "228858",
+        slot_group: "TRINKET_1",
+        item_id: "228858",
+        item_name: "Signet of the Priory",
+        icon_url: null,
+        users: 111,
+        denominator: 148,
+        unavailable: 2,
+        adoption_rate: "0.75000000",
+      },
+    ]);
+
+    const [adoption] = await readAdoption(db, segment, "gear-item");
+
+    assert.ok(adoption);
+    assert.equal(adoption.iconUrl, null);
+    assert.equal(adoption.rate, 0.75);
+    assert.match(db.calls[0]?.text ?? "", /left join item_media/);
   });
 
   it("solo añade el limit cuando se pide", async () => {

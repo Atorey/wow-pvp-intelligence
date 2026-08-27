@@ -3,7 +3,8 @@
   "source": "data/profiles/run-20260814T121556 (temporada 41, EU, 593 perfiles)",
   "fields": {
     "weight": "Veces que se observó el item en ese slot. Es la probabilidad relativa con la que el generador lo reparte.",
-    "itemLevel": "Mediana del nivel de objeto observado para ese item."
+    "itemLevel": "Mediana del nivel de objeto observado para ese item.",
+    "icon": "URL del icono en el CDN de Blizzard, tal cual la devuelve la Media API. Ausente = ese item no resolvió icono. No se copia el archivo (ADR 0015, decisión 7)."
   },
   "specs": {
     "frost-mage": {
@@ -13,35 +14,40 @@
           "name": "Galactic Gladiator's Drape",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 106
+          "weight": 106,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7444040.jpg"
         },
         {
           "itemId": 255338,
           "name": "Galactic Aspirant's Cloak",
           "quality": "RARE",
           "itemLevel": 217,
-          "weight": 21
+          "weight": 21,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7252744.jpg"
         },
         {
           "itemId": 258575,
           "name": "Rigid Scale Greatcloak",
           "quality": "EPIC",
           "itemLevel": 289,
-          "weight": 13
+          "weight": 13,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/1043737.jpg"
         },
         {
           "itemId": 250055,
           "name": "Voidbreaker's Encryption",
           "quality": "EPIC",
           "itemLevel": 276,
-          "weight": 9
+          "weight": 9,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7444040.jpg"
         },
         {
           "itemId": 239656,
           "name": "Adherent's Silken Shroud",
           "quality": "EPIC",
           "itemLevel": 285,
-          "weight": 8
+          "weight": 8,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7266376.jpg"
         }
       ],
       "CHEST": [
@@ -50,35 +56,40 @@
           "name": "Thalassian Competitor's Cloth Tunic",
           "quality": "EPIC",
           "itemLevel": 239,
-          "weight": 84
+          "weight": 84,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7266382.jpg"
         },
         {
           "itemId": 250063,
           "name": "Voidbreaker's Robe",
           "quality": "EPIC",
           "itemLevel": 285,
-          "weight": 51
+          "weight": 51,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7444041.jpg"
         },
         {
           "itemId": 255357,
           "name": "Galactic Gladiator's Silk Robe",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 41
+          "weight": 41,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7444041.jpg"
         },
         {
           "itemId": 255263,
           "name": "Galactic Aspirant's Silk Robe",
           "quality": "RARE",
           "itemLevel": 217,
-          "weight": 7
+          "weight": 7,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7252745.jpg"
         },
         {
           "itemId": 255358,
           "name": "Galactic Gladiator's Silk Gown",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 5
+          "weight": 5,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7444041.jpg"
         }
       ],
       "FEET": [
@@ -87,35 +98,40 @@
           "name": "Thalassian Competitor's Cloth Treads",
           "quality": "EPIC",
           "itemLevel": 239,
-          "weight": 93
+          "weight": 93,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7266373.jpg"
         },
         {
           "itemId": 255360,
           "name": "Galactic Gladiator's Silk Treads",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 24
+          "weight": 24,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7444038.jpg"
         },
         {
           "itemId": 268282,
           "name": "Luxurious Loamstriders",
           "quality": "EPIC",
           "itemLevel": 298,
-          "weight": 16
+          "weight": 16,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7448848.jpg"
         },
         {
           "itemId": 255300,
           "name": "Galactic Aspirant's Silk Footwraps",
           "quality": "RARE",
           "itemLevel": 217,
-          "weight": 12
+          "weight": 12,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7252742.jpg"
         },
         {
           "itemId": 255883,
           "name": "Galactic Warmonger's Slippers",
           "quality": "EPIC",
           "itemLevel": 243,
-          "weight": 11
+          "weight": 11,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/6853747.jpg"
         }
       ],
       "FINGER_1": [
@@ -124,35 +140,40 @@
           "name": "Galactic Gladiator's Ring",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 64
+          "weight": 64,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7636643.jpg"
         },
         {
           "itemId": 240951,
           "name": "Thalassian Competitor's Signet",
           "quality": "EPIC",
           "itemLevel": 242,
-          "weight": 57
+          "weight": 57,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7549150.jpg"
         },
         {
           "itemId": 255331,
           "name": "Galactic Aspirant's Ring",
           "quality": "RARE",
           "itemLevel": 217,
-          "weight": 16
+          "weight": 16,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7636619.jpg"
         },
         {
           "itemId": 251217,
           "name": "Occlusion of Void",
           "quality": "EPIC",
           "itemLevel": 289,
-          "weight": 8
+          "weight": 8,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7636674.jpg"
         },
         {
           "itemId": 255609,
           "name": "Galactic Gladiator's Signet",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 8
+          "weight": 8,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7636626.jpg"
         }
       ],
       "FINGER_2": [
@@ -161,35 +182,40 @@
           "name": "Thalassian Competitor's Signet",
           "quality": "EPIC",
           "itemLevel": 242,
-          "weight": 62
+          "weight": 62,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7549150.jpg"
         },
         {
           "itemId": 255607,
           "name": "Galactic Gladiator's Ring",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 43
+          "weight": 43,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7636643.jpg"
         },
         {
           "itemId": 255331,
           "name": "Galactic Aspirant's Ring",
           "quality": "RARE",
           "itemLevel": 217,
-          "weight": 18
+          "weight": 18,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7636619.jpg"
         },
         {
           "itemId": 255609,
           "name": "Galactic Gladiator's Signet",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 14
+          "weight": 14,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7636626.jpg"
         },
         {
           "itemId": 268290,
           "name": "Sporecaller's Blooming Loop",
           "quality": "EPIC",
           "itemLevel": 298,
-          "weight": 10
+          "weight": 10,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7636604.jpg"
         }
       ],
       "HANDS": [
@@ -198,35 +224,40 @@
           "name": "Voidbreaker's Gloves",
           "quality": "EPIC",
           "itemLevel": 256,
-          "weight": 86
+          "weight": 86,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7444042.jpg"
         },
         {
           "itemId": 255361,
           "name": "Galactic Gladiator's Silk Gloves",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 86
+          "weight": 86,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7444042.jpg"
         },
         {
           "itemId": 255273,
           "name": "Galactic Aspirant's Silk Gloves",
           "quality": "RARE",
           "itemLevel": 217,
-          "weight": 11
+          "weight": 11,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7252746.jpg"
         },
         {
           "itemId": 239653,
           "name": "Martyr's Gloves",
           "quality": "EPIC",
           "itemLevel": 259,
-          "weight": 4
+          "weight": 4,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7266378.jpg"
         },
         {
           "itemId": 255362,
           "name": "Galactic Gladiator's Silk Handwraps",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 2
+          "weight": 2,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7444042.jpg"
         }
       ],
       "HEAD": [
@@ -235,35 +266,40 @@
           "name": "Voidbreaker's Veil",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 154
+          "weight": 154,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7444043.jpg"
         },
         {
           "itemId": 255364,
           "name": "Galactic Gladiator's Silk Cap",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 26
+          "weight": 26,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7444043.jpg"
         },
         {
           "itemId": 255307,
           "name": "Galactic Aspirant's Silk Cover",
           "quality": "RARE",
           "itemLevel": 217,
-          "weight": 4
+          "weight": 4,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7252747.jpg"
         },
         {
           "itemId": 255363,
           "name": "Galactic Gladiator's Silk Hat",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 3
+          "weight": 3,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7444043.jpg"
         },
         {
           "itemId": 277792,
           "name": "Venom-Cursed Dragonhawk's Plumage",
           "quality": "EPIC",
           "itemLevel": 285,
-          "weight": 3
+          "weight": 3,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7874491.jpg"
         }
       ],
       "LEGS": [
@@ -272,35 +308,40 @@
           "name": "Galactic Gladiator's Silk Leggings",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 113
+          "weight": 113,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7444044.jpg"
         },
         {
           "itemId": 250059,
           "name": "Voidbreaker's Britches",
           "quality": "EPIC",
           "itemLevel": 276,
-          "weight": 63
+          "weight": 63,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7444044.jpg"
         },
         {
           "itemId": 255279,
           "name": "Galactic Aspirant's Silk Leggings",
           "quality": "RARE",
           "itemLevel": 217,
-          "weight": 10
+          "weight": 10,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7252748.jpg"
         },
         {
           "itemId": 255366,
           "name": "Galactic Gladiator's Silk Trousers",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 4
+          "weight": 4,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7444044.jpg"
         },
         {
           "itemId": 193750,
           "name": "Wind Soarer's Breeches",
           "quality": "EPIC",
           "itemLevel": 292,
-          "weight": 2
+          "weight": 2,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/4182962.jpg"
         }
       ],
       "MAIN_HAND": [
@@ -309,35 +350,40 @@
           "name": "Galactic Gladiator's Staff",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 141
+          "weight": 141,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7374933.jpg"
         },
         {
           "itemId": 245770,
           "name": "Aln'hara Cane",
           "quality": "EPIC",
           "itemLevel": 295,
-          "weight": 13
+          "weight": 13,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7287363.jpg"
         },
         {
           "itemId": 258218,
           "name": "Skybreaker's Blade",
           "quality": "EPIC",
           "itemLevel": 298,
-          "weight": 9
+          "weight": 9,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/4680187.jpg"
         },
         {
           "itemId": 193707,
           "name": "Final Grade",
           "quality": "EPIC",
           "itemLevel": 285,
-          "weight": 3
+          "weight": 3,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/4526264.jpg"
         },
         {
           "itemId": 251201,
           "name": "Corespark Multitool",
           "quality": "EPIC",
           "itemLevel": 298,
-          "weight": 3
+          "weight": 3,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/6994496.jpg"
         }
       ],
       "NECK": [
@@ -346,35 +392,40 @@
           "name": "Galactic Gladiator's Necklace",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 93
+          "weight": 93,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7636613.jpg"
         },
         {
           "itemId": 240952,
           "name": "Thalassian Competitor's Amulet",
           "quality": "EPIC",
           "itemLevel": 239,
-          "weight": 32
+          "weight": 32,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7549119.jpg"
         },
         {
           "itemId": 255334,
           "name": "Galactic Aspirant's Necklace",
           "quality": "RARE",
           "itemLevel": 217,
-          "weight": 20
+          "weight": 20,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7636592.jpg"
         },
         {
           "itemId": 268291,
           "name": "Rotmire's Sporeheart",
           "quality": "EPIC",
           "itemLevel": 298,
-          "weight": 17
+          "weight": 17,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7636601.jpg"
         },
         {
           "itemId": 50228,
           "name": "Barbed Ymirheim Choker",
           "quality": "EPIC",
           "itemLevel": 276,
-          "weight": 8
+          "weight": 8,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/133309.jpg"
         }
       ],
       "OFF_HAND": [
@@ -383,35 +434,40 @@
           "name": "Aln'hara Lantern",
           "quality": "EPIC",
           "itemLevel": 295,
-          "weight": 7
+          "weight": 7,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7431122.jpg"
         },
         {
           "itemId": 258523,
           "name": "Nezhar's Netherclaw",
           "quality": "EPIC",
           "itemLevel": 298,
-          "weight": 3
+          "weight": 3,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/3229469.jpg"
         },
         {
           "itemId": 159667,
           "name": "Vessel of Last Rites",
           "quality": "EPIC",
           "itemLevel": 292,
-          "weight": 2
+          "weight": 2,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/1924157.jpg"
         },
         {
           "itemId": 245870,
           "name": "Thalassian Competitor's Lamp",
           "quality": "EPIC",
           "itemLevel": 242,
-          "weight": 2
+          "weight": 2,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/5342339.jpg"
         },
         {
           "itemId": 255923,
           "name": "Galactic Warmonger's Lantern",
           "quality": "EPIC",
           "itemLevel": 243,
-          "weight": 2
+          "weight": 2,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7228712.jpg"
         }
       ],
       "SHIRT": [
@@ -420,35 +476,40 @@
           "name": "Precious's Ribbon",
           "quality": "UNCOMMON",
           "itemLevel": 1,
-          "weight": 6
+          "weight": 6,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/134411.jpg"
         },
         {
           "itemId": 268274,
           "name": "Blinky's Collar",
           "quality": "UNCOMMON",
           "itemLevel": 1,
-          "weight": 4
+          "weight": 4,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/133309.jpg"
         },
         {
           "itemId": 2575,
           "name": "Red Linen Shirt",
           "quality": "UNCOMMON",
           "itemLevel": 1,
-          "weight": 3
+          "weight": 3,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/135029.jpg"
         },
         {
           "itemId": 3428,
           "name": "Common Gray Shirt",
           "quality": "UNCOMMON",
           "itemLevel": 1,
-          "weight": 3
+          "weight": 3,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/135025.jpg"
         },
         {
           "itemId": 6833,
           "name": "White Tuxedo Shirt",
           "quality": "UNCOMMON",
           "itemLevel": 1,
-          "weight": 3
+          "weight": 3,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/135012.jpg"
         }
       ],
       "SHOULDER": [
@@ -457,35 +518,40 @@
           "name": "Voidbreaker's Leyline Nexi",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 159
+          "weight": 159,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7444045.jpg"
         },
         {
           "itemId": 255367,
           "name": "Galactic Gladiator's Silk Mantle",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 14
+          "weight": 14,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7444045.jpg"
         },
         {
           "itemId": 251085,
           "name": "Mantle of Dark Devotion",
           "quality": "EPIC",
           "itemLevel": 289,
-          "weight": 9
+          "weight": 9,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7252749.jpg"
         },
         {
           "itemId": 251213,
           "name": "Nysarra's Mantle",
           "quality": "EPIC",
           "itemLevel": 289,
-          "weight": 3
+          "weight": 3,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7252749.jpg"
         },
         {
           "itemId": 239650,
           "name": "Martyr's Mantle",
           "quality": "EPIC",
           "itemLevel": 285,
-          "weight": 2
+          "weight": 2,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7266384.jpg"
         }
       ],
       "TABARD": [
@@ -494,35 +560,40 @@
           "name": "Guild Tabard",
           "quality": "UNCOMMON",
           "itemLevel": 1,
-          "weight": 14
+          "weight": 14,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/135026.jpg"
         },
         {
           "itemId": 69210,
           "name": "Renowned Guild Tabard",
           "quality": "EPIC",
           "itemLevel": 1,
-          "weight": 11
+          "weight": 11,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/514261.jpg"
         },
         {
           "itemId": 157758,
           "name": "Ren'dorei Tabard",
           "quality": "RARE",
           "itemLevel": 1,
-          "weight": 9
+          "weight": 9,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/1846327.jpg"
         },
         {
           "itemId": 168100,
           "name": "Alliance Tabard",
           "quality": "COMMON",
           "itemLevel": 2,
-          "weight": 6
+          "weight": 6,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/134472.jpg"
         },
         {
           "itemId": 43349,
           "name": "Tabard of Brute Force",
           "quality": "EPIC",
           "itemLevel": 1,
-          "weight": 4
+          "weight": 4,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/132671.jpg"
         }
       ],
       "TRINKET_1": [
@@ -531,35 +602,40 @@
           "name": "Galactic Gladiator's Insignia of Alacrity",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 80
+          "weight": 80,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/134501.jpg"
         },
         {
           "itemId": 255616,
           "name": "Galactic Gladiator's Medallion",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 41
+          "weight": 41,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/1322720.jpg"
         },
         {
           "itemId": 249343,
           "name": "Gaze of the Alnseer",
           "quality": "EPIC",
           "itemLevel": 289,
-          "weight": 13
+          "weight": 13,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7636702.jpg"
         },
         {
           "itemId": 255328,
           "name": "Galactic Aspirant's Insignia of Alacrity",
           "quality": "RARE",
           "itemLevel": 217,
-          "weight": 13
+          "weight": 13,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/134501.jpg"
         },
         {
           "itemId": 255327,
           "name": "Galactic Aspirant's Medallion",
           "quality": "RARE",
           "itemLevel": 217,
-          "weight": 11
+          "weight": 11,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/1322720.jpg"
         }
       ],
       "TRINKET_2": [
@@ -568,35 +644,40 @@
           "name": "Galactic Gladiator's Medallion",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 68
+          "weight": 68,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/1322720.jpg"
         },
         {
           "itemId": 255614,
           "name": "Galactic Gladiator's Insignia of Alacrity",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 45
+          "weight": 45,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/134501.jpg"
         },
         {
           "itemId": 255327,
           "name": "Galactic Aspirant's Medallion",
           "quality": "RARE",
           "itemLevel": 217,
-          "weight": 26
+          "weight": 26,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/1322720.jpg"
         },
         {
           "itemId": 249343,
           "name": "Gaze of the Alnseer",
           "quality": "EPIC",
           "itemLevel": 298,
-          "weight": 13
+          "weight": 13,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7636702.jpg"
         },
         {
           "itemId": 249346,
           "name": "Vaelgor's Final Stare",
           "quality": "EPIC",
           "itemLevel": 298,
-          "weight": 11
+          "weight": 11,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7636706.jpg"
         }
       ],
       "WAIST": [
@@ -605,35 +686,40 @@
           "name": "Thalassian Competitor's Cloth Sash",
           "quality": "EPIC",
           "itemLevel": 239,
-          "weight": 76
+          "weight": 76,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7266372.jpg"
         },
         {
           "itemId": 255369,
           "name": "Galactic Gladiator's Silk Cord",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 62
+          "weight": 62,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7444037.jpg"
         },
         {
           "itemId": 255287,
           "name": "Galactic Aspirant's Silk Cord",
           "quality": "RARE",
           "itemLevel": 217,
-          "weight": 14
+          "weight": 14,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7252741.jpg"
         },
         {
           "itemId": 250057,
           "name": "Voidbreaker's Sage Cord",
           "quality": "EPIC",
           "itemLevel": 289,
-          "weight": 13
+          "weight": 13,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7444037.jpg"
         },
         {
           "itemId": 239649,
           "name": "Martyr's Waistwrap",
           "quality": "EPIC",
           "itemLevel": 285,
-          "weight": 5
+          "weight": 5,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7266372.jpg"
         }
       ],
       "WRIST": [
@@ -642,35 +728,40 @@
           "name": "Galactic Gladiator's Silk Armbands",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 101
+          "weight": 101,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7444039.jpg"
         },
         {
           "itemId": 239648,
           "name": "Martyr's Bindings",
           "quality": "EPIC",
           "itemLevel": 285,
-          "weight": 21
+          "weight": 21,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7266375.jpg"
         },
         {
           "itemId": 239677,
           "name": "Thalassian Competitor's Cloth Bands",
           "quality": "EPIC",
           "itemLevel": 239,
-          "weight": 18
+          "weight": 18,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7266375.jpg"
         },
         {
           "itemId": 255322,
           "name": "Galactic Aspirant's Silk Bindings",
           "quality": "RARE",
           "itemLevel": 217,
-          "weight": 15
+          "weight": 15,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7252743.jpg"
         },
         {
           "itemId": 244739,
           "name": "Thalassian Competitor's Cloth Cuffs",
           "quality": "EPIC",
           "itemLevel": 242,
-          "weight": 8
+          "weight": 8,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7266375.jpg"
         }
       ]
     },
@@ -681,35 +772,40 @@
           "name": "Thalassian Competitor's Cloth Cloak",
           "quality": "EPIC",
           "itemLevel": 242,
-          "weight": 55
+          "weight": 55,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7266376.jpg"
         },
         {
           "itemId": 255606,
           "name": "Galactic Gladiator's Shawl",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 30
+          "weight": 30,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7413823.jpg"
         },
         {
           "itemId": 255605,
           "name": "Galactic Gladiator's Drape",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 25
+          "weight": 25,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7413823.jpg"
         },
         {
           "itemId": 239656,
           "name": "Adherent's Silken Shroud",
           "quality": "EPIC",
           "itemLevel": 285,
-          "weight": 17
+          "weight": 17,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7266376.jpg"
         },
         {
           "itemId": 249947,
           "name": "Night Ender's Greatmantle",
           "quality": "EPIC",
           "itemLevel": 276,
-          "weight": 10
+          "weight": 10,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7413823.jpg"
         }
       ],
       "CHEST": [
@@ -718,35 +814,40 @@
           "name": "Night Ender's Breastplate",
           "quality": "EPIC",
           "itemLevel": 289,
-          "weight": 73
+          "weight": 73,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7413824.jpg"
         },
         {
           "itemId": 255588,
           "name": "Galactic Gladiator's Chestguard",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 62
+          "weight": 62,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7413824.jpg"
         },
         {
           "itemId": 255589,
           "name": "Galactic Gladiator's Chestplate",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 26
+          "weight": 26,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7413824.jpg"
         },
         {
           "itemId": 237901,
           "name": "Thalassian Competitor's Plate Breastplate",
           "quality": "EPIC",
           "itemLevel": 242,
-          "weight": 20
+          "weight": 20,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7195215.jpg"
         },
         {
           "itemId": 255296,
           "name": "Galactic Aspirant's Plate Armor",
           "quality": "RARE",
           "itemLevel": 217,
-          "weight": 4
+          "weight": 4,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7135735.jpg"
         }
       ],
       "FEET": [
@@ -755,35 +856,40 @@
           "name": "Galactic Gladiator's Plate Warboots",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 82
+          "weight": 82,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7413821.jpg"
         },
         {
           "itemId": 249954,
           "name": "Night Ender's Greatboots",
           "quality": "EPIC",
           "itemLevel": 289,
-          "weight": 25
+          "weight": 25,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7413821.jpg"
         },
         {
           "itemId": 255267,
           "name": "Galactic Aspirant's Plate Warboots",
           "quality": "RARE",
           "itemLevel": 217,
-          "weight": 14
+          "weight": 14,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7135732.jpg"
         },
         {
           "itemId": 237902,
           "name": "Thalassian Competitor's Plate Sabatons",
           "quality": "EPIC",
           "itemLevel": 242,
-          "weight": 13
+          "weight": 13,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7195180.jpg"
         },
         {
           "itemId": 244766,
           "name": "Thalassian Competitor's Plate Dunkers",
           "quality": "EPIC",
           "itemLevel": 239,
-          "weight": 12
+          "weight": 12,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7195180.jpg"
         }
       ],
       "FINGER_1": [
@@ -792,35 +898,40 @@
           "name": "Thalassian Competitor's Signet",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 65
+          "weight": 65,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7549150.jpg"
         },
         {
           "itemId": 255607,
           "name": "Galactic Gladiator's Ring",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 30
+          "weight": 30,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7636643.jpg"
         },
         {
           "itemId": 255609,
           "name": "Galactic Gladiator's Signet",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 24
+          "weight": 24,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7636626.jpg"
         },
         {
           "itemId": 251217,
           "name": "Occlusion of Void",
           "quality": "EPIC",
           "itemLevel": 289,
-          "weight": 14
+          "weight": 14,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7636674.jpg"
         },
         {
           "itemId": 251093,
           "name": "Omission of Light",
           "quality": "EPIC",
           "itemLevel": 289,
-          "weight": 11
+          "weight": 11,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7636676.jpg"
         }
       ],
       "FINGER_2": [
@@ -829,35 +940,40 @@
           "name": "Thalassian Competitor's Signet",
           "quality": "EPIC",
           "itemLevel": 242,
-          "weight": 49
+          "weight": 49,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7549150.jpg"
         },
         {
           "itemId": 255607,
           "name": "Galactic Gladiator's Ring",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 42
+          "weight": 42,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7636643.jpg"
         },
         {
           "itemId": 255609,
           "name": "Galactic Gladiator's Signet",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 27
+          "weight": 27,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7636626.jpg"
         },
         {
           "itemId": 268290,
           "name": "Sporecaller's Blooming Loop",
           "quality": "EPIC",
           "itemLevel": 298,
-          "weight": 18
+          "weight": 18,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7636604.jpg"
         },
         {
           "itemId": 251217,
           "name": "Occlusion of Void",
           "quality": "EPIC",
           "itemLevel": 289,
-          "weight": 16
+          "weight": 16,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7636674.jpg"
         }
       ],
       "HANDS": [
@@ -866,35 +982,40 @@
           "name": "Night Ender's Fists",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 141
+          "weight": 141,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7433936.jpg"
         },
         {
           "itemId": 151332,
           "name": "Voidclaw Gauntlets",
           "quality": "EPIC",
           "itemLevel": 289,
-          "weight": 22
+          "weight": 22,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/1586622.jpg"
         },
         {
           "itemId": 255593,
           "name": "Galactic Gladiator's Plate Handguards",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 10
+          "weight": 10,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7433936.jpg"
         },
         {
           "itemId": 258583,
           "name": "Incarnadine Gauntlets",
           "quality": "EPIC",
           "itemLevel": 289,
-          "weight": 6
+          "weight": 6,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/960786.jpg"
         },
         {
           "itemId": 237903,
           "name": "Thalassian Competitor's Plate Gauntlets",
           "quality": "EPIC",
           "itemLevel": 242,
-          "weight": 3
+          "weight": 3,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7195216.jpg"
         }
       ],
       "HEAD": [
@@ -903,35 +1024,40 @@
           "name": "Night Ender's Tusks",
           "quality": "EPIC",
           "itemLevel": 263,
-          "weight": 136
+          "weight": 136,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7413826.jpg"
         },
         {
           "itemId": 255594,
           "name": "Galactic Gladiator's Plate Helm",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 26
+          "weight": 26,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7413826.jpg"
         },
         {
           "itemId": 244738,
           "name": "Thalassian Competitor's Plate Guard",
           "quality": "EPIC",
           "itemLevel": 239,
-          "weight": 18
+          "weight": 18,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/133149.jpg"
         },
         {
           "itemId": 255595,
           "name": "Galactic Gladiator's Plate Helmet",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 3
+          "weight": 3,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7413826.jpg"
         },
         {
           "itemId": 49819,
           "name": "Skeleton Lord's Cranium",
           "quality": "EPIC",
           "itemLevel": 289,
-          "weight": 2
+          "weight": 2,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/133112.jpg"
         }
       ],
       "LEGS": [
@@ -940,35 +1066,40 @@
           "name": "Night Ender's Chausses",
           "quality": "EPIC",
           "itemLevel": 289,
-          "weight": 87
+          "weight": 87,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7433937.jpg"
         },
         {
           "itemId": 255596,
           "name": "Galactic Gladiator's Plate Legguards",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 58
+          "weight": 58,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7433937.jpg"
         },
         {
           "itemId": 255597,
           "name": "Galactic Gladiator's Plate Wargreaves",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 34
+          "weight": 34,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7433937.jpg"
         },
         {
           "itemId": 255310,
           "name": "Galactic Aspirant's Plate Wargreaves",
           "quality": "RARE",
           "itemLevel": 217,
-          "weight": 5
+          "weight": 5,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7135738.jpg"
         },
         {
           "itemId": 277767,
           "name": "Venom-Cursed Bear's Greaves",
           "quality": "EPIC",
           "itemLevel": 292,
-          "weight": 4
+          "weight": 4,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7876609.jpg"
         }
       ],
       "MAIN_HAND": [
@@ -977,35 +1108,40 @@
           "name": "Galactic Gladiator's Greataxe",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 70
+          "weight": 70,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7390185.jpg"
         },
         {
           "itemId": 255633,
           "name": "Galactic Gladiator's Greatsword",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 47
+          "weight": 47,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7350841.jpg"
         },
         {
           "itemId": 49802,
           "name": "Garfrost's Two-Ton Hammer",
           "quality": "EPIC",
           "itemLevel": 298,
-          "weight": 16
+          "weight": 16,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/133563.jpg"
         },
         {
           "itemId": 251117,
           "name": "Whirling Voidcleaver",
           "quality": "EPIC",
           "itemLevel": 298,
-          "weight": 13
+          "weight": 13,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/6994475.jpg"
         },
         {
           "itemId": 237915,
           "name": "Thalassian Competitor's Greatsword",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 9
+          "weight": 9,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7118838.jpg"
         }
       ],
       "NECK": [
@@ -1014,35 +1150,40 @@
           "name": "Galactic Gladiator's Necklace",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 60
+          "weight": 60,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7636613.jpg"
         },
         {
           "itemId": 240952,
           "name": "Thalassian Competitor's Amulet",
           "quality": "EPIC",
           "itemLevel": 242,
-          "weight": 32
+          "weight": 32,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7549119.jpg"
         },
         {
           "itemId": 268291,
           "name": "Rotmire's Sporeheart",
           "quality": "EPIC",
           "itemLevel": 298,
-          "weight": 26
+          "weight": 26,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7636601.jpg"
         },
         {
           "itemId": 255612,
           "name": "Galactic Gladiator's Amulet",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 21
+          "weight": 21,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7636637.jpg"
         },
         {
           "itemId": 50228,
           "name": "Barbed Ymirheim Choker",
           "quality": "EPIC",
           "itemLevel": 289,
-          "weight": 13
+          "weight": 13,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/133309.jpg"
         }
       ],
       "OFF_HAND": [
@@ -1051,35 +1192,40 @@
           "name": "Galactic Gladiator's Greatsword",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 47
+          "weight": 47,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7350841.jpg"
         },
         {
           "itemId": 265601,
           "name": "Galactic Gladiator's Greataxe",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 30
+          "weight": 30,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7390185.jpg"
         },
         {
           "itemId": 237846,
           "name": "Blood Knight's Warblade",
           "quality": "EPIC",
           "itemLevel": 295,
-          "weight": 21
+          "weight": 21,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7118838.jpg"
         },
         {
           "itemId": 255634,
           "name": "Galactic Gladiator's Morningstar",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 3
+          "weight": 3,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7451506.jpg"
         },
         {
           "itemId": 49802,
           "name": "Garfrost's Two-Ton Hammer",
           "quality": "EPIC",
           "itemLevel": 298,
-          "weight": 2
+          "weight": 2,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/133563.jpg"
         }
       ],
       "SHIRT": [
@@ -1088,35 +1234,40 @@
           "name": "Precious's Ribbon",
           "quality": "UNCOMMON",
           "itemLevel": 1,
-          "weight": 9
+          "weight": 9,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/134411.jpg"
         },
         {
           "itemId": 151116,
           "name": "Fashionable Undershirt",
           "quality": "RARE",
           "itemLevel": 1,
-          "weight": 6
+          "weight": 6,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/135010.jpg"
         },
         {
           "itemId": 4334,
           "name": "Formal White Shirt",
           "quality": "UNCOMMON",
           "itemLevel": 1,
-          "weight": 5
+          "weight": 5,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/135012.jpg"
         },
         {
           "itemId": 268274,
           "name": "Blinky's Collar",
           "quality": "UNCOMMON",
           "itemLevel": 1,
-          "weight": 5
+          "weight": 5,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/133309.jpg"
         },
         {
           "itemId": 41248,
           "name": "Red Lumberjack Shirt",
           "quality": "UNCOMMON",
           "itemLevel": 1,
-          "weight": 4
+          "weight": 4,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/135029.jpg"
         }
       ],
       "SHOULDER": [
@@ -1125,35 +1276,40 @@
           "name": "Night Ender's Pauldrons",
           "quality": "EPIC",
           "itemLevel": 263,
-          "weight": 141
+          "weight": 141,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7413828.jpg"
         },
         {
           "itemId": 255599,
           "name": "Galactic Gladiator's Plate Pauldrons",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 38
+          "weight": 38,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7413828.jpg"
         },
         {
           "itemId": 251157,
           "name": "Searing Spaulders",
           "quality": "EPIC",
           "itemLevel": 289,
-          "weight": 4
+          "weight": 4,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7135739.jpg"
         },
         {
           "itemId": 255598,
           "name": "Galactic Gladiator's Plate Shoulders",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 2
+          "weight": 2,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7413828.jpg"
         },
         {
           "itemId": 277766,
           "name": "Venom-Cursed Bear's Pauldrons",
           "quality": "EPIC",
           "itemLevel": 285,
-          "weight": 2
+          "weight": 2,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7876610.jpg"
         }
       ],
       "TABARD": [
@@ -1162,35 +1318,40 @@
           "name": "Guild Tabard",
           "quality": "UNCOMMON",
           "itemLevel": 1,
-          "weight": 15
+          "weight": 15,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/135026.jpg"
         },
         {
           "itemId": 52252,
           "name": "Tabard of the Lightbringer",
           "quality": "EPIC",
           "itemLevel": 14,
-          "weight": 10
+          "weight": 10,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/135026.jpg"
         },
         {
           "itemId": 260441,
           "name": "Galactic Gladiator's Tabard",
           "quality": "EPIC",
           "itemLevel": 1,
-          "weight": 10
+          "weight": 10,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7525250.jpg"
         },
         {
           "itemId": 264164,
           "name": "Galactic Gladiator's Tabard",
           "quality": "EPIC",
           "itemLevel": 1,
-          "weight": 10
+          "weight": 10,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7525249.jpg"
         },
         {
           "itemId": 69210,
           "name": "Renowned Guild Tabard",
           "quality": "EPIC",
           "itemLevel": 1,
-          "weight": 7
+          "weight": 7,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/514261.jpg"
         }
       ],
       "TRINKET_1": [
@@ -1199,35 +1360,40 @@
           "name": "Galactic Gladiator's Insignia of Alacrity",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 65
+          "weight": 65,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/134501.jpg"
         },
         {
           "itemId": 255616,
           "name": "Galactic Gladiator's Medallion",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 43
+          "weight": 43,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/1322720.jpg"
         },
         {
           "itemId": 249343,
           "name": "Gaze of the Alnseer",
           "quality": "EPIC",
           "itemLevel": 298,
-          "weight": 26
+          "weight": 26,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7636702.jpg"
         },
         {
           "itemId": 249342,
           "name": "Heart of Ancient Hunger",
           "quality": "EPIC",
           "itemLevel": 285,
-          "weight": 16
+          "weight": 16,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7636710.jpg"
         },
         {
           "itemId": 255327,
           "name": "Galactic Aspirant's Medallion",
           "quality": "RARE",
           "itemLevel": 217,
-          "weight": 10
+          "weight": 10,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/1322720.jpg"
         }
       ],
       "TRINKET_2": [
@@ -1236,35 +1402,40 @@
           "name": "Galactic Gladiator's Medallion",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 63
+          "weight": 63,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/1322720.jpg"
         },
         {
           "itemId": 255614,
           "name": "Galactic Gladiator's Insignia of Alacrity",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 44
+          "weight": 44,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/134501.jpg"
         },
         {
           "itemId": 249342,
           "name": "Heart of Ancient Hunger",
           "quality": "EPIC",
           "itemLevel": 298,
-          "weight": 22
+          "weight": 22,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7636710.jpg"
         },
         {
           "itemId": 249343,
           "name": "Gaze of the Alnseer",
           "quality": "EPIC",
           "itemLevel": 298,
-          "weight": 17
+          "weight": 17,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7636702.jpg"
         },
         {
           "itemId": 255328,
           "name": "Galactic Aspirant's Insignia of Alacrity",
           "quality": "RARE",
           "itemLevel": 217,
-          "weight": 8
+          "weight": 8,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/134501.jpg"
         }
       ],
       "WAIST": [
@@ -1273,35 +1444,40 @@
           "name": "Galactic Gladiator's Plate Greatbelt",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 57
+          "weight": 57,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7413820.jpg"
         },
         {
           "itemId": 255600,
           "name": "Galactic Gladiator's Plate Girdle",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 39
+          "weight": 39,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7413820.jpg"
         },
         {
           "itemId": 249949,
           "name": "Night Ender's Girdle",
           "quality": "EPIC",
           "itemLevel": 289,
-          "weight": 21
+          "weight": 21,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7413820.jpg"
         },
         {
           "itemId": 268289,
           "name": "Girdle of Devouring Rot",
           "quality": "EPIC",
           "itemLevel": 298,
-          "weight": 21
+          "weight": 21,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7319577.jpg"
         },
         {
           "itemId": 237907,
           "name": "Thalassian Competitor's Plate Waistguard",
           "quality": "EPIC",
           "itemLevel": 242,
-          "weight": 17
+          "weight": 17,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7195179.jpg"
         }
       ],
       "WRIST": [
@@ -1310,35 +1486,40 @@
           "name": "Thalassian Competitor's Plate Armguards",
           "quality": "EPIC",
           "itemLevel": 242,
-          "weight": 51
+          "weight": 51,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7195194.jpg"
         },
         {
           "itemId": 237834,
           "name": "Spellbreaker's Bracers",
           "quality": "EPIC",
           "itemLevel": 285,
-          "weight": 41
+          "weight": 41,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7195194.jpg"
         },
         {
           "itemId": 255603,
           "name": "Galactic Gladiator's Plate Vambraces",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 32
+          "weight": 32,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7413822.jpg"
         },
         {
           "itemId": 255602,
           "name": "Galactic Gladiator's Plate Wristguards",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 26
+          "weight": 26,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7413822.jpg"
         },
         {
           "itemId": 244742,
           "name": "Thalassian Competitor's Plate Bindings",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 11
+          "weight": 11,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7195194.jpg"
         }
       ]
     },
@@ -1349,35 +1530,40 @@
           "name": "Galactic Gladiator's Shawl",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 71
+          "weight": 71,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7384533.jpg"
         },
         {
           "itemId": 239678,
           "name": "Thalassian Competitor's Cloth Cloak",
           "quality": "EPIC",
           "itemLevel": 239,
-          "weight": 23
+          "weight": 23,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7266376.jpg"
         },
         {
           "itemId": 249974,
           "name": "Guardian of the Primal Core",
           "quality": "EPIC",
           "itemLevel": 279,
-          "weight": 18
+          "weight": 18,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7384533.jpg"
         },
         {
           "itemId": 255339,
           "name": "Galactic Aspirant's Cape",
           "quality": "RARE",
           "itemLevel": 217,
-          "weight": 15
+          "weight": 15,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7259233.jpg"
         },
         {
           "itemId": 255547,
           "name": "Galactic Gladiator's Drape",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 12
+          "weight": 12,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7384533.jpg"
         }
       ],
       "CHEST": [
@@ -1386,35 +1572,40 @@
           "name": "Embrace of the Primal Core",
           "quality": "EPIC",
           "itemLevel": 250,
-          "weight": 164
+          "weight": 164,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7384537.jpg"
         },
         {
           "itemId": 255531,
           "name": "Galactic Gladiator's Chain Tunic",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 13
+          "weight": 13,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7384537.jpg"
         },
         {
           "itemId": 255297,
           "name": "Galactic Aspirant's Armored Tunic",
           "quality": "RARE",
           "itemLevel": 217,
-          "weight": 8
+          "weight": 8,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7259234.jpg"
         },
         {
           "itemId": 244562,
           "name": "Thalassian Competitor's Chain Tunic",
           "quality": "EPIC",
           "itemLevel": 239,
-          "weight": 6
+          "weight": 6,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7082303.jpg"
         },
         {
           "itemId": 239034,
           "name": "Corrupted Hexxer's Vestments",
           "quality": "EPIC",
           "itemLevel": 292,
-          "weight": 1
+          "weight": 1,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/2054953.jpg"
         }
       ],
       "FEET": [
@@ -1423,35 +1614,40 @@
           "name": "Galactic Gladiator's Chain Boots",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 75
+          "weight": 75,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7384531.jpg"
         },
         {
           "itemId": 255301,
           "name": "Galactic Aspirant's Chain Stompers",
           "quality": "RARE",
           "itemLevel": 217,
-          "weight": 19
+          "weight": 19,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7259231.jpg"
         },
         {
           "itemId": 244561,
           "name": "Thalassian Competitor's Chain Stompers",
           "quality": "EPIC",
           "itemLevel": 239,
-          "weight": 15
+          "weight": 15,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7082301.jpg"
         },
         {
           "itemId": 255532,
           "name": "Galactic Gladiator's Chain Sabatons",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 15
+          "weight": 15,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7384531.jpg"
         },
         {
           "itemId": 249981,
           "name": "Sollerets of the Primal Core",
           "quality": "EPIC",
           "itemLevel": 276,
-          "weight": 12
+          "weight": 12,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7384531.jpg"
         }
       ],
       "FINGER_1": [
@@ -1460,35 +1656,40 @@
           "name": "Thalassian Competitor's Signet",
           "quality": "EPIC",
           "itemLevel": 242,
-          "weight": 80
+          "weight": 80,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7549150.jpg"
         },
         {
           "itemId": 255609,
           "name": "Galactic Gladiator's Signet",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 22
+          "weight": 22,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7636626.jpg"
         },
         {
           "itemId": 255607,
           "name": "Galactic Gladiator's Ring",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 16
+          "weight": 16,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7636643.jpg"
         },
         {
           "itemId": 151308,
           "name": "Eredath Seal of Nobility",
           "quality": "EPIC",
           "itemLevel": 289,
-          "weight": 7
+          "weight": 7,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/1408441.jpg"
         },
         {
           "itemId": 255331,
           "name": "Galactic Aspirant's Ring",
           "quality": "RARE",
           "itemLevel": 217,
-          "weight": 7
+          "weight": 7,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7636619.jpg"
         }
       ],
       "FINGER_2": [
@@ -1497,35 +1698,40 @@
           "name": "Thalassian Competitor's Signet",
           "quality": "EPIC",
           "itemLevel": 242,
-          "weight": 86
+          "weight": 86,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7549150.jpg"
         },
         {
           "itemId": 255609,
           "name": "Galactic Gladiator's Signet",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 20
+          "weight": 20,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7636626.jpg"
         },
         {
           "itemId": 255333,
           "name": "Galactic Aspirant's Signet",
           "quality": "RARE",
           "itemLevel": 217,
-          "weight": 13
+          "weight": 13,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7636597.jpg"
         },
         {
           "itemId": 255331,
           "name": "Galactic Aspirant's Ring",
           "quality": "RARE",
           "itemLevel": 217,
-          "weight": 8
+          "weight": 8,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7636619.jpg"
         },
         {
           "itemId": 251217,
           "name": "Occlusion of Void",
           "quality": "EPIC",
           "itemLevel": 276,
-          "weight": 7
+          "weight": 7,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7636674.jpg"
         }
       ],
       "HANDS": [
@@ -1534,35 +1740,40 @@
           "name": "Earthgrips of the Primal Core",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 156
+          "weight": 156,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7384534.jpg"
         },
         {
           "itemId": 255535,
           "name": "Galactic Gladiator's Chain Handguards",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 16
+          "weight": 16,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7384534.jpg"
         },
         {
           "itemId": 255274,
           "name": "Galactic Aspirant's Chain Gauntlets",
           "quality": "RARE",
           "itemLevel": 217,
-          "weight": 11
+          "weight": 11,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7259235.jpg"
         },
         {
           "itemId": 255534,
           "name": "Galactic Gladiator's Chain Gauntlets",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 4
+          "weight": 4,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7384534.jpg"
         },
         {
           "itemId": 244583,
           "name": "Farstrider's Sharpened Claws",
           "quality": "EPIC",
           "itemLevel": 285,
-          "weight": 3
+          "weight": 3,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7082304.jpg"
         }
       ],
       "HEAD": [
@@ -1571,35 +1782,40 @@
           "name": "Locus of the Primal Core",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 147
+          "weight": 147,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7384535.jpg"
         },
         {
           "itemId": 244737,
           "name": "Thalassian Competitor's Mail Visor",
           "quality": "EPIC",
           "itemLevel": 239,
-          "weight": 6
+          "weight": 6,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/133149.jpg"
         },
         {
           "itemId": 255536,
           "name": "Galactic Gladiator's Chain Helm",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 6
+          "weight": 6,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7384535.jpg"
         },
         {
           "itemId": 249317,
           "name": "Frenzy's Rebuke",
           "quality": "EPIC",
           "itemLevel": 289,
-          "weight": 5
+          "weight": 5,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7307678.jpg"
         },
         {
           "itemId": 251119,
           "name": "Vortex Visage",
           "quality": "EPIC",
           "itemLevel": 289,
-          "weight": 5
+          "weight": 5,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7259236.jpg"
         }
       ],
       "LEGS": [
@@ -1608,35 +1824,40 @@
           "name": "Leggings of the Primal Core",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 131
+          "weight": 131,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7384536.jpg"
         },
         {
           "itemId": 255538,
           "name": "Galactic Gladiator's Chain Leggings",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 25
+          "weight": 25,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7384536.jpg"
         },
         {
           "itemId": 255539,
           "name": "Galactic Gladiator's Chain Breeches",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 10
+          "weight": 10,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7384536.jpg"
         },
         {
           "itemId": 255312,
           "name": "Galactic Aspirant's Chain Wargreaves",
           "quality": "RARE",
           "itemLevel": 217,
-          "weight": 6
+          "weight": 6,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7259237.jpg"
         },
         {
           "itemId": 244566,
           "name": "Thalassian Competitor's Chain Leggings",
           "quality": "EPIC",
           "itemLevel": 236,
-          "weight": 5
+          "weight": 5,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7082306.jpg"
         }
       ],
       "MAIN_HAND": [
@@ -1645,35 +1866,40 @@
           "name": "Galactic Gladiator's Scepter",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 91
+          "weight": 91,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7456191.jpg"
         },
         {
           "itemId": 267371,
           "name": "Galactic Gladiator's Ripper",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 20
+          "weight": 20,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7428132.jpg"
         },
         {
           "itemId": 50227,
           "name": "Surgeon's Needle",
           "quality": "EPIC",
           "itemLevel": 298,
-          "weight": 11
+          "weight": 11,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/307037.jpg"
         },
         {
           "itemId": 255349,
           "name": "Galactic Aspirant's Scepter",
           "quality": "RARE",
           "itemLevel": 217,
-          "weight": 8
+          "weight": 8,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/6936236.jpg"
         },
         {
           "itemId": 255628,
           "name": "Galactic Gladiator's Shattered Blade",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 6
+          "weight": 6,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7428175.jpg"
         }
       ],
       "NECK": [
@@ -1682,35 +1908,40 @@
           "name": "Thalassian Competitor's Amulet",
           "quality": "EPIC",
           "itemLevel": 242,
-          "weight": 68
+          "weight": 68,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7549119.jpg"
         },
         {
           "itemId": 255612,
           "name": "Galactic Gladiator's Amulet",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 29
+          "weight": 29,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7636637.jpg"
         },
         {
           "itemId": 268291,
           "name": "Rotmire's Sporeheart",
           "quality": "EPIC",
           "itemLevel": 298,
-          "weight": 22
+          "weight": 22,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7636601.jpg"
         },
         {
           "itemId": 255610,
           "name": "Galactic Gladiator's Necklace",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 17
+          "weight": 17,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7636613.jpg"
         },
         {
           "itemId": 255336,
           "name": "Galactic Aspirant's Pendant",
           "quality": "RARE",
           "itemLevel": 217,
-          "weight": 13
+          "weight": 13,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7636616.jpg"
         }
       ],
       "OFF_HAND": [
@@ -1719,35 +1950,40 @@
           "name": "Galactic Gladiator's Bulwark",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 98
+          "weight": 98,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7412729.jpg"
         },
         {
           "itemId": 255626,
           "name": "Galactic Gladiator's Shield",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 21
+          "weight": 21,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7412729.jpg"
         },
         {
           "itemId": 237831,
           "name": "Spellbreaker's Rebuke",
           "quality": "EPIC",
           "itemLevel": 295,
-          "weight": 10
+          "weight": 10,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7369044.jpg"
         },
         {
           "itemId": 249275,
           "name": "Bulwark of Noble Resolve",
           "quality": "EPIC",
           "itemLevel": 298,
-          "weight": 10
+          "weight": 10,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7412729.jpg"
         },
         {
           "itemId": 255350,
           "name": "Galactic Aspirant's Shield",
           "quality": "RARE",
           "itemLevel": 217,
-          "weight": 8
+          "weight": 8,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7392266.jpg"
         }
       ],
       "SHIRT": [
@@ -1756,35 +1992,40 @@
           "name": "Precious's Ribbon",
           "quality": "UNCOMMON",
           "itemLevel": 1,
-          "weight": 8
+          "weight": 8,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/134411.jpg"
         },
         {
           "itemId": 268274,
           "name": "Blinky's Collar",
           "quality": "UNCOMMON",
           "itemLevel": 1,
-          "weight": 6
+          "weight": 6,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/133309.jpg"
         },
         {
           "itemId": 2575,
           "name": "Red Linen Shirt",
           "quality": "UNCOMMON",
           "itemLevel": 1,
-          "weight": 2
+          "weight": 2,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/135029.jpg"
         },
         {
           "itemId": 2577,
           "name": "Blue Linen Shirt",
           "quality": "UNCOMMON",
           "itemLevel": 1,
-          "weight": 2
+          "weight": 2,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/135023.jpg"
         },
         {
           "itemId": 4335,
           "name": "Rich Purple Silk Shirt",
           "quality": "UNCOMMON",
           "itemLevel": 1,
-          "weight": 2
+          "weight": 2,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/135020.jpg"
         }
       ],
       "SHOULDER": [
@@ -1793,35 +2034,40 @@
           "name": "Tempests of the Primal Core",
           "quality": "EPIC",
           "itemLevel": 272,
-          "weight": 106
+          "weight": 106,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7384538.jpg"
         },
         {
           "itemId": 244564,
           "name": "Thalassian Competitor's Chain Epaulets",
           "quality": "EPIC",
           "itemLevel": 239,
-          "weight": 45
+          "weight": 45,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7082307.jpg"
         },
         {
           "itemId": 255540,
           "name": "Galactic Gladiator's Chain Monnion",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 26
+          "weight": 26,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7384538.jpg"
         },
         {
           "itemId": 255285,
           "name": "Galactic Aspirant's Chain Spaulders",
           "quality": "RARE",
           "itemLevel": 217,
-          "weight": 9
+          "weight": 9,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7259238.jpg"
         },
         {
           "itemId": 251131,
           "name": "Jangling Felpaulets",
           "quality": "EPIC",
           "itemLevel": 292,
-          "weight": 2
+          "weight": 2,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7259238.jpg"
         }
       ],
       "TABARD": [
@@ -1830,35 +2076,40 @@
           "name": "Renowned Guild Tabard",
           "quality": "EPIC",
           "itemLevel": 1,
-          "weight": 10
+          "weight": 10,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/514261.jpg"
         },
         {
           "itemId": 5976,
           "name": "Guild Tabard",
           "quality": "UNCOMMON",
           "itemLevel": 1,
-          "weight": 6
+          "weight": 6,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/135026.jpg"
         },
         {
           "itemId": 69209,
           "name": "Illustrious Guild Tabard",
           "quality": "RARE",
           "itemLevel": 1,
-          "weight": 5
+          "weight": 5,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/514262.jpg"
         },
         {
           "itemId": 232908,
           "name": "Astral Gladiator's Tabard",
           "quality": "EPIC",
           "itemLevel": 1,
-          "weight": 4
+          "weight": 4,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/6224388.jpg"
         },
         {
           "itemId": 161329,
           "name": "Tabard of the Dark Iron",
           "quality": "RARE",
           "itemLevel": 1,
-          "weight": 3
+          "weight": 3,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/2012314.jpg"
         }
       ],
       "TRINKET_1": [
@@ -1867,35 +2118,40 @@
           "name": "Galactic Gladiator's Insignia of Alacrity",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 59
+          "weight": 59,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/134501.jpg"
         },
         {
           "itemId": 255616,
           "name": "Galactic Gladiator's Medallion",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 42
+          "weight": 42,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/1322720.jpg"
         },
         {
           "itemId": 255327,
           "name": "Galactic Aspirant's Medallion",
           "quality": "RARE",
           "itemLevel": 217,
-          "weight": 15
+          "weight": 15,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/1322720.jpg"
         },
         {
           "itemId": 255328,
           "name": "Galactic Aspirant's Insignia of Alacrity",
           "quality": "RARE",
           "itemLevel": 217,
-          "weight": 14
+          "weight": 14,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/134501.jpg"
         },
         {
           "itemId": 249343,
           "name": "Gaze of the Alnseer",
           "quality": "EPIC",
           "itemLevel": 298,
-          "weight": 12
+          "weight": 12,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7636702.jpg"
         }
       ],
       "TRINKET_2": [
@@ -1904,35 +2160,40 @@
           "name": "Galactic Gladiator's Medallion",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 58
+          "weight": 58,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/1322720.jpg"
         },
         {
           "itemId": 255614,
           "name": "Galactic Gladiator's Insignia of Alacrity",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 41
+          "weight": 41,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/134501.jpg"
         },
         {
           "itemId": 255327,
           "name": "Galactic Aspirant's Medallion",
           "quality": "RARE",
           "itemLevel": 217,
-          "weight": 19
+          "weight": 19,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/1322720.jpg"
         },
         {
           "itemId": 249343,
           "name": "Gaze of the Alnseer",
           "quality": "EPIC",
           "itemLevel": 298,
-          "weight": 15
+          "weight": 15,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7636702.jpg"
         },
         {
           "itemId": 255328,
           "name": "Galactic Aspirant's Insignia of Alacrity",
           "quality": "RARE",
           "itemLevel": 217,
-          "weight": 14
+          "weight": 14,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/134501.jpg"
         }
       ],
       "WAIST": [
@@ -1941,35 +2202,40 @@
           "name": "Thalassian Competitor's Chain Girdle",
           "quality": "EPIC",
           "itemLevel": 239,
-          "weight": 64
+          "weight": 64,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7082300.jpg"
         },
         {
           "itemId": 255542,
           "name": "Galactic Gladiator's Chain Belt",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 38
+          "weight": 38,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7384530.jpg"
         },
         {
           "itemId": 255320,
           "name": "Galactic Aspirant's Chain Clasp",
           "quality": "RARE",
           "itemLevel": 217,
-          "weight": 17
+          "weight": 17,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7259230.jpg"
         },
         {
           "itemId": 249976,
           "name": "Ceinture of the Primal Core",
           "quality": "EPIC",
           "itemLevel": 276,
-          "weight": 16
+          "weight": 16,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7384530.jpg"
         },
         {
           "itemId": 244581,
           "name": "Farstrider's Trophy Belt",
           "quality": "EPIC",
           "itemLevel": 285,
-          "weight": 10
+          "weight": 10,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7082300.jpg"
         }
       ],
       "WRIST": [
@@ -1978,35 +2244,40 @@
           "name": "Galactic Gladiator's Chain Wristguards",
           "quality": "EPIC",
           "itemLevel": 246,
-          "weight": 75
+          "weight": 75,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7384532.jpg"
         },
         {
           "itemId": 255292,
           "name": "Galactic Aspirant's Chain Wristwraps",
           "quality": "RARE",
           "itemLevel": 217,
-          "weight": 21
+          "weight": 21,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7259232.jpg"
         },
         {
           "itemId": 244584,
           "name": "Farstrider's Plated Bracers",
           "quality": "EPIC",
           "itemLevel": 285,
-          "weight": 20
+          "weight": 20,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7082302.jpg"
         },
         {
           "itemId": 244568,
           "name": "Thalassian Competitor's Chain Cuffs",
           "quality": "EPIC",
           "itemLevel": 239,
-          "weight": 17
+          "weight": 17,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7082302.jpg"
         },
         {
           "itemId": 249975,
           "name": "Cuffs of the Primal Core",
           "quality": "EPIC",
           "itemLevel": 289,
-          "weight": 15
+          "weight": 15,
+          "icon": "https://render.worldofwarcraft.com/eu/icons/56/7384532.jpg"
         }
       ]
     }

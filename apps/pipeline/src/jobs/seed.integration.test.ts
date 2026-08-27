@@ -33,6 +33,7 @@ import { getRegion } from "../config";
 import { applyMigrations } from "../db/migrate";
 import { createPool } from "../db/pool";
 import { refreshAggregates } from "./refresh-aggregates";
+import { ITEM_MEDIA_TTL_DAYS, countPending, loadPending } from "./resolve-item-media";
 import { buildSeedDataset, loadItemCatalog, CURRENT_SEASON, PREVIOUS_SEASON } from "./seed-dataset";
 import { isLocalDatabase, resetDatabase, seedDatabase } from "./seed";
 
@@ -218,6 +219,22 @@ describe("lecturas de @wowpvp/data contra el schema real", { skip }, () => {
       );
     });
 
+    it("trae la URL del icono del catálogo, y null en lo que no es un item", async () => {
+      const adoption = await readAdoption(pool, target, "gear-item", { limit: 5 });
+
+      assert.equal(adoption.length, 5);
+      for (const item of adoption) {
+        assert.ok(item.iconUrl, `el item ${item.itemId ?? "?"} no trajo icono del catálogo`);
+        assert.match(item.iconUrl, /^https:\/\/render\.worldofwarcraft\.com\//);
+      }
+
+      // Un código de talentos no es un item: no tiene icono que juntar, y el
+      // left join tiene que devolver null en vez de la URL de otra fila.
+      const codes = await readAdoption(pool, target, "talent-code");
+      assert.ok(codes.length > 0);
+      assert.ok(codes.every((code) => code.iconUrl === null));
+    });
+
     it("agrupa los slots intercambiables: TRINKET, nunca TRINKET_1", async () => {
       const adoption = await readAdoption(pool, target, "gear-item");
       const groups = new Set(adoption.map((item) => item.slotGroup));
@@ -250,6 +267,62 @@ describe("lecturas de @wowpvp/data contra el schema real", { skip }, () => {
       });
       assert.ok(segment);
       assert.deepEqual(await readAdoption(pool, segment, "gear-item"), []);
+    });
+  });
+
+  /**
+   * Va al final a propósito: es el único bloque que escribe, y lo que toca es
+   * el catálogo que los tests anteriores dan por sembrado.
+   */
+  describe("qué está pendiente de resolver (#67)", () => {
+    const MS_PER_DAY = 86_400_000;
+    const cutoff = (): Date => new Date(Date.now() - ITEM_MEDIA_TTL_DAYS * MS_PER_DAY);
+
+    it("no ve pendientes con el catálogo recién sembrado", async () => {
+      assert.equal(await countPending(pool, cutoff()), 0);
+    });
+
+    it("cuenta lo que falta y lo que ha caducado, con lo nuevo primero", async () => {
+      const { rows } = await pool.query<{ item_id: string }>(
+        "select distinct item_id from character_snapshot_gear order by item_id limit 2",
+      );
+      const [nuevo, caducado] = rows.map((row) => Number(row.item_id));
+      assert.ok(nuevo !== undefined && caducado !== undefined);
+
+      // Nunca preguntado: la fila no existe. Caducado: existe y es vieja.
+      await pool.query("delete from item_media where item_id = $1", [nuevo]);
+      await pool.query(
+        "update item_media set resolved_at = now() - interval '31 days' where item_id = $1",
+        [caducado],
+      );
+
+      try {
+        assert.equal(await countPending(pool, cutoff()), 2);
+
+        const pending = await loadPending(pool, cutoff(), 10);
+        assert.deepEqual(
+          pending.map((item) => item.itemId),
+          [nuevo, caducado],
+          "el que nunca se ha preguntado tiene que ir antes que el que solo hay que revalidar",
+        );
+        assert.deepEqual(
+          pending.map((item) => item.isNew),
+          [true, false],
+        );
+
+        // El presupuesto es el techo de la corrida, no una sugerencia.
+        assert.equal((await loadPending(pool, cutoff(), 1)).length, 1);
+      } finally {
+        await pool.query(
+          `insert into item_media (item_id, icon_url, resolved_at)
+           values ($1, null, now())
+           on conflict (item_id) do update set resolved_at = now()`,
+          [nuevo],
+        );
+        await pool.query("update item_media set resolved_at = now() where item_id = $1", [
+          caducado,
+        ]);
+      }
     });
   });
 
