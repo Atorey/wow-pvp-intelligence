@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { nameSlug } from "@wowpvp/core";
 import { BlizzardClient } from "../blizzard/client";
 import { REPORTS_DIR } from "../config";
+import { createPool } from "../db/pool";
 
 const CHARACTERS_FILE = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -139,16 +140,25 @@ function icon(status: string): string {
 
 export async function validateEndpoints(): Promise<void> {
   const characters: CharacterInput[] = JSON.parse(fs.readFileSync(CHARACTERS_FILE, "utf-8"));
-  const client = new BlizzardClient();
+
+  // Este job no escribe nada en Postgres, pero necesita la base igual: el
+  // permiso para llamar a Blizzard vive ahí desde el ADR 0013, y el valor de esa
+  // decisión es precisamente que no haya excepciones.
+  const pool = createPool();
+  const client = new BlizzardClient({ db: pool });
 
   console.log(
     `Región: ${client.region.toUpperCase()} — validando ${characters.length} personajes...\n`,
   );
 
   const reports: CharacterReport[] = [];
-  for (const c of characters) {
-    console.log(`→ ${c.name}-${c.realmSlug} ...`);
-    reports.push(await validateCharacter(client, c));
+  try {
+    for (const c of characters) {
+      console.log(`→ ${c.name}-${c.realmSlug} ...`);
+      reports.push(await validateCharacter(client, c));
+    }
+  } finally {
+    await pool.end();
   }
 
   console.log("\n=== VALIDACIÓN DE ENDPOINTS ===\n");

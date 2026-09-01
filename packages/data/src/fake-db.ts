@@ -10,6 +10,10 @@ import type { Queryable, QueryResultLike, QueryRow } from "./queryable";
  *
  * Guarda las consultas para poder afirmar cosas **sobre la SQL**, como que la
  * lista de columnas del segmento no incluye `confidence`.
+ *
+ * Vive aquí y se exporta por `@wowpvp/data/fake-db` porque el contrato
+ * `Queryable` es de este paquete: un doble por consumidor acabaría siendo dos
+ * dobles divergiendo de una sola interfaz.
  */
 export interface FakeCall {
   text: string;

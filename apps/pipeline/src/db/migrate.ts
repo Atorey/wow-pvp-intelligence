@@ -31,6 +31,21 @@ export async function migrate(): Promise<void> {
  * migración rompa el test en vez de descubrirse en la primera consulta real.
  */
 export async function applyMigrations(pool: pg.Pool): Promise<void> {
+  // Un solo migrador a la vez sobre la misma base. `create table if not exists`
+  // parece idempotente y no lo es bajo concurrencia: dos sesiones creando la
+  // misma tabla a la vez chocan en el catálogo de Postgres. Pasa en cuanto dos
+  // tests de integración arrancan en paralelo, y pasaría igual con dos runners.
+  const lock = await pool.connect();
+  try {
+    await lock.query("select pg_advisory_lock(hashtext('wowpvp:migrations'))");
+    await runPending(pool);
+  } finally {
+    await lock.query("select pg_advisory_unlock(hashtext('wowpvp:migrations'))");
+    lock.release();
+  }
+}
+
+async function runPending(pool: pg.Pool): Promise<void> {
   await pool.query(`
     create table if not exists schema_migrations (
       filename    text primary key,

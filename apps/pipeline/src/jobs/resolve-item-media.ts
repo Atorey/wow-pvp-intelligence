@@ -317,7 +317,7 @@ export async function resolveItemMedia(args: string[] = []): Promise<void> {
 
     // La prioridad más baja de §28: nadie espera delante de un icono, y la
     // búsqueda de un usuario tiene que pasarle por delante siempre.
-    const client = new BlizzardClient({ priority: "aggregate" });
+    const client = new BlizzardClient({ priority: "aggregate", db: pool });
     const report = await resolveItems(client, pool, pending, now, (done) =>
       console.log(`  ${done}/${pending.length}`),
     );
