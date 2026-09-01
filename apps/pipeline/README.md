@@ -15,22 +15,33 @@ npm run pipeline -- <comando>     # desde la raíz del repo
 
 ## Cuota y prioridades
 
-Todas las peticiones pasan por una cola compartida por el proceso ([ADR 0005](../../docs/decisions/0005-cola-de-peticiones-con-prioridades.md)) que respeta dos techos a la vez:
+El presupuesto de cuota **no vive en el proceso, vive en Postgres** ([ADR 0013](../../docs/decisions/0013-web-serverless-y-cuota-en-postgres.md)). La tabla `blizzard_quota` guarda dos token buckets y cualquier proceso pide permiso ahí antes de llamar a Blizzard: el pipeline, un job de Actions o una función de Netlify. Es lo que hace la cuenta correcta haya un proceso o cien, que es justo lo que la cuenta en memoria no podía dar en cuanto la web entró en escena.
 
-| Techo                        | Variable                       | Default | Límite real de Blizzard |
-| ---------------------------- | ------------------------------ | ------- | ----------------------- |
-| Instantáneo                  | `BLIZZARD_REQUESTS_PER_SECOND` | `8`     | 100 req/s               |
-| Horario (ventana deslizante) | `BLIZZARD_REQUESTS_PER_HOUR`   | `24000` | 36.000 req/h            |
+| Qué                              | Variable                         | Default | Límite real de Blizzard |
+| -------------------------------- | -------------------------------- | ------- | ----------------------- |
+| Espaciado de **este** proceso    | `BLIZZARD_REQUESTS_PER_SECOND`   | `8`     | —                       |
+| Bucket compartido por segundo    | `BLIZZARD_GLOBAL_PER_SECOND`     | `80`    | 100 req/s               |
+| Bucket compartido por hora       | `BLIZZARD_REQUESTS_PER_HOUR`     | `32000` | 36.000 req/h            |
+| Colchón reservado a `on-demand`  | `BLIZZARD_ON_DEMAND_RESERVE`     | `2000`  | —                       |
+| Presupuesto de tiempo del lookup | `BLIZZARD_LOOKUP_TIME_BUDGET_MS` | `8000`  | 10 s de Netlify         |
+
+Los dos números por segundo son cosas distintas: el primero es el ritmo al que un proceso se espacia a sí mismo, el segundo es el techo que comparten todos. Los tres últimos valores **tienen que valer lo mismo en todos los procesos que compartan client ID**: no viven en la tabla, viajan como parámetro, y uno mal configurado rellena el bucket más rápido de lo que debe.
+
+**Token bucket y no ventana horaria**: una ventana fija deja gastar el presupuesto entero al final de una hora y otro entero al principio de la siguiente —48.000 peticiones en sesenta minutos reales— sin que ningún contador proteste.
+
+**Al quedarse sin fichas la cola espera**, no falla, y lo avisa por consola. Un job puede quedarse parado hasta que el bucket se rellene; el aviso está para que eso no se confunda con un cuelgue. Quien tiene a un humano delante no espera: lleva un presupuesto de tiempo y responde con una negativa explícita al agotarlo.
+
+**Prioridades** (§28 del plan): `on-demand` (`lookup-character`, la búsqueda de usuario) > `batch` (leaderboard) > `aggregate` (`sample-profiles`, `refresh-profiles` y `resolve-item-media`). Cada job declara la suya al construir el cliente: `new BlizzardClient({ priority: "aggregate", db: pool })`.
+
+La prioridad hace ahora **dos** cosas. Dentro de un proceso sigue ordenando la cola. Entre procesos es una **reserva**: `on-demand` gasta hasta la última ficha, y `batch` y `aggregate` solo obtienen permiso por encima del colchón. Ordenar no bastaba porque una función efímera no puede esperar su turno en una cola que no ve.
+
+**Todos los comandos que llaman a Blizzard necesitan `DATABASE_URL`**, también `fetch-leaderboard` y `validate-endpoints`, que no escriben nada en la base: el permiso vive ahí y el valor de la decisión es que no haya excepciones. La contrapartida, declarada en el ADR: con la base caída, el pipeline se queda sin permiso para llamar a Blizzard.
+
+El **access token de OAuth** también vive en esa tabla y no en la memoria del proceso. En un proceso encendido cachearlo en el objeto era una petición cada 24 h; en serverless sería una por arranque en frío, y ninguna la contaba nadie. Se pide con ficha del bucket como cualquier otra petición: no está publicado si `oauth.battle.net` cuenta contra los 36.000/h, y contarla cierra la duda por el lado barato (~1 al día).
 
 La búsqueda bajo demanda añade una variable propia, `CHARACTER_LOOKUP_TTL_MINUTES` (30 por defecto): ver `lookup-character`.
 
-El horario es el que muerde: 8 req/s sostenidos son 28.800 peticiones en una hora. El default va por debajo del techo real porque el presupuesto se lleva **por proceso** — dos jobs lanzados a la vez no se ven entre ellos.
-
-**Al agotarse la ventana la cola espera**, no falla, y lo avisa por consola. Un job puede quedarse parado hasta que se libere hueco; el aviso está para que eso no se confunda con un cuelgue.
-
-**Prioridades** (§28 del plan): `on-demand` (`lookup-character`, la búsqueda de usuario) > `batch` (leaderboard) > `aggregate` (`sample-profiles`, `refresh-profiles` y `resolve-item-media`). Cada job declara la suya al construir el cliente: `new BlizzardClient({ priority: "aggregate" })`. Los jobs siguen siendo procesos separados y secuenciales, así que rara vez compiten por un turno; la prioridad decidirá algo de verdad cuando la web de #19 dispare búsquedas mientras corre un muestreo.
-
-Cada job imprime al terminar lo que ha gastado, por prioridad y en porcentaje de la ventana horaria.
+Cada job imprime al terminar lo que ha gastado, por prioridad, y cuántas fichas quedaban en el bucket compartido.
 
 ## Comandos
 
@@ -305,5 +316,6 @@ Aplica las migraciones pendientes de `db/migrations/`. Ver [db/README.md](../../
 
 1. Un archivo en `src/jobs/`, exportando una función `async` que recibe los argumentos del CLI (`string[]`) y los ignora si no los necesita.
 2. Registrarlo en `src/cli.ts`.
-3. **Siempre a través de `BlizzardClient`**, nunca con `fetch` directo: es el único sitio donde se controla el ritmo de peticiones, y saltárselo rompe el throttling global (límite: 100 req/s, 36.000 req/h por client ID).
-4. **Declarando su prioridad** al construir el cliente (ver "Cuota y prioridades"). El default es `batch`; usa `aggregate` si lo que baja alimenta recomputos que nadie está esperando.
+3. **Siempre a través de `BlizzardClient`**, nunca con `fetch` directo: es el único sitio donde se pide permiso al presupuesto compartido, y lo que no pasa por ahí no lo cuenta nadie — el techo real es 100 req/s y 36.000 req/h por client ID, y quien se lleva los 429 no es siempre quien se pasó.
+4. **Pasándole el ejecutor de la base** (`new BlizzardClient({ db: pool })`), el mismo del resto del job: el permiso de cuota vive en Postgres. Un proceso, un ejecutor — construir dos clientes con conexiones distintas falla al arrancar en vez de llevar dos contabilidades del mismo presupuesto.
+5. **Declarando su prioridad** al construir el cliente (ver "Cuota y prioridades"). El default es `batch`; usa `aggregate` si lo que baja alimenta recomputos que nadie está esperando.

@@ -456,8 +456,8 @@ export async function lookupCharacters(args: string[] = []): Promise<void> {
 
   // La prioridad más alta de §28: detrás de esto hay alguien esperando delante
   // de una pantalla, a diferencia del leaderboard y de los agregados.
-  const client = new BlizzardClient({ priority: "on-demand" });
   const pool = createPool();
+  const client = new BlizzardClient({ priority: "on-demand", db: pool });
   const results: LookupResult[] = [];
 
   try {

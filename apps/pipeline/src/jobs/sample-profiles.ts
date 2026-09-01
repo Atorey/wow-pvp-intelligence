@@ -608,8 +608,8 @@ export async function sampleProfiles(args: string[] = []): Promise<void> {
   // La prioridad más baja de §28: esto alimenta los agregados de población, que
   // se recomputan sin que nadie espere delante. Un censo son decenas de miles de
   // peticiones, así que es justo el trabajo que debe ceder el turno a lo demás.
-  const client = new BlizzardClient({ priority: "aggregate" });
   const pool = createPool();
+  const client = new BlizzardClient({ priority: "aggregate", db: pool });
   const reports: BucketReport[] = [];
 
   try {

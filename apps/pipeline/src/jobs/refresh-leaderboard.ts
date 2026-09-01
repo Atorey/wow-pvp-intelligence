@@ -204,12 +204,14 @@ function prune(now: Date): number {
 export async function refreshLeaderboard(): Promise<void> {
   console.log("Job programado de leaderboard — descarga + ingesta\n");
 
-  const batch = await fetchLeaderboardBatch();
-  console.log(`Región: ${batch.region.toUpperCase()} — temporada actual: ${batch.seasonId}`);
-  printBatch(batch);
-
+  // El pool se abre antes de la descarga porque la descarga ya necesita base:
+  // el permiso de cuota vive en Postgres (ADR 0013), no en el proceso.
   const pool = createPool();
   try {
+    const batch = await fetchLeaderboardBatch(pool);
+    console.log(`Región: ${batch.region.toUpperCase()} — temporada actual: ${batch.seasonId}`);
+    printBatch(batch);
+
     const previousContent = await lastHashByBracket(pool, batch.region, "content_hash");
     const previousPopulation = await lastHashByBracket(pool, batch.region, "population_hash");
     const outcomes: RefreshOutcome[] = [];

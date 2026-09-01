@@ -2,9 +2,11 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { nameSlug, shuffleBracketId, unknownShuffleBrackets, type SpecEntry } from "@wowpvp/core";
+import type { Queryable } from "@wowpvp/data";
 import { BlizzardClient, blizzardUsage } from "../blizzard/client";
 import { formatUsage } from "../blizzard/request-queue";
 import { LEADERBOARD_DIR } from "../config";
+import { createPool } from "../db/pool";
 import { SPECS_TO_INGEST } from "../specs-to-ingest";
 
 /**
@@ -270,10 +272,10 @@ async function fetchSpec(
  * que el job programado (`refresh-leaderboard`) no tenga que leer la salida por
  * consola para saber qué pasó.
  */
-export async function fetchLeaderboardBatch(): Promise<LeaderboardBatch> {
+export async function fetchLeaderboardBatch(db: Queryable): Promise<LeaderboardBatch> {
   // Batch: prioridad intermedia (§28). Puede llegar tarde sin que nadie lo note,
   // pero no debe quedarse detrás del recomputo de agregados, que sí puede.
-  const client = new BlizzardClient({ priority: "batch" });
+  const client = new BlizzardClient({ priority: "batch", db });
   const seasonId = await resolveCurrentSeasonId(client);
   const fetchedAt = new Date().toISOString();
 
@@ -320,10 +322,18 @@ export function printBatch(batch: LeaderboardBatch): void {
 export async function fetchLeaderboards(): Promise<void> {
   console.log(`Descargando leaderboard de Solo Shuffle para ${SPECS_TO_INGEST.length} specs...`);
 
-  const batch = await fetchLeaderboardBatch();
-  console.log(`Región: ${batch.region.toUpperCase()} — temporada actual: ${batch.seasonId}`);
+  // Este job escribe en disco, no en Postgres, pero necesita la base igual: el
+  // permiso para llamar a Blizzard vive ahí desde el ADR 0013 y no hay
+  // excepciones, que es justo de dónde sale el valor de la decisión.
+  const pool = createPool();
+  try {
+    const batch = await fetchLeaderboardBatch(pool);
+    console.log(`Región: ${batch.region.toUpperCase()} — temporada actual: ${batch.seasonId}`);
 
-  printBatch(batch);
-  console.log(`Dataset en: ${LEADERBOARD_DIR}`);
-  console.log(`\nSiguiente paso: npm run pipeline -- ingest-leaderboard`);
+    printBatch(batch);
+    console.log(`Dataset en: ${LEADERBOARD_DIR}`);
+    console.log(`\nSiguiente paso: npm run pipeline -- ingest-leaderboard`);
+  } finally {
+    await pool.end();
+  }
 }

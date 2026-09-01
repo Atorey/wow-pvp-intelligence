@@ -765,7 +765,7 @@ export async function refreshProfiles(args: string[] = []): Promise<void> {
     // La prioridad más baja de §28: esto alimenta los agregados de población,
     // que se recomputan sin que nadie espere delante. Es justo el trabajo que
     // debe ceder el turno a la búsqueda de un usuario.
-    const client = new BlizzardClient({ priority: "aggregate" });
+    const client = new BlizzardClient({ priority: "aggregate", db: pool });
     // Uno para toda la corrida, como el sampledAt del muestreo manual.
     const capturedAt = now.toISOString();
     const report: RunReport = {
