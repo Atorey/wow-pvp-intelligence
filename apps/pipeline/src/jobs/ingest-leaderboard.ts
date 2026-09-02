@@ -10,7 +10,7 @@ import {
   segmentFor,
 } from "@wowpvp/core";
 import { LEADERBOARD_DIR, getRegion } from "../config";
-import { identityKey, upsertCharacters } from "../db/characters";
+import { identityKey, upsertCharacters } from "@wowpvp/blizzard";
 import { createPool } from "../db/pool";
 import type { LeaderboardFile } from "./fetch-leaderboard";
 

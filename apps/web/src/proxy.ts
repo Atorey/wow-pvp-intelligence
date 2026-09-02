@@ -26,7 +26,9 @@ export function proxy(request: NextRequest): NextResponse {
 export const config = {
   matcher: [
     // Todo menos lo que no es una página: estáticos de Next, imágenes
-    // optimizadas y los ficheros que los buscadores piden en la raíz.
-    "/((?!_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml).*)",
+    // optimizadas, los ficheros que los buscadores piden en la raíz y `/api`,
+    // que devuelve identidades —las mismas en los dos idiomas— y no tendría
+    // sentido duplicar bajo dos prefijos.
+    "/((?!api|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml).*)",
   ],
 };

@@ -1,0 +1,19 @@
+{
+  "name": "@wowpvp/blizzard",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "El acceso a la API de Blizzard y la búsqueda bajo demanda: cliente con cuota compartida, cola por proceso y la incorporación a la población de lo que responde.",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@wowpvp/core": "*",
+    "@wowpvp/data": "*"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.11.10"
+  }
+}

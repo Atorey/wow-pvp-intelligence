@@ -46,6 +46,12 @@ jobs:
 
       # El build de la web va aparte del typecheck porque comprueba otra cosa:
       # una página puede tipar bien y romper al construirse (un componente de
-      # servidor que importa algo de cliente, metadata mal formada). No pide
-      # secretos: no hay ninguna consulta ni ninguna llamada a Blizzard todavía.
+      # servidor que importa algo de cliente, metadata mal formada). Y es lo
+      # único que cubre el renderizado: aquí no hay runner de componentes, por
+      # decisión (ver apps/web/README.md).
+      #
+      # Sigue sin pedir secretos aunque la web ya consulte Postgres y llame a
+      # Blizzard: lo único que se prerenderiza son la portada y la metodología,
+      # y ninguna de las dos abre conexión — el buscador es un componente de
+      # cliente y todo lo que consulta ocurre en petición.
       - run: npm run web:build

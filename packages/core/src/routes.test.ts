@@ -6,6 +6,9 @@ import {
   bracketIdFor,
   isRegion,
   METHODOLOGY_PATH,
+  SEARCH_PATH,
+  isSearchStatus,
+  searchPath,
   parseSegmentSlug,
   playerPath,
   resolvePlayerRoute,
@@ -195,4 +198,23 @@ test("lo que no está en el catálogo no es una ruta", () => {
 test("la ruta de metodología no depende de ningún dato", () => {
   // Es obligatoria desde el MVP (§24) y no tiene tramos dinámicos que resolver.
   assert.equal(METHODOLOGY_PATH, "/methodology");
+});
+
+test("la búsqueda lleva lo tecleado en la query, no en la ruta", () => {
+  // Reino y nombre aquí no nombran a nadie todavía: son lo que se escribió, que
+  // puede no existir. Una ruta afirmaría una identidad sin resolver.
+  assert.equal(
+    searchPath({ realm: "sanguino", name: "ánatorey" }),
+    `${SEARCH_PATH}?realm=sanguino&name=%C3%A1natorey`,
+  );
+});
+
+test("el resultado de un envío viaja en la URL, no se vuelve a averiguar", () => {
+  // Es lo que evita que refrescar /search gaste otra llamada a Blizzard.
+  assert.equal(
+    searchPath({ realm: "sanguino", name: "anatorey", status: "not-found" }),
+    `${SEARCH_PATH}?realm=sanguino&name=anatorey&status=not-found`,
+  );
+  assert.ok(isSearchStatus("unavailable"));
+  assert.ok(!isSearchStatus("not_found"));
 });

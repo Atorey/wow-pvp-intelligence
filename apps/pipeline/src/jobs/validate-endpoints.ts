@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { nameSlug } from "@wowpvp/core";
-import { BlizzardClient } from "../blizzard/client";
+import { BlizzardClient } from "@wowpvp/blizzard";
 import { REPORTS_DIR } from "../config";
 import { createPool } from "../db/pool";
 

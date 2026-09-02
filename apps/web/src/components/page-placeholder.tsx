@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 
 import { copyFor } from "../i18n/copy";
 import { type Locale, localizedPathname } from "../i18n/locales";
+import { Card } from "./ui/card";
 
 export interface Crumb {
   /** Ruta sin prefijo de locale, tal como la construye `@wowpvp/core`. */
@@ -39,14 +40,14 @@ export function PagePlaceholder({
       {trail.length > 0 && (
         <nav
           aria-label={copy.nav.trailLabel}
-          className="text-ink-secondary flex flex-wrap items-center gap-x-2 text-xs"
+          className="text-muted-foreground flex flex-wrap items-center gap-x-2 text-xs"
         >
           {trail.map((crumb, index) => (
             <span key={crumb.path} className="flex items-center gap-x-2">
               {index > 0 && <span aria-hidden="true">/</span>}
               <Link
                 href={localizedPathname(crumb.path, locale)}
-                className="hover:text-ink underline"
+                className="hover:text-foreground underline"
               >
                 {crumb.label}
               </Link>
@@ -55,10 +56,12 @@ export function PagePlaceholder({
         </nav>
       )}
 
-      <h1 className="text-2xl text-ink">{title}</h1>
-      <p className="text-ink-secondary text-base">{lead}</p>
+      <h1 className="text-2xl text-foreground">{title}</h1>
+      <p className="text-muted-foreground text-base">{lead}</p>
       {children}
-      <p className="text-ink-muted text-xs">{copy.placeholder.note}</p>
+      <Card className="text-subtle-foreground border-dashed p-4 text-xs shadow-none">
+        {copy.placeholder.note}
+      </Card>
     </main>
   );
 }

@@ -23,9 +23,9 @@
  */
 import type pg from "pg";
 import { getDatabaseUrl, getRegion } from "../config";
-import { upsertCharacters, identityKey, type CharacterIdentity } from "../db/characters";
+import { upsertCharacters, identityKey, type CharacterIdentity } from "@wowpvp/blizzard";
 import { createPool } from "../db/pool";
-import { insertProfileSnapshot } from "../db/snapshots";
+import { insertProfileSnapshot } from "@wowpvp/blizzard";
 import { refreshAggregates } from "./refresh-aggregates";
 import {
   buildSeedDataset,

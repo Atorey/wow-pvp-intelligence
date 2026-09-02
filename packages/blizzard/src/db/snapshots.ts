@@ -1,6 +1,6 @@
 import type pg from "pg";
 import type { SpecEntry } from "@wowpvp/core";
-import type { GearRow } from "../jobs/profile-mapping";
+import type { GearRow } from "../profile-mapping";
 
 /**
  * Inserción de snapshots de perfil (los que traen gear/talentos, a diferencia de

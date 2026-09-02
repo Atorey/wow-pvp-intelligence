@@ -22,11 +22,11 @@ export default function NotFound() {
 
   return (
     <main className="mx-auto flex max-w-measure flex-col gap-4 px-5 py-16">
-      <h1 className="text-xl text-ink">{copy.title}</h1>
-      <p className="text-ink-secondary text-base">{copy.body}</p>
+      <h1 className="text-xl text-foreground">{copy.title}</h1>
+      <p className="text-muted-foreground text-base">{copy.body}</p>
       <Link
         href={localizedPathname(HOME_PATH, locale)}
-        className="text-accent self-start text-sm underline"
+        className="text-primary self-start text-sm underline"
       >
         {copy.back}
       </Link>

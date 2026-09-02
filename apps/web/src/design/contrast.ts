@@ -50,18 +50,41 @@ export function parseCustomProperties(css: string): Map<string, string> {
   return declarations;
 }
 
-/** El bloque `@theme { … }`, que es el tema oscuro y la base de todo. */
-export function darkTheme(css: string): Map<string, string> {
-  const block = /@theme\s*\{([\s\S]*?)\n\}/.exec(css);
-  if (block?.[1] === undefined) throw new Error("No se encontró el bloque @theme en globals.css");
-  return parseCustomProperties(block[1]);
+/**
+ * Un bloque de primer nivel de `globals.css`, localizado por su selector.
+ *
+ * Cierra en el primer `}` a principio de línea, que es donde acaban todos los
+ * bloques de ese fichero. Vale porque el fichero es nuestro y tiene una forma
+ * conocida; si deja de tenerla, esto lanza en vez de devolver un mapa vacío.
+ */
+function block(css: string, selector: RegExp, what: string): string {
+  const found = new RegExp(`${selector.source}\\s*\\{([\\s\\S]*?)\\n\\}`).exec(css);
+  if (found?.[1] === undefined) throw new Error(`No se encontró ${what} en globals.css`);
+  return found[1];
 }
 
-/** El oscuro con las reasignaciones del `@media (prefers-color-scheme: light)`. */
+/**
+ * El bloque `:root, .dark`, que es el tema oscuro y la base de todo.
+ *
+ * Los dos selectores van juntos porque son el mismo tema: `.dark` es lo que
+ * pone el conmutador, y `:root` a secas es lo que se pinta antes de que exista
+ * la clase —la primera pintura, o el visitante sin JavaScript— (ADR 0025).
+ */
+export function darkTheme(css: string): Map<string, string> {
+  return parseCustomProperties(block(css, /:root,\s*\.dark/, "el bloque del tema oscuro"));
+}
+
+/** El oscuro con las reasignaciones de `.light`, que solo trae lo que cambia. */
 export function lightTheme(css: string): Map<string, string> {
-  const block = /@media \(prefers-color-scheme: light\)\s*\{\s*:root\s*\{([\s\S]*?)\n {2}\}/.exec(
-    css,
-  );
-  if (block?.[1] === undefined) throw new Error("No se encontró el bloque del tema claro");
-  return new Map([...darkTheme(css), ...parseCustomProperties(block[1])]);
+  const light = parseCustomProperties(block(css, /\.light/, "el bloque del tema claro"));
+  return new Map([...darkTheme(css), ...light]);
+}
+
+/**
+ * El `@theme` sin `inline`: la tipografía, la escala y las medidas, que no
+ * dependen del tema. El `@theme inline` de los colores no cae aquí porque
+ * lleva la palabra en medio, y lo que tiene dentro son `var(…)` y no valores.
+ */
+export function scale(css: string): Map<string, string> {
+  return parseCustomProperties(block(css, /@theme/, "el bloque @theme de la escala"));
 }

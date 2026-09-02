@@ -17,8 +17,13 @@ import {
   type RatingSegment,
   type SpecEntry,
 } from "@wowpvp/core";
-import { BlizzardClient, blizzardUsage } from "../blizzard/client";
-import { formatUsage } from "../blizzard/request-queue";
+import {
+  BlizzardClient,
+  blizzardUsage,
+  findTalentLoadout,
+  formatUsage,
+  mapEquipment,
+} from "@wowpvp/blizzard";
 import {
   getBlizzardCredentials,
   getDatabaseUrl,
@@ -28,7 +33,6 @@ import {
 import { createPool } from "../db/pool";
 import { takeSample } from "../sampling";
 import { REQUESTS_PER_PROFILE, fetchProfileParts, saveProfileSnapshot } from "./profile-capture";
-import { findTalentLoadout, mapEquipment } from "./profile-mapping";
 import { printActivitySummary, rebuildActivity } from "./refresh-activity";
 import { resolveSeason } from "./refresh-aggregates";
 import { parseSpecSelection } from "./sample-profiles";

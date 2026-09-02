@@ -1,6 +1,5 @@
 import type pg from "pg";
-import { BlizzardClient, blizzardUsage } from "../blizzard/client";
-import { formatUsage } from "../blizzard/request-queue";
+import { BlizzardClient, blizzardUsage, formatUsage } from "@wowpvp/blizzard";
 import { getBlizzardCredentials, getDatabaseUrl } from "../config";
 import { createPool } from "../db/pool";
 

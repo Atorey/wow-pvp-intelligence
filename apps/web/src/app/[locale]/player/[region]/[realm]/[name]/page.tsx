@@ -53,7 +53,7 @@ export default async function PlayerPage({ params }: { params: Promise<PlayerPar
        * Reino y región son los otros dos tercios de la identidad, no un
        * adorno: sin ellos el nombre no señala a nadie en concreto.
        */}
-      <p className="text-ink-secondary text-sm">
+      <p className="text-muted-foreground text-sm">
         {route.realmSlug} · {route.region.toUpperCase()}
       </p>
     </PagePlaceholder>

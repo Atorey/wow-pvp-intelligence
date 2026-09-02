@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Globe2 } from "lucide-react";
 
 import { copyFor } from "../i18n/copy";
 import { LOCALES, type Locale, localizedPathname } from "../i18n/locales";
@@ -23,9 +24,10 @@ export function LanguageSwitch({ locale }: { locale: Locale }) {
       href={localizedPathname(pathname, other)}
       hrefLang={other}
       lang={other}
-      className="text-ink-secondary hover:text-ink underline"
+      className="inline-flex items-center gap-1.5 text-muted-foreground transition-colors hover:text-foreground"
     >
-      {copyFor(other).site.switchLanguage}
+      <Globe2 className="size-4" aria-hidden="true" />
+      <span>{copyFor(locale).site.switchLanguage}</span>
     </Link>
   );
 }

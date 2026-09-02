@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   ALL_SPECS,
+  CLASS_SLUGS,
   parseShuffleBracket,
   parseSpecSlug,
   requireSpec,
@@ -108,4 +109,12 @@ test("el catálogo no tiene slugs duplicados", () => {
 test("un slug desconocido no se adivina; en configuración estática rompe", () => {
   assert.equal(parseSpecSlug("fireball-mage"), undefined);
   assert.throws(() => requireSpecSlug("fireball-mage"), /Spec desconocida/);
+});
+
+test("CLASS_SLUGS es exactamente el conjunto de clases del catálogo", () => {
+  // Sin esta comprobación, una spec de una clase nueva entraría en ALL_SPECS y
+  // el tipo ClassSlug seguiría diciendo que hay trece: los mapas por clase
+  // seguirían compilando y esa clase se pintaría sin color.
+  const fromCatalogue = [...new Set(ALL_SPECS.map((spec) => spec.classSlug))].sort();
+  assert.deepEqual([...CLASS_SLUGS].sort(), fromCatalogue);
 });

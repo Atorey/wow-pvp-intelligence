@@ -6,7 +6,7 @@ import {
   getRegion,
   getRequestsPerHour,
   getRequestsPerSecond,
-} from "../config";
+} from "./config";
 import { QuotaLedger, readSharedToken, writeSharedToken } from "./quota";
 import { RequestQueue, type QueueUsage, type RequestPriority } from "./request-queue";
 

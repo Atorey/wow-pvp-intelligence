@@ -1,6 +1,6 @@
 # ADR 0019 — El sistema visual son tokens en CSS con Tailwind, sin librería de componentes
 
-**Fecha**: 25 de agosto de 2026 · **Estado**: aceptada (issue [#65](https://github.com/Atorey/wow-pvp-intelligence/issues/65)) · **Amplía el [ADR 0001](0001-estructura-del-repo-y-stack.md)**, que eligió Next.js sin decir nada de estilos. **Desbloquea [#17](https://github.com/Atorey/wow-pvp-intelligence/issues/17), [#18](https://github.com/Atorey/wow-pvp-intelligence/issues/18) y [#20](https://github.com/Atorey/wow-pvp-intelligence/issues/20)**. Lo que se ve —paleta, escala, componentes— está en [docs/design/system.md](../design/system.md)
+**Fecha**: 25 de agosto de 2026 · **Estado**: aceptada (issue [#65](https://github.com/Atorey/wow-pvp-intelligence/issues/65)) · **Amplía el [ADR 0001](0001-estructura-del-repo-y-stack.md)**, que eligió Next.js sin decir nada de estilos. **Desbloquea [#17](https://github.com/Atorey/wow-pvp-intelligence/issues/17), [#18](https://github.com/Atorey/wow-pvp-intelligence/issues/18) y [#20](https://github.com/Atorey/wow-pvp-intelligence/issues/20)**. Lo que se ve —paleta, escala, componentes— está en [docs/design/system.md](../design/system.md) · **La decisión 5 está revisada por el [ADR 0025](0025-componentes-con-shadcn-ui.md)**: sí hay librería de componentes, y con ella cambian los nombres de los tokens y el mecanismo de tema. El resto de este ADR sigue vigente
 
 ## Contexto
 
@@ -26,11 +26,15 @@ Y una restricción de estética, decidida en esta issue: el producto se parece a
 
 4. **El tema se cambia reasignando variables, nunca con la variante `dark:`.** El oscuro va en `@theme` y es el de por defecto —también cuando el sistema no expresa preferencia—; el claro reasigna en `@media (prefers-color-scheme: light)` los tokens que cambian de valor. **Un `dark:` en un componente de este repo es un error**, no un estilo alternativo.
 
-5. **No hay librería de componentes de terceros.** Ni MUI, ni Chakra, ni un conjunto pegado de Radix. Los componentes del [sistema](../design/system.md) son propios.
+   _Vigente en lo que dice; el dónde cambió._ Desde el [ADR 0025](0025-componentes-con-shadcn-ui.md) el oscuro va en `:root, .dark` y el claro en `.light`, y quien pone la clase es `next-themes` en vez de la media query. El oscuro sigue siendo el de por defecto y el `dark:` sigue siendo un error.
+
+5. ~~**No hay librería de componentes de terceros.** Ni MUI, ni Chakra, ni un conjunto pegado de Radix. Los componentes del [sistema](../design/system.md) son propios.~~ **Revisada por el [ADR 0025](0025-componentes-con-shadcn-ui.md).** Los componentes son shadcn/ui, copiados al repo. Lo que este ADR no vio es que la mitad aburrida del catálogo —combobox, popover, foco, teclado— cuesta mucho hacer bien y aquí acabó peor; la caja Player Gap, que es lo que argumentaba, sigue siendo nuestra.
 
 6. **No hay CSS-in-JS ni módulos CSS.** Fuera de `globals.css` no crece una segunda hoja de estilos: lo que no sea una utilidad en el punto de uso, es un token.
 
 7. **El contraste se verifica con un test, no con una revisión.** [`contrast.test.ts`](../../apps/web/src/design/contrast.test.ts) lee `globals.css` y comprueba cada token de texto y de calidad contra **las tres superficies** de su tema. Corre con `npm test`.
+
+   _Vigente, y desde el [ADR 0025](0025-componentes-con-shadcn-ui.md) comprueba más:_ las seis superficies que nombra el vocabulario de shadcn, y cada par relleno/`-foreground`.
 
 8. **Las tipografías se auto-alojan.** `next/font` descarga el fichero en build y lo sirve desde nuestro dominio. El navegador del jugador no pide nada a Google.
 

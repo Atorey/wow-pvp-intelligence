@@ -1,14 +1,14 @@
 import type pg from "pg";
 import type { SpecEntry } from "@wowpvp/core";
-import type { BlizzardClient } from "../blizzard/client";
-import { insertProfileSnapshot } from "../db/snapshots";
-import type {
-  EquipmentResponse,
-  GearRow,
-  ProfileResponse,
-  PvpBracketResponse,
-  SpecializationsResponse,
-} from "./profile-mapping";
+import {
+  insertProfileSnapshot,
+  type BlizzardClient,
+  type EquipmentResponse,
+  type GearRow,
+  type ProfileResponse,
+  type PvpBracketResponse,
+  type SpecializationsResponse,
+} from "@wowpvp/blizzard";
 
 /**
  * Qué es "bajar un perfil completo": las cuatro llamadas que lo componen y la
