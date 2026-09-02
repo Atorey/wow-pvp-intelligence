@@ -386,20 +386,35 @@ Anotado para no volver a proponerlo. Cada descarte es por una regla del producto
 | **Colisiona con Blizzard**   | Armoryx, Vaultara, Warband, Nexora, Arcanum               | _Armory_, _Great Vault_, _Warband_, _The Nexus_ y _arcano_ son terminología viva del juego o producto de Blizzard |
 | **Promete resultado**        | The Climb                                                 | _Climb_ promete ascenso; el producto tiene prohibido prometer que algo sube el rating (§9.2)                      |
 
-### 3.5 El tagline
+### 3.5 El tagline, y el titular de portada
 
-§7 propone _"See what separates you from the players above you."_ Se ajusta a:
+Son **dos frases distintas** y conviene no confundirlas: el tagline describe el producto y el titular lo vende.
+
+**El tagline.** §7 propone _"See what separates you from the players above you."_ Se ajusta a:
 
 > **"See what separates you from the next rung."**
-> **"Mira qué te separa del siguiente escalón."**
+> **"Mira qué te separa del siguiente nivel."**
 
 Hace el mismo trabajo, ata el nombre a la promesa y corrige una imprecisión: _"the players above you"_ es compatible con "la cima", y el objetivo por defecto es el **segmento inmediato** (§13.5). Ninguna de las dos versiones lleva verbo de recomendación ni promesa de resultado: _separates_ y _separa_ describen un estado, no un camino.
+
+En español se dice **"nivel" y no "escalón"**. "Escalón" es la traducción correcta de _rung_ y no la usa nadie: el glosario de quien juega dice "nivel". La metáfora del nombre sobrevive igual, porque **el nombre no se traduce** (§3.3) — vive en "One Rung", y el copy habla como se habla.
+
+Vive en `site.tagline` y hoy su trabajo es ser la descripción de la página, no un texto visible.
+
+**El titular de portada.** Es otra frase y tiene otro trabajo:
+
+> **"Take your character to the next level"**
+> **"Lleva tu personaje al siguiente nivel"**
+
+Sin punto final, porque es un titular y no una oración. Va en versal y con su segunda mitad en el color de acento; cómo se compone está en la [§3.4 del sistema visual](system.md#34-el-acento-dentro-de-un-titular), y por qué se guarda partido en dos claves, también.
+
+Y sí: **lleva un imperativo y promete un resultado**, que es exactamente lo que §3.6 y §3.8 prohíben. Es una excepción deliberada y acotada, y está explicada en la §3.8.
 
 ### 3.6 El tono de voz
 
 Reglas verificables, no adjetivos. El tono aquí no es cosmético: es donde se cumple o se incumple el principio de correlación (§9.2).
 
-1. **Declarativo, nunca imperativo.** El copy afirma lo que se ha medido. Ninguna frase de datos empieza por un verbo dirigido al usuario.
+1. **Declarativo, nunca imperativo, en el copy de datos.** El copy afirma lo que se ha medido. Ninguna frase de datos empieza por un verbo dirigido al usuario. El alcance es literal y está ahí desde el principio: **estas ocho reglas gobiernan el copy de datos**, que es donde una frase en imperativo convierte una correlación en un consejo. El titular y el subtítulo de portada no cuelgan de ninguna cifra y quedan fuera; la §3.8 dice cuáles son y cómo se impide que la excepción crezca.
 2. **La cifra primero, la lectura después.** "41% (128/312) up there" y debajo qué significa. Nunca la interpretación sola.
 3. **La fracción manda, el porcentaje acompaña** (§2.5). Primero "1.598 de 2.282", después "percentil 70".
 4. **Primera persona del plural para lo que es nuestro.** "We've only loaded the gear of 4 of them" — cuando la carencia es de muestreo se dice quién falla, no se pasiviza en "no hay datos disponibles".
@@ -412,7 +427,7 @@ Reglas verificables, no adjetivos. El tono aquí no es cosmético: es donde se c
 
 El español rompe la no-causalidad más fácil que el inglés, y conviene tenerlo escrito antes de traducir el primer string:
 
-- **"Para" + infinitivo introduce finalidad, y la finalidad es causalidad.** "Lo que lleva el 41% de 2000-2200" es correcto; "qué llevar para subir a 2000" es una traducción fluida y una violación de la regla 3 del proyecto. Lo mismo con el subjuntivo de finalidad ("para que subas").
+- **"Para" + infinitivo introduce finalidad, y la finalidad es causalidad.** "Lo que lleva el 41% de 2000-2200" es correcto; "qué llevar para subir a 2000" es una traducción fluida y una violación de la regla 3 del proyecto. Lo mismo con el subjuntivo de finalidad ("para que subas"). Hereda el alcance de §3.6: rige en el copy de datos, y el subtítulo de portada —"Analizamos miles de jugadores **para mostrarte**…"— es la excepción de §3.8, no un descuido.
 - **Tuteo, nunca "usted".** Es el registro de la comunidad; el "usted" convierte una herramienta entre partidas en un informe bancario.
 - **Español neutro**, sin voseo ni localismos: el público hispanohablante de WoW no está en un solo país.
 - **Números a la española**: coma decimal y punto de millar ("1.598 de 2.282", "85,4 %"). En la versión inglesa, al revés. Es el detalle que delata una traducción hecha de prisa.
@@ -425,6 +440,15 @@ El español rompe la no-causalidad más fácil que el inglés, y conviene tenerl
 - Cualquier construcción que ligue una variable a un resultado de rating: _"raise your rating"_, _"para subir"_.
 - Comparaciones contra el top 100 o contra la cima como objetivo (§13.5, §1.8).
 - Promesas con fecha.
+
+**Y una excepción, que son dos frases.** El titular y el subtítulo de portada (§3.5) son voz de producto y no copy de datos:
+
+> "Lleva tu personaje al siguiente nivel"
+> "Analizamos miles de jugadores para mostrarte qué usan, cómo juegan y qué puedes mejorar"
+
+Los dos incumplen la lista de arriba si se lee sin su alcance. Se aceptan porque **no cuelgan de ninguna cifra**: lo que la regla 3 del proyecto impide es que un dato observado se presente como la causa de un resultado —"el 74% del siguiente segmento lleva X" nunca puede convertirse en "cambia X para subir"—, y un reclamo de portada que no cita ningún dato no hace esa afirmación. La promesa del producto se sigue cumpliendo donde importa: en la caja Player Gap no hay un solo verbo dirigido al lector.
+
+**La excepción no se guarda en este documento, se guarda en un test.** [`copy.test.ts`](../../apps/web/src/i18n/copy/copy.test.ts) recorre los dos diccionarios enteros buscando construcciones causales y exime **dos claves nombradas a mano** —`home.title.lead` y `home.subtitle`—, sin comodines y sin eximir una sección entera. Añadir una tercera obliga a escribir allí por qué. Y hay un segundo test que comprueba que las claves exentas **existen**: si mañana alguien renombra `home.subtitle`, la exención dejaría de aplicar en silencio y la frase pasaría a estar vigilada sin que nadie lo hubiera decidido.
 
 ### 3.9 Consecuencias
 
@@ -446,16 +470,16 @@ El reparto con `docs/decisions`: qué permite y qué prohíbe cada documento de 
 
 ### 4.2 La línea, en las dos lenguas
 
-Una sola línea con las dos afirmaciones que la cláusula pide juntas —de dónde salen los datos, y que Blizzard no respalda esto—. En inglés, que es el idioma fuente ([ADR 0012](../decisions/0012-producto-bilingue.md)):
+Una sola línea, en inglés primero, que es el idioma fuente ([ADR 0012](../decisions/0012-producto-bilingue.md)):
 
-> **EN** — Game data from the Blizzard® Developer APIs. One Rung is not affiliated with, endorsed by, or sponsored by Blizzard Entertainment, Inc. World of Warcraft® and Blizzard® are trademarks of Blizzard Entertainment, Inc.
+> **EN** — One Rung is not affiliated with, endorsed by, or sponsored by Blizzard Entertainment, Inc. World of Warcraft® and Blizzard® are trademarks of Blizzard Entertainment, Inc.
 >
-> **ES** — Datos del juego obtenidos de las Blizzard® Developer APIs. One Rung no está afiliado a Blizzard Entertainment, Inc., ni cuenta con su respaldo ni con su patrocinio. World of Warcraft® y Blizzard® son marcas de Blizzard Entertainment, Inc.
+> **ES** — One Rung no está afiliado a Blizzard Entertainment, Inc., ni cuenta con su respaldo ni con su patrocinio. World of Warcraft® y Blizzard® son marcas de Blizzard Entertainment, Inc.
 
-Por qué está redactada así y no de otra forma:
+**La frase de procedencia se retiró de esta línea el 2 de septiembre de 2026.** Hasta entonces empezaba por _"Game data from the Blizzard® Developer APIs."_, y esta sección argumentaba que esa mitad era la que la cláusula pide de verdad. Queda escrito porque el cambio tiene una consecuencia que hay que tener delante y no descubrir después: **lo que hay hoy en el pie es la negación de respaldo, y la identificación de la fuente ya no está en todas las páginas.** El único sitio donde la §4.4 la sitúa es la página de metodología, que todavía no está escrita ([#20](https://github.com/Atorey/wow-pvp-intelligence/issues/20)); mientras no lo esté, el sitio no dice en ninguna parte de dónde salen los datos.
 
-- **La fuente va primero.** Es la mitad que da crédito, y es la que un aviso mal escrito se salta. "No estamos afiliados" a solas cumple lo que protege a Blizzard y omite lo que la cláusula pide de verdad, que es decir de dónde sale el dato.
-- **"Game data", no "data".** El sitio muestra dos cosas: lo que viene de Blizzard y lo que calculamos nosotros. El Player Gap, los porcentajes de adopción y los segmentos son cálculo propio sobre dato ajeno, y la línea no debe sugerir que Blizzard publica una cifra que hemos hecho nosotros.
+Por qué el resto está redactado así y no de otra forma:
+
 - **Tres verbos en la negación, no uno.** _Affiliated / endorsed / sponsored_ es la fórmula que usa la propia cláusula (_"endorsing or affiliated"_) ampliada al patrocinio. En español, "afiliado / respaldo / patrocinio" hace el mismo trabajo sin calcar la sintaxis inglesa.
 - **Sin disculpa y sin adorno.** La regla 7 de [§3.6](#36-el-tono-de-voz) vale también aquí: se declara, no se pide perdón. Nada de "por supuesto, todo el mérito es de Blizzard".
 - **`One Rung` sin ®.** La marca propia todavía no está registrada; ponerle el símbolo sería afirmar algo que no es cierto. Los símbolos de esta línea son los de Blizzard, y van en su primera aparición, como piden sus guidelines de marca.
@@ -476,16 +500,14 @@ _Conspicuous_ es una condición verificable, así que se escribe como tal. La l�
 │  … contenido de la página …      │
 │                                  │
 ├──────────────────────────────────┤
-│  Methodology · Privacy · Español │
+│  Methodology · Español · Tema    │
 │                                  │
-│  Game data from the Blizzard®    │
-│  Developer APIs. One Rung is not │
-│  affiliated with, endorsed by,   │
-│  or sponsored by Blizzard        │
-│  Entertainment, Inc. World of    │
-│  Warcraft® and Blizzard® are     │
-│  trademarks of Blizzard          │
-│  Entertainment, Inc.             │
+│  One Rung is not affiliated      │
+│  with, endorsed by, or sponsored │
+│  by Blizzard Entertainment, Inc. │
+│  World of Warcraft® and          │
+│  Blizzard® are trademarks of     │
+│  Blizzard Entertainment, Inc.    │
 └──────────────────────────────────┘
 ```
 

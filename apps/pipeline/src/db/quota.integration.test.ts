@@ -15,10 +15,10 @@
 import assert from "node:assert/strict";
 import { after, before, beforeEach, describe, it } from "node:test";
 import type pg from "pg";
-import { applyMigrations } from "../db/migrate";
-import { createPool } from "../db/pool";
+import { applyMigrations } from "./migrate";
+import { createPool } from "./pool";
 import { isLocalDatabase } from "../jobs/seed";
-import { QuotaLedger, readSharedToken, writeSharedToken, type QuotaLimits } from "./quota";
+import { QuotaLedger, readSharedToken, writeSharedToken, type QuotaLimits } from "@wowpvp/blizzard";
 
 const TEST_DATABASE_URL = process.env["TEST_DATABASE_URL"];
 

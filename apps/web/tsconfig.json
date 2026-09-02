@@ -12,7 +12,12 @@
     "allowJs": true,
     "isolatedModules": true,
     "incremental": true,
-    "plugins": [{ "name": "next" }]
+    "plugins": [{ "name": "next" }],
+    // El alias que exige shadcn para generar sus componentes (ADR 0025). Lo
+    // usa el código vendido de `components/ui/`; el nuestro sigue importando
+    // por ruta relativa, que es lo que hace el resto del monorepo.
+    "baseUrl": ".",
+    "paths": { "@/*": ["./src/*"] }
   },
   // .next/types son las declaraciones que genera el build: no están en un
   // checkout limpio y por eso el typecheck de CI no puede depender de

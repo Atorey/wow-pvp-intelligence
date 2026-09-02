@@ -105,6 +105,39 @@ export function parseSegmentSlug(
 
 export const HOME_PATH = "/";
 export const METHODOLOGY_PATH = "/methodology";
+/**
+ * Dónde aterriza un envío del buscador que no lleva a un perfil concreto
+ * (ADR 0024). No se indexa y no aparece en el sitemap: su contenido es la
+ * consulta de una persona, no una página del catálogo.
+ */
+export const SEARCH_PATH = "/search";
+
+/**
+ * Cómo acabó un envío del buscador que no llevó a un perfil.
+ *
+ * Viaja en la URL porque la página que lo enseña **no puede volver a
+ * averiguarlo**: preguntárselo otra vez a Blizzard costaría cuota en cada
+ * refresco y en cada precarga, y es lo que la decisión 2 del ADR 0024 saca de
+ * los `GET`. Con `ambiguous` basta releer la población, que es gratis.
+ */
+export type SearchStatus = "ambiguous" | "not-found" | "unavailable";
+
+/**
+ * `/search?realm=sanguino&name=%C3%A1natorey`.
+ *
+ * Los dos tramos van en la query y no en la ruta porque aquí no nombran a nadie
+ * todavía: son lo que se tecleó, que puede no existir, estar a medias o casar
+ * con varios. Una ruta afirmaría una identidad que aún no está resuelta.
+ */
+export function searchPath(query: { realm: string; name: string; status?: SearchStatus }): string {
+  const params = new URLSearchParams({ realm: query.realm, name: query.name });
+  if (query.status) params.set("status", query.status);
+  return `${SEARCH_PATH}?${params.toString()}`;
+}
+
+export function isSearchStatus(value: string): value is SearchStatus {
+  return value === "ambiguous" || value === "not-found" || value === "unavailable";
+}
 
 /** Un personaje tal como lo nombra su ruta: la referencia canónica más la región. */
 export interface PlayerRoute extends CharacterRef {

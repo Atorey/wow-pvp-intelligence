@@ -1,13 +1,23 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 
 /*
- * Sistema visual de One Rung (docs/design/system.md, ADR 0019).
+ * Sistema visual de One Rung (docs/design/system.md, ADR 0019 y ADR 0025).
  *
- * Tailwind v4 no tiene fichero de configuración: el tema es este bloque. Cada
- * token de `@theme` genera su utilidad —`--color-surface` da `bg-surface`,
- * `text-surface`, `border-surface`— y se emite como variable CSS en `:root`.
- * Escribir un `#hex` o un `[13px]` arbitrario en un componente lo saca del
- * sistema y de la verificación de contraste de abajo.
+ * Los nombres son los de shadcn/ui —`background`, `card`, `muted-foreground`,
+ * `primary`, `ring`— porque sus componentes están escritos contra ellos y el
+ * ADR 0025 decidió adoptar su vocabulario en vez de mantener un mapeo. Los
+ * valores son los nuestros, uno a uno: cambiaron los nombres, no la paleta.
+ *
+ * El fichero tiene tres partes y el orden importa:
+ *
+ *   1. `:root, .dark` — el tema oscuro, que es la base y el de por defecto,
+ *      también cuando no hay clase todavía (primera pintura, o sin JavaScript).
+ *   2. `.light` — solo los tokens que cambian de valor. Va después porque tiene
+ *      la misma especificidad que `:root` y gana por orden.
+ *   3. `@theme inline` — lo que convierte cada token en utilidad. Es `inline`
+ *      para que `bg-card` compile a `var(--card)` y siga al tema; sin eso
+ *      Tailwind congelaría el valor del oscuro en la utilidad.
  *
  * Los ratios anotados están calculados contra el fondo PEOR de cada tema —el
  * más claro en oscuro, el más oscuro en claro— para que ningún token dependa
@@ -15,58 +25,379 @@
  * `src/design/contrast.test.ts` lee este fichero y dice lo que vale hoy.
  */
 
-@theme {
-  /* --- Superficies, de atrás hacia delante ------------------------------- */
-  --color-bg: #0e0f13;
-  --color-surface: #16181f;
-  --color-raised: #1e212a;
+/*
+ * El tema lo lleva una clase en el `<html>` y no la media query, que es lo que
+ * permite el conmutador manual (ADR 0025, decisión 5).
+ *
+ * La variante se declara aunque **un `dark:` en un componente siga siendo un
+ * error** (ADR 0019, decisión 4): sin declararla, `dark:` no desaparecería —
+ * seguiría existiendo con el significado por defecto de Tailwind, que es la
+ * preferencia del sistema. Un `dark:` colado en código vendido se dispararía
+ * entonces por un criterio distinto del que decide el resto de la página, y las
+ * dos mitades podrían contradecirse. Declarada, lo peor que puede hacer es ser
+ * redundante.
+ */
+@custom-variant dark (&:is(.dark *));
 
-  /* Separadores. Son decorativos —la jerarquía la llevan el tamaño y el
-   * espacio, no la línea—, así que no se les exige el 3:1 de componente. */
-  --color-line: #2a2e39;
-  --color-line-strong: #454b5c;
+/* ---------------------------------------------------------------------------
+ * Tema oscuro — la base
+ * ------------------------------------------------------------------------- */
+
+:root,
+.dark {
+  /* --- Superficies, de atrás hacia delante ------------------------------- */
+  --background: #0e0f13;
+  --card: #16181f;
+  --popover: #16181f;
+  --secondary: #1e212a;
+  /* `muted` y `accent` son la misma superficie que `secondary`: en shadcn son
+   * el fondo de un bloque apagado y el de hover / opción resaltada, y aquí los
+   * tres son el mismo escalón. Son tres tokens y no uno porque sus componentes
+   * los usan por separado, no porque se pinten distinto.
+   *
+   * `accent` es el que hay que leer con cuidado: en shadcn NO es el color de
+   * marca. El oro de marca es `primary`. */
+  --muted: #1e212a;
+  --accent: #1e212a;
+
+  /* --- Textura del fondo -------------------------------------------------
+   * El fondo de página no es un color plano: lleva una veladura y una textura
+   * de piedra, que es lo que impide que una pantalla con poco contenido —hoy
+   * casi todas— se lea como un rectángulo vacío.
+   *
+   * Las dos capas son procedimentales y no un fichero: la textura es un
+   * `feTurbulence` en un SVG embebido, así que no hay imagen que descargar, ni
+   * petición extra en la primera pintura, ni un JPEG que se vea a bandas en el
+   * degradado.
+   *
+   * `texture-veil` es lo que da la profundidad: una luz cálida arriba, en el
+   * oro de marca a un porcentaje al que no se lee como color, y una viñeta
+   * abajo. Sale de `primary` con `color-mix` y no de un hex propio para que
+   * siga a la marca si el oro cambia.
+   *
+   * Ninguna de las dos toca el contraste del texto: la veladura se aplica al
+   * fondo de página, y todo lo que se lee va sobre `card` o sobre `background`
+   * en las zonas donde la veladura es transparente. */
+  --texture-veil:
+    radial-gradient(
+      120% 70% at 50% -10%,
+      color-mix(in srgb, var(--primary) 8%, transparent),
+      transparent 65%
+    ),
+    radial-gradient(
+      100% 90% at 50% 115%,
+      color-mix(in srgb, #000000 55%, transparent),
+      transparent 60%
+    );
+  /*
+   * Dos ruidos en un solo SVG, y son dos y no uno a propósito: el que se
+   * reconoce como piedra es el de frecuencia baja —manchas de un par de cientos
+   * de píxeles, que es lo que hace que la pared no sea plana—, y el fino solo
+   * le quita el aire de degradado. Con el fino a secas queda ruido de sensor;
+   * con el grueso a secas, un mapa de nubes.
+   *
+   * Van dentro del mismo SVG porque las dos escalas tienen que compartir la
+   * tesela: en dos capas de `background` cada una llevaría su `background-size`
+   * y el patrón se repetiría con dos ritmos distintos, que es justo lo que se
+   * nota. La tesela es grande —800px— para que la repetición del ruido grueso
+   * no caiga dentro de una misma pantalla.
+   *
+   * `stitchTiles` es lo que cose el ruido para que la tesela no tenga costura,
+   * pero no basta solo: cose sobre la **región del filtro**, que por defecto es
+   * un 10% mayor que el elemento, así que el punto donde empalma no cae donde
+   * empalma la tesela y la rejilla de repetición se ve. De ahí el
+   * `filterUnits='userSpaceOnUse'` con la región clavada a los mismos 800px de
+   * los dos `rect`: sin eso la textura se lee como una cuadrícula.
+   *
+   * La proporción entre las dos va escrita en el `opacity` de cada `rect`; el
+   * token de abajo escala el conjunto sin tocarla.
+   */
+  --texture-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='800'%3E%3Cfilter id='c' filterUnits='userSpaceOnUse' x='0' y='0' width='800' height='800'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.006' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Cfilter id='f' filterUnits='userSpaceOnUse' x='0' y='0' width='800' height='800'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='800' height='800' filter='url(%23c)'/%3E%3Crect width='800' height='800' filter='url(%23f)' opacity='0.35'/%3E%3C/svg%3E");
+  /* El ruido es gris neutro: sobre el fondo oscuro aclara y sobre el claro
+   * oscurece, y por eso la intensidad no puede ser la misma en los dos temas. */
+  --texture-grain-opacity: 0.07;
 
   /* --- Texto -------------------------------------------------------------
-   * Tres niveles, ninguno por debajo de AA sobre cualquier superficie. No hay
-   * un cuarto nivel "deshabilitado": nada en este producto se pinta apagado
-   * para sugerir que existe pero no está disponible. */
-  --color-ink: #e8e6e1; /* 12.89 */
-  --color-ink-secondary: #a8aab4; /* 6.95 */
-  --color-ink-muted: #868a97; /* 4.67 */
+   * Tres niveles, ninguno por debajo de AA sobre cualquier superficie. shadcn
+   * trae dos; `subtle-foreground` es el tercero, que se añade en vez de
+   * colapsarlo (ADR 0025, decisión 4). No hay un cuarto nivel "deshabilitado":
+   * nada en este producto se pinta apagado para sugerir que existe pero no
+   * está disponible. */
+  --foreground: #e8e6e1; /* 12.89 */
+  --muted-foreground: #a8aab4; /* 6.95 */
+  --subtle-foreground: #868a97; /* 4.67 */
 
-  /* --- Acento ------------------------------------------------------------
+  /* El texto sobre cada superficie es el mismo color: las superficies se
+   * distinguen por el fondo, no cambiando la tinta encima. */
+  --card-foreground: #e8e6e1;
+  --popover-foreground: #e8e6e1;
+  --secondary-foreground: #e8e6e1;
+  --accent-foreground: #e8e6e1;
+
+  /* --- Marca -------------------------------------------------------------
    * Oro sobrio, el único color de marca, y nunca portador único de un
-   * significado. */
-  --color-accent: #c8a25a; /* 6.72 */
-  --color-accent-quiet: #8a7440;
+   * significado. Se llamaba `accent` antes del ADR 0025; ese nombre lo ocupa
+   * ahora el fondo de hover de shadcn, que es otra cosa. */
+  --primary: #c8a25a; /* 6.72 */
+  --primary-foreground: #0e0f13; /* 6.72 sobre el oro */
+
+  /* --- Error -------------------------------------------------------------
+   * Parte del vocabulario de shadcn, no del nuestro: hoy no hay ninguna
+   * pantalla que lo use, porque el producto no tiene ninguna acción
+   * destructiva. Tiene valor para que sus componentes no queden con una
+   * variante sin resolver, y está verificado como todo lo demás.
+   *
+   * No es el aviso de muestra reducida. Eso es `warning`, más abajo. */
+  --destructive: #ef5f74; /* 5.02 */
+  --destructive-foreground: #0e0f13; /* 5.98 sobre el rojo */
 
   /* --- Aviso de muestra reducida (estado `medium`) -----------------------
-   * El bloque ocupa espacio y lleva texto: el color acompaña, no informa. */
-  --color-warn: #e2b23c; /* 8.17 */
-  --color-warn-surface: #241f12;
-  --color-warn-line: #4a3c1a;
+   * El bloque ocupa espacio y lleva texto: el color acompaña, no informa.
+   * Existe aparte de `destructive` porque una muestra pequeña no es un fallo
+   * (ADR 0003) y el rojo de error diría que lo es. */
+  --warning: #241f12;
+  --warning-foreground: #e2b23c; /* 8.17 */
+  --warning-border: #4a3c1a;
+
+  /* --- Líneas ------------------------------------------------------------
+   * `border` separa; `input` es el borde de un campo. Los separadores son
+   * decorativos —la jerarquía la llevan el tamaño y el espacio, no la línea—,
+   * así que no se les exige el 3:1 de componente. */
+  --border: #2a2e39;
+  --input: #454b5c;
 
   /* Anillo de foco. A este sí se le exige 3:1 contra todos los fondos, porque
    * es información de estado y no un adorno. */
-  --color-focus: #e2b23c; /* 8.17 */
+  --ring: #e2b23c; /* 8.17 */
 
   /* --- Calidad de item ---------------------------------------------------
-   * Sale del dato (`character_snapshot_gear.quality`), no de la decoración.
-   * `common` no lleva tinte: es el color de texto del tema. */
-  --color-quality-poor: #9d9d9d; /* 5.93 */
-  --color-quality-common: #e8e6e1;
-  --color-quality-uncommon: #1eff00; /* 11.76 */
-  --color-quality-rare: #0c87ff; /* 4.54 */
-  --color-quality-epic: #b65ff2; /* 4.52 */
-  --color-quality-legendary: #ff8000; /* 6.38 */
-  --color-quality-artifact: #e6cc80; /* 10.19 */
+   * Sale del dato (`character_snapshot_gear.quality`), no de la decoración, y
+   * por eso no está en el vocabulario de ninguna librería. `common` no lleva
+   * tinte: es el color de texto del tema. */
+  --quality-poor: #9d9d9d; /* 5.93 */
+  --quality-common: #e8e6e1;
+  --quality-uncommon: #1eff00; /* 11.76 */
+  --quality-rare: #0c87ff; /* 4.54 */
+  --quality-epic: #b65ff2; /* 4.52 */
+  --quality-legendary: #ff8000; /* 6.38 */
+  --quality-artifact: #e6cc80; /* 10.19 */
 
-  /* --- Tipografía --------------------------------------------------------
-   * `--font-display` la inyecta next/font como `--font-cinzel`; si no carga,
-   * la pila de reserva mantiene el tono serif y el layout no salta. */
-  --font-display:
+  /* --- Clase del personaje -----------------------------------------------
+   * Sale del dato (`class_slug`), igual que la calidad de item: es vocabulario
+   * que el jugador ya lee de un vistazo, no decoración ni marca ajena. Y por
+   * eso mismo tampoco es el color de Blizzard tal cual — cada valor es el más
+   * cercano al canónico que cumple AA contra la peor superficie de su tema, que
+   * en varias clases obliga a moverlo bastante (el amarillo de rogue y el verde
+   * de monk son ilegibles sobre blanco a su valor original).
+   *
+   * `priest` no tiene color propio: su canónico es el blanco, que en el tema
+   * claro solo puede llegar a AA convertido en un gris sin identidad. Se pinta
+   * con el color de texto del tema, la misma decisión que la calidad `common`.
+   */
+  --class-death-knight: #e5566e; /* 4.51 */
+  --class-demon-hunter: #bc62d9; /* 4.51 */
+  --class-druid: #ff7c0a; /* 6.23 — canónico */
+  --class-evoker: #349782; /* 4.51 */
+  --class-hunter: #aad372; /* 9.39 — canónico */
+  --class-mage: #3fc7eb; /* 8.10 — canónico */
+  --class-monk: #00ff98; /* 12.06 — canónico */
+  --class-paladin: #f48cba; /* 7.13 — canónico */
+  --class-priest: #e8e6e1; /* = foreground */
+  --class-rogue: #fff468; /* 14.08 — canónico */
+  --class-shaman: #0b87ff; /* 4.54 */
+  --class-warlock: #8788ee; /* 5.20 — canónico */
+  --class-warrior: #c69b6d; /* 6.36 — canónico */
+
+  /* Radio de esquina. shadcn deriva su escala de este único valor, así que
+   * `rounded-md` —lo que usan sus botones y sus campos— sale exactamente en los
+   * 4px que ya tenían los nuestros. */
+  --radius: 0.375rem;
+}
+
+/* ---------------------------------------------------------------------------
+ * Tema claro
+ *
+ * Solo se redefinen los tokens que cambian de valor; la escala, el espaciado y
+ * la tipografía son las mismas en los dos temas. Funciona porque las utilidades
+ * referencian `var(--…)` en vez de incrustar el literal: basta con reasignar.
+ * ------------------------------------------------------------------------- */
+
+.light {
+  --background: #f7f5f1;
+  --card: #ffffff;
+  --popover: #ffffff;
+
+  /* El escalón de encima de la tarjeta es aquí el gris del fondo de página, y
+   * no el blanco que valía antes del ADR 0025. En el tema oscuro `secondary`
+   * es más claro que `card`; en el claro no puede serlo, porque `card` ya es
+   * blanco. Igualarlo a `card` —que es lo que había— dejaba el resaltado de la
+   * opción activa pintado de blanco sobre blanco: invisible. Se notaba poco
+   * mientras el único que lo usaba era nuestro desplegable; con `accent` de
+   * shadcn, que es el fondo de hover de todos sus componentes, sería el estado
+   * de foco de ratón del sitio entero.
+   *
+   * Bajarlo en vez de subirlo no arrastra la verificación de contraste: el
+   * fondo peor del tema claro sigue siendo este mismo valor. */
+  --secondary: #f7f5f1;
+  --muted: #f7f5f1;
+  --accent: #f7f5f1;
+
+  /* La misma textura, leída al revés. Aquí la veladura no puede aclarar —el
+   * fondo ya es lo más claro del tema—, así que las dos capas oscurecen: el
+   * oro apagado arriba y la viñeta abajo, ambos más tenues que en el oscuro
+   * porque sobre papel una sombra se ve al doble. La textura, en cambio, baja:
+   * el mismo ruido gris sobre un fondo claro se lee como suciedad. */
+  --texture-veil:
+    radial-gradient(
+      120% 70% at 50% -10%,
+      color-mix(in srgb, var(--primary) 7%, transparent),
+      transparent 65%
+    ),
+    radial-gradient(
+      100% 90% at 50% 115%,
+      color-mix(in srgb, var(--foreground) 7%, transparent),
+      transparent 60%
+    );
+  --texture-grain-opacity: 0.045;
+
+  --foreground: #16181f; /* 16.28 */
+  --muted-foreground: #5a5e6b; /* 5.94 */
+  --subtle-foreground: #666a77; /* 4.95 */
+
+  --card-foreground: #16181f;
+  --popover-foreground: #16181f;
+  --secondary-foreground: #16181f;
+  --accent-foreground: #16181f;
+
+  --primary: #8a6a22; /* 4.63 */
+  --primary-foreground: #f7f5f1; /* 4.63 sobre el oro */
+
+  --destructive: #b3243f; /* 5.95 */
+  --destructive-foreground: #f7f5f1; /* 5.95 sobre el rojo */
+
+  --warning: #fdf6e6;
+  --warning-foreground: #8a5d00; /* 5.29 */
+  --warning-border: #e0c98c;
+
+  --border: #dfdad1;
+  --input: #b4ada1;
+
+  --ring: #8a6a22; /* 4.63 */
+
+  /* Los colores de clase, resueltos igual: contra #f7f5f1. Aquí casi ninguno
+   * conserva su valor canónico, porque el canónico está pensado para leerse
+   * sobre el fondo negro del juego. */
+  --class-death-knight: #c41e3a; /* 5.37 — canónico */
+  --class-demon-hunter: #a330c9; /* 5.04 — canónico */
+  --class-druid: #b55400; /* 4.56 */
+  --class-evoker: #2c7d6c; /* 4.53 */
+  --class-hunter: #577b26; /* 4.52 */
+  --class-mage: #107a97; /* 4.53 */
+  --class-monk: #00814d; /* 4.54 */
+  --class-paladin: #d9156c; /* 4.51 */
+  --class-priest: #16181f; /* = foreground */
+  --class-rogue: #7b7200; /* 4.54 */
+  --class-shaman: #006eda; /* 4.55 */
+  --class-warlock: #5e5fe8; /* 4.51 */
+  --class-warrior: #93683a; /* 4.50 */
+
+  /* Resueltos contra #f7f5f1, que es el fondo más oscuro de este tema. */
+  --quality-poor: #707070; /* 4.55 */
+  --quality-common: #16181f;
+  --quality-uncommon: #0f8200; /* 4.58 */
+  --quality-rare: #006dd8; /* 4.61 */
+  --quality-epic: #a233ee; /* 4.54 */
+  --quality-legendary: #b05800; /* 4.55 */
+  --quality-artifact: #896d1b; /* 4.52 */
+}
+
+/* ---------------------------------------------------------------------------
+ * De token a utilidad
+ *
+ * `inline` es lo que hace que `bg-card` compile a `var(--card)` y no al hex del
+ * oscuro: la utilidad queda apuntando a la variable, y la variable la reasigna
+ * `.light`. Un `@theme` normal aquí congelaría el tema oscuro en cada clase.
+ * ------------------------------------------------------------------------- */
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-subtle-foreground: var(--subtle-foreground);
+
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-warning-border: var(--warning-border);
+
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-quality-poor: var(--quality-poor);
+  --color-quality-common: var(--quality-common);
+  --color-quality-uncommon: var(--quality-uncommon);
+  --color-quality-rare: var(--quality-rare);
+  --color-quality-epic: var(--quality-epic);
+  --color-quality-legendary: var(--quality-legendary);
+  --color-quality-artifact: var(--quality-artifact);
+
+  --color-class-death-knight: var(--class-death-knight);
+  --color-class-demon-hunter: var(--class-demon-hunter);
+  --color-class-druid: var(--class-druid);
+  --color-class-evoker: var(--class-evoker);
+  --color-class-hunter: var(--class-hunter);
+  --color-class-mage: var(--class-mage);
+  --color-class-monk: var(--class-monk);
+  --color-class-paladin: var(--class-paladin);
+  --color-class-priest: var(--class-priest);
+  --color-class-rogue: var(--class-rogue);
+  --color-class-shaman: var(--class-shaman);
+  --color-class-warlock: var(--class-warlock);
+  --color-class-warrior: var(--class-warrior);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+/* ---------------------------------------------------------------------------
+ * Tipografía, escala y medida
+ *
+ * No son `inline` porque no dependen del tema: son los mismos valores en los
+ * dos y no hay ninguna variable que reasignar debajo.
+ * ------------------------------------------------------------------------- */
+
+@theme {
+  /* Tres familias con tres trabajos distintos, las tres inyectadas por
+   * next/font desde nuestro dominio. La reserva de cada una mantiene su clase
+   * —serif, condensada, grotesca— para que el layout no salte si una no carga.
+   *
+   * `brand` es solo el nombre del producto, y por eso sobrevive al cambio de
+   * las otras dos: es la firma, no un nivel de la escala. Un titular en la
+   * tipografía de marca convertiría cada encabezado en un logotipo. */
+  --font-brand:
     var(--font-cinzel), "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
-  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-display:
+    var(--font-oswald), "Haettenschweiler", "Arial Narrow", "Segoe UI", system-ui, sans-serif;
+  --font-sans:
+    var(--font-roboto), system-ui, -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
 
   /* Escala tipográfica. No existe ningún paso por debajo de 14px: así la
    * "letra pequeña" que la §4.3 del brief prohíbe para la línea de atribución
@@ -85,6 +416,10 @@
   --text-xl--line-height: 1.25;
   --text-2xl: 1.75rem;
   --text-2xl--line-height: 1.2;
+  /* El titular de la portada, y solo ése: es la única pieza del sitio que se
+   * lee antes de haber decidido leer nada. */
+  --text-3xl: 2.25rem;
+  --text-3xl--line-height: 1.1;
 
   --tracking-caps: 0.08em;
 
@@ -92,51 +427,17 @@
    * adaptación posterior: los componentes se maquetan a este ancho y crecen
    * desde ahí. */
   --container-measure: 34rem;
-}
 
-/* ---------------------------------------------------------------------------
- * Tema claro
- *
- * Solo se redefinen los tokens que cambian de valor; la escala, el espaciado y
- * la tipografía son las mismas en los dos temas. Funciona porque las utilidades
- * de Tailwind referencian `var(--color-…)` en vez de incrustar el literal: basta
- * con reasignar la variable en `:root`.
- *
- * El oscuro es el de por defecto, también cuando el sistema no expresa
- * preferencia — de ahí que el claro sea el que va en `@media` y no al revés.
- * ------------------------------------------------------------------------- */
+  /* Ancho máximo de la columna principal. La portada es un tablero y no una
+   * lectura: la tabla de specs tiene ocho columnas y a 34rem no cabe ninguna.
+   * `measure` sigue siendo el ancho de lo que se lee seguido —metodología,
+   * estados de error—, que no crece con la pantalla. */
+  --container-page: 76rem;
 
-@media (prefers-color-scheme: light) {
-  :root {
-    --color-bg: #f7f5f1;
-    --color-surface: #ffffff;
-    --color-raised: #ffffff;
-
-    --color-line: #dfdad1;
-    --color-line-strong: #b4ada1;
-
-    --color-ink: #16181f; /* 16.28 */
-    --color-ink-secondary: #5a5e6b; /* 5.94 */
-    --color-ink-muted: #666a77; /* 4.95 */
-
-    --color-accent: #8a6a22; /* 4.63 */
-    --color-accent-quiet: #a89263;
-
-    --color-warn: #8a5d00; /* 5.29 */
-    --color-warn-surface: #fdf6e6;
-    --color-warn-line: #e0c98c;
-
-    --color-focus: #8a6a22; /* 4.63 */
-
-    /* Resueltos contra #f7f5f1, que es el fondo más oscuro de este tema. */
-    --color-quality-poor: #707070; /* 4.55 */
-    --color-quality-common: #16181f;
-    --color-quality-uncommon: #0f8200; /* 4.58 */
-    --color-quality-rare: #006dd8; /* 4.61 */
-    --color-quality-epic: #a233ee; /* 4.54 */
-    --color-quality-legendary: #b05800; /* 4.55 */
-    --color-quality-artifact: #896d1b; /* 4.52 */
-  }
+  /* La barra lateral. Va en el mismo espacio de nombres que los anchos y no en
+   * `--spacing-*`: en Tailwind v4 `--spacing` es el paso de la escala numérica,
+   * y un nombre ahí no genera ninguna utilidad. */
+  --container-sidebar: 15.5rem;
 }
 
 /* ---------------------------------------------------------------------------
@@ -149,28 +450,116 @@
 
 @layer base {
   body {
-    background: var(--color-bg);
-    color: var(--color-ink);
+    background-color: var(--background);
+    /* La veladura va en el fondo del `body` y con `fixed`: el navegador propaga
+     * ese fondo al lienzo, así que cubre la ventana entera —también lo que
+     * asoma al rebotar el desplazamiento— y no se desliza con el contenido.
+     * Una viñeta que se mueve al hacer scroll se lee como una capa suelta. */
+    background-image: var(--texture-veil);
+    background-attachment: fixed;
+    color: var(--foreground);
     font-family: var(--font-sans);
     /* Las cifras se leen en columna —porcentajes, fracciones, item levels— y
      * con numerales proporcionales bailan de fila a fila. */
     font-variant-numeric: tabular-nums;
   }
 
+  /*
+   * La textura, en una capa aparte porque necesita su propia opacidad y un
+   * `background-image` no la tiene: aplicarla al `body` apagaría también el
+   * texto y las tarjetas.
+   *
+   * `z-index: -1` es lo que la deja donde tiene que estar y no es un número
+   * arbitrario: el fondo propagado al lienzo se pinta antes que cualquier
+   * descendiente, así que la textura cae encima de la veladura, y por ser
+   * negativo cae debajo de todo el contenido — incluida la barra lateral, que
+   * es un hijo de flex sin posicionar y sin él quedaría tapada.
+   */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background-image: var(--texture-grain);
+    background-size: 800px 800px;
+    opacity: var(--texture-grain-opacity);
+  }
+
+  /* A quien pide más contraste la textura solo le estorba: es decoración y no
+   * porta ningún significado, así que se retira entera en vez de atenuarse. */
+  @media (prefers-contrast: more) {
+    body {
+      background-image: none;
+    }
+
+    body::before {
+      display: none;
+    }
+  }
+
   :where(h1, h2, h3) {
     font-family: var(--font-display);
+    /* Oswald es condensada y solo se sirve en un peso: el titular se distingue
+     * por su ancho y su caja, no por engordar. Sin esto el navegador sintetiza
+     * una negrita falsa donde el marcado trae un `strong`. */
+    font-weight: 500;
   }
 
   /* El foco visible es requisito, no preferencia: se define una vez y ningún
    * componente lo quita. */
   :where(:focus-visible) {
-    outline: 2px solid var(--color-focus);
+    outline: 2px solid var(--ring);
     outline-offset: 2px;
   }
 
   /* Un enlace no puede distinguirse solo por color. */
   :where(a) {
     text-underline-offset: 0.15em;
+  }
+
+  /* ---------------------------------------------------------------------------
+   * La barra de desplazamiento
+   *
+   * Es la única pieza de interfaz que el navegador pinta con su propia paleta,
+   * y se nota justo donde más: la barra lateral desborda en cuanto la ventana
+   * es baja, y ahí aparecía una barra clara de sistema pegada a la tarjeta.
+   *
+   * Se declara dos veces porque no hay una sola forma que funcione en todas
+   * partes, y no son alternativas que compitan: Chromium moderno, Firefox y
+   * Safari 18.2+ entienden `scrollbar-color` e **ignoran** las reglas
+   * `::-webkit-scrollbar` en cuanto está puesta; los WebKit anteriores hacen lo
+   * contrario. Cada navegador usa una y no ve la otra.
+   *
+   * Los colores son tokens, así que la barra cambia con el tema sin una sola
+   * regla más: en el claro, `input` es el gris cálido del tema claro.
+   */
+  :root {
+    scrollbar-width: thin;
+    scrollbar-color: var(--input) transparent;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  /* El borde transparente con `background-clip` es lo que deja aire alrededor
+   * del pulgar: sin él toca el borde del panel y se lee como un filete. */
+  ::-webkit-scrollbar-thumb {
+    background: var(--input);
+    background-clip: content-box;
+    border: 3px solid transparent;
+    border-radius: 999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--subtle-foreground);
+    background-clip: content-box;
   }
 }
 

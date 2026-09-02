@@ -9,17 +9,18 @@ npm run web:build    # el mismo build que corre CI y Netlify
 
 ## Qué hay hoy y qué no
 
-Esto es andamiaje. Lo que existe es la estructura mínima para que las páginas de verdad tengan dónde colgarse:
+La búsqueda de personaje ya funciona de punta a punta; el resto de páginas siguen siendo andamiaje:
 
-|        |                                                                                                                                                                        |
-| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Sí** | El segmento de idioma `/[locale]`, la negociación de `Accept-Language` y los `hreflang` ([ADR 0012](../../docs/decisions/0012-producto-bilingue.md)).                  |
-| **Sí** | Entornos: qué origen se anuncia y qué se indexa en producción, en preview y en local.                                                                                  |
-| **Sí** | Tokens, tipografía y tema ([ADR 0019](../../docs/decisions/0019-sistema-visual-en-css-con-tailwind.md)). Los componentes de datos llegan con las páginas que los usan. |
-| **Sí** | Las rutas de producto y dónde vive el copy ([ADR 0020](../../docs/decisions/0020-mapa-de-rutas-del-sitio.md)). Las páginas existen y todavía no enseñan datos.         |
-| **Sí** | El pie con la línea de atribución que exige la ToU de Blizzard (§4 del [brief](../../docs/design/brief.md#4-atribución-y-no-afiliación)), renderizado desde el layout. |
-| **No** | Lecturas contra Postgres. `@wowpvp/data` ya está enlazado, pero ninguna página consulta todavía.                                                                       |
-| **No** | Llamadas a Blizzard. No las habrá hasta que la cuota viva en Postgres (#81): en serverless cada invocación cree tener el presupuesto entero.                           |
+|        |                                                                                                                                                                                                                                                             |
+| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Sí** | El segmento de idioma `/[locale]`, la negociación de `Accept-Language` y los `hreflang` ([ADR 0012](../../docs/decisions/0012-producto-bilingue.md)).                                                                                                       |
+| **Sí** | Entornos: qué origen se anuncia y qué se indexa en producción, en preview y en local.                                                                                                                                                                       |
+| **Sí** | Tokens, tipografía y tema, con conmutador ([ADR 0019](../../docs/decisions/0019-sistema-visual-en-css-con-tailwind.md) y [ADR 0025](../../docs/decisions/0025-componentes-con-shadcn-ui.md)). Los componentes de datos llegan con las páginas que los usan. |
+| **Sí** | Las rutas de producto y dónde vive el copy ([ADR 0020](../../docs/decisions/0020-mapa-de-rutas-del-sitio.md)). Las páginas existen y todavía no enseñan datos.                                                                                              |
+| **Sí** | El pie con la línea de atribución que exige la ToU de Blizzard (§4 del [brief](../../docs/design/brief.md#4-atribución-y-no-afiliación)), renderizado desde el layout.                                                                                      |
+| **Sí** | La búsqueda de personaje: autocompletado sobre la población y llamada a Blizzard si no la tenemos ([ADR 0024](../../docs/decisions/0024-busqueda-de-personaje-en-la-web.md)).                                                                               |
+| **Sí** | Postgres, por el pooler y una conexión por invocación ([ADR 0013](../../docs/decisions/0013-web-serverless-y-cuota-en-postgres.md), decisión 10). Lo usa el buscador; las páginas de datos, todavía no.                                                     |
+| **No** | El resto de páginas leyendo. Perfil, spec y segmento siguen enseñando su dirección y nada más.                                                                                                                                                              |
 
 ## Rutas
 
@@ -28,6 +29,26 @@ El mapa entero, con sus reglas y sus porqués, está en el [ADR 0020](../../docs
 - **Las rutas se construyen y se parsean en `@wowpvp/core`**, sin prefijo de idioma: `playerPath()`, `specPath()`, `resolvePlayerRoute()`, `resolveSpecRoute()`. Aquí solo se les antepone el locale con `localizedPathname()`. Ninguna página monta una ruta concatenando strings.
 - **Cada página resuelve sus tramos y hace una de tres cosas**: servir, `permanentRedirect()` a la forma canónica, o `notFound()`. Lo que no está en el catálogo es 404, nunca una redirección adivinada.
 - **El copy está en `src/i18n/copy`**, dos diccionarios y ninguna librería. El inglés define la forma: una clave que falte en español rompe el `typecheck`.
+- **`/search` y `/api/search` no están en el catálogo del ADR 0020 y no se indexan.** La primera enseña lo que un envío no pudo resolver; la segunda alimenta el autocompletado y va sin prefijo de idioma, porque devuelve identidades y son las mismas en las dos lenguas.
+
+## La búsqueda
+
+Es lo único de la web que **escribe** y lo único que llama a Blizzard, y las dos cosas ocurren por el mismo sitio: la Server Action del formulario ([`src/server/actions.ts`](src/server/actions.ts)). El razonamiento completo está en el [ADR 0024](../../docs/decisions/0024-busqueda-de-personaje-en-la-web.md); lo que hay que saber antes de tocarlo:
+
+- **El autocompletado no llama a Blizzard.** `GET /api/search` solo lee población. Se ejecuta una vez por pulsación de teclado y la cuota es la misma que gasta el pipeline.
+- **El fallback va en un `POST`, nunca en un `GET`.** Una página que gastara cuota al renderizar la gastaría en cada precarga de Next y en cada enlace compartido.
+- **El buscador funciona sin JavaScript.** Es un `<form>` con una acción detrás; las sugerencias son la mejora progresiva. Probarlo con el script desactivado es parte de darlo por bueno, porque aquí no hay tests de renderizado. Es también la razón de que el desplegable **no** sea el `Command` de shadcn: su motor hace `preventDefault()` en todos los Enter y este formulario necesita que ese Enter llegue ([ADR 0025](../../docs/decisions/0025-componentes-con-shadcn-ui.md), decisión 6).
+- **"No existe" y "no se pudo mirar" son dos mensajes distintos** y no se pueden fundir: sin cuota o sin tiempo se responde lo segundo.
+- **El límite por IP todavía no existe** (#71). Lo que hoy acota el daño es el colchón reservado del bucket de cuota.
+
+## Componentes
+
+Los de [`src/components/ui/`](src/components/ui/) **los genera shadcn y no los hemos escrito nosotros** ([ADR 0025](../../docs/decisions/0025-componentes-con-shadcn-ui.md)). Tienen sus propias reglas, escritas en [su README](src/components/ui/README.md): exentos de la convención de comentarios, y editables solo para tokenizar, quitar `dark:` y lo mínimo que exige `exactOptionalPropertyTypes`. Se traen con `npx shadcn@latest add <componente>` desde `apps/web`.
+
+Todo lo demás en `src/components/` es nuestro. Dos cosas que conviene saber antes de tocar el armazón:
+
+- **El tema lo lleva una clase en el `<html>`,** que pone `next-themes`, y hay un conmutador en el pie. Un `dark:` en un componente sigue siendo un defecto: `grep -rn "dark:" src` tiene que devolver cero.
+- **El menú de móvil ya no funciona sin JavaScript.** Era un `<input type="checkbox">` con CSS detrás; ahora es un `Sheet`, y a cambio cierra con Escape, atrapa el foco y bloquea el desplazamiento de fondo. El buscador **no** entró en ese intercambio: es la única pieza que escribe.
 
 ## Idioma
 

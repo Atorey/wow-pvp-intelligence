@@ -1,0 +1,22 @@
+-- Índice para el autocompletado de la búsqueda de personaje (§21 del plan).
+--
+-- La 0008 ya indexó `name_fold`, pero con el reino delante: (region,
+-- realm_slug, name_fold) sirve para resolver un personaje concreto, que es
+-- para lo que se creó. El autocompletado pregunta otra cosa —"todos los que
+-- empiezan por `anat`", casi siempre sin reino, porque el reino es justo lo
+-- que quien busca no recuerda— y con ese índice no puede evitar recorrer la
+-- tabla entera: hoy son 127.000 filas, y está en el camino crítico de cada
+-- pulsación de teclado.
+--
+-- `text_pattern_ops` no es un adorno: un índice B-tree normal solo acelera
+-- `like 'anat%'` si la base de datos está en la collation C. La nuestra no lo
+-- está —y no puede estarlo, porque los nombres llevan diacríticos y el orden
+-- alfabético importa en otras consultas—, así que sin esta clase de operadores
+-- el índice existiría y el planner lo ignoraría.
+--
+-- El prefijo se calcula siempre con foldSlug() de packages/core y se pasa como
+-- parámetro, nunca se pliega en SQL: la regla de plegado tiene un solo sitio
+-- (ADR 0017) y `unaccent` daría otro resultado justo en los 20.081 nombres que
+-- motivaron el issue.
+create index if not exists idx_characters_name_fold_prefix
+  on characters (region, name_fold text_pattern_ops);

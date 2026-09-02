@@ -14,8 +14,15 @@ import {
   type RatingSegment,
   type SpecEntry,
 } from "@wowpvp/core";
-import { BlizzardClient, blizzardUsage } from "../blizzard/client";
-import { formatUsage } from "../blizzard/request-queue";
+import {
+  BlizzardClient,
+  blizzardUsage,
+  findTalentLoadout,
+  formatUsage,
+  mapEquipment,
+  type TalentOutcome,
+  type TalentResult,
+} from "@wowpvp/blizzard";
 import {
   PROFILES_DIR,
   REPORTS_DIR,
@@ -33,12 +40,6 @@ import {
   saveProfileSnapshot,
   type ProfileParts,
 } from "./profile-capture";
-import {
-  findTalentLoadout,
-  mapEquipment,
-  type TalentOutcome,
-  type TalentResult,
-} from "./profile-mapping";
 
 /**
  * Muestreo de perfiles completos (issue #8).

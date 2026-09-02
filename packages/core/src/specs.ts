@@ -67,6 +67,59 @@ export const ALL_SPECS: readonly SpecEntry[] = [
 ];
 
 /**
+ * Las trece clases, en el orden del catálogo.
+ *
+ * Existe como lista propia, y no como `new Set(ALL_SPECS.map(...))` en el punto
+ * de uso, porque de aquí cuelga un tipo: quien construya un mapa por clase
+ * —los colores de clase del sitio, por ejemplo— quiere que `typecheck` le diga
+ * que le falta una, no descubrir en pantalla que una spec se pinta sin color.
+ * `classSlugsAreComplete` es lo que impide que las dos listas se separen.
+ */
+export const CLASS_SLUGS = [
+  "death-knight",
+  "demon-hunter",
+  "druid",
+  "evoker",
+  "hunter",
+  "mage",
+  "monk",
+  "paladin",
+  "priest",
+  "rogue",
+  "shaman",
+  "warlock",
+  "warrior",
+] as const;
+
+export type ClassSlug = (typeof CLASS_SLUGS)[number];
+
+export function isClassSlug(value: string): value is ClassSlug {
+  return (CLASS_SLUGS as readonly string[]).includes(value);
+}
+
+/**
+ * Cómo se escribe cada clase. Está en el dominio y no en el diccionario de la
+ * web porque es terminología del juego y no se traduce (§3.7 del brief): un
+ * "Caballero de la Muerte" en la versión española sería un nombre que el
+ * jugador no usa ni encuentra en ninguna parte.
+ */
+export const CLASS_LABELS: Record<ClassSlug, string> = {
+  "death-knight": "Death Knight",
+  "demon-hunter": "Demon Hunter",
+  druid: "Druid",
+  evoker: "Evoker",
+  hunter: "Hunter",
+  mage: "Mage",
+  monk: "Monk",
+  paladin: "Paladin",
+  priest: "Priest",
+  rogue: "Rogue",
+  shaman: "Shaman",
+  warlock: "Warlock",
+  warrior: "Warrior",
+};
+
+/**
  * Bracket de Solo Shuffle tal como lo espera la API: "shuffle-mage-frost".
  *
  * Los guiones internos de los slugs se eliminan, porque así los nombra Blizzard:
