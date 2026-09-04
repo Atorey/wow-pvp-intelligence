@@ -1,8 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { MIN_SAMPLE_MEDIUM } from "@wowpvp/core";
+import { standingWithin } from "@wowpvp/core";
 import {
-  percentileFor,
   readActivity,
   readLatestObservedSeason,
   readLatestSnapshot,
@@ -137,18 +136,6 @@ describe("readActivity", () => {
   });
 });
 
-describe("percentileFor", () => {
-  it("no da percentil por debajo del umbral: la fracción sí, el porcentaje no", () => {
-    assert.equal(percentileFor({ observed: 6, below: 3 }), null);
-    assert.equal(percentileFor({ observed: MIN_SAMPLE_MEDIUM - 1, below: 10 }), null);
-  });
-
-  it("lo da a partir del umbral", () => {
-    assert.equal(percentileFor({ observed: MIN_SAMPLE_MEDIUM, below: 15 }), 50);
-    assert.equal(percentileFor({ observed: 2282, below: 1598 }), (1598 / 2282) * 100);
-  });
-});
-
 describe("readStanding", () => {
   it("excluye los snapshots de búsqueda, igual que los agregados", async () => {
     const db = fakeDb([{ observed: 2282, below: 1598, highest: 2709 }]);
@@ -186,6 +173,18 @@ describe("readStanding", () => {
     assert.match(db.calls[0]?.text ?? "", /distinct on \(s\.character_id\)/);
     assert.equal(read.observed, 2282);
     assert.equal(read.below, 1598);
+  });
+
+  it("compone el percentil con la regla de core, no con una propia", async () => {
+    const db = fakeDb([{ observed: 2282, below: 1598, highest: 2709 }]);
+    const read = await readStanding(db, {
+      region: "eu",
+      seasonId: 42,
+      bracket: "shuffle-priest-holy",
+      rating: 1834,
+    });
+
+    assert.equal(read.percentile, standingWithin({ observed: 2282, below: 1598 }).percentile);
   });
 
   it("el máximo sale de la misma población que el recuento", async () => {

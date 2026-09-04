@@ -454,6 +454,12 @@ function Standing({
         </>
       )}
       <p className="text-subtle-foreground text-sm">{copy.observedNote}</p>
+      {/*
+        La limitación de origen va siempre, no solo cuando hay percentil: la
+        fracción se apoya en la misma población recortada y arrastra el mismo
+        techo (§14 del plan).
+      */}
+      <p className="text-subtle-foreground text-sm">{copy.ladderCap}</p>
     </SectionCard>
   );
 }

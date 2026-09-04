@@ -5,6 +5,7 @@ export * from "./segments";
 export * from "./confidence";
 export * from "./activity";
 export * from "./stats";
+export * from "./standing";
 export * from "./player-gap";
 export * from "./aggregates";
 export * from "./routes";

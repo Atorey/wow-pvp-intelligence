@@ -311,6 +311,18 @@ export const en = {
         `Segment sizes count who has been active in the last ${days} days; the figure above counts the whole season.`,
       highest: "Highest observed rating",
       observedNote: "Observed = seen on the ladder or looked up here. Not every player.",
+      /**
+       * La limitación de origen, dicha donde sale la cifra y no solo detrás del
+       * enlace de metodología (§14 del plan). Se escribe autosuficiente: el
+       * enlace existe, pero la página al final de ese enlace es de #20 y hoy
+       * está vacía.
+       *
+       * Describe el techo, no lo justifica. Un "por eso" convertiría la
+       * limitación en una excusa, y la §2.5 del brief no admite ni disculpa ni
+       * verbo de recomendación en este bloque.
+       */
+      ladderCap:
+        "Blizzard's leaderboard publishes the top 5,000 per spec and bracket. Below that cut, a character enters this dataset only when someone looks it up here.",
     },
 
     brackets: {

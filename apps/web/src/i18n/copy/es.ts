@@ -192,6 +192,8 @@ export const es: Copy = {
         `Los tamaños de segmento cuentan a quien ha estado activo los últimos ${days} días; la cifra de arriba cuenta la temporada entera.`,
       highest: "Rating más alto observado",
       observedNote: "Observado = visto en la ladder o consultado aquí. No son todos los jugadores.",
+      ladderCap:
+        "El leaderboard de Blizzard publica los 5.000 primeros de cada spec y modalidad. Por debajo de ese corte, un personaje entra en estos datos solo cuando alguien lo busca aquí.",
     },
 
     brackets: {
