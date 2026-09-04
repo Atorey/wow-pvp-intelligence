@@ -42,6 +42,9 @@ function member(overrides: Partial<Member> & { characterId: string }): Member {
     profileCapturedAt: null,
     gearBySlot: new Map(),
     talentLoadoutCode: null,
+    talents: null,
+    heroTalentTree: null,
+    pvpTalents: null,
     equippedItemLevel: null,
     averageItemLevel: null,
     ...overrides,
@@ -75,6 +78,9 @@ test("el rating es del snapshot más reciente y el gear del último perfil", () 
       equippedItemLevel: 630,
       averageItemLevel: 634,
       talentLoadoutCode: "CODE",
+      talents: null,
+      pvpTalents: null,
+      heroTalentTree: null,
       gearBySlot: new Map([["HEAD", 1]]),
     },
   ];
@@ -94,6 +100,36 @@ test("sin perfil, el personaje cuenta en el segmento pero no en los denominadore
   assert.equal(built?.gearBySlot.size, 0);
   assert.equal(built?.talentLoadoutCode, null);
   assert.equal(built?.equippedItemLevel, null);
+  // Y lo mismo con los nodos: `null`, no `[]`. Un personaje del que solo
+  // tenemos la fila de leaderboard no es alguien que no lleva talentos, y esa
+  // diferencia es la que lo saca del denominador en vez de hundir la adopción.
+  assert.equal(built?.talents, null);
+  assert.equal(built?.pvpTalents, null);
+  assert.equal(built?.heroTalentTree, null);
+});
+
+test("un perfil anterior al ADR 0026 tiene código pero no nodos", () => {
+  // Los ~13.000 snapshots guardados antes de la migración 0012. Cuentan en
+  // talent_sample y no en talent_node_sample, que es justo por qué son dos
+  // denominadores y no uno.
+  const profiles: ProfileRow[] = [
+    {
+      characterId: "a",
+      bracket: "shuffle-mage-frost",
+      capturedAt: daysAgo(1),
+      equippedItemLevel: 630,
+      averageItemLevel: 632,
+      talentLoadoutCode: "CODE",
+      talents: null,
+      pvpTalents: null,
+      heroTalentTree: null,
+      gearBySlot: new Map([["HEAD", 1]]),
+    },
+  ];
+
+  const [built] = buildMembers([active({ characterId: "a" })], profiles);
+  assert.equal(built?.talentLoadoutCode, "CODE");
+  assert.equal(built?.talents, null);
 });
 
 test("el perfil se pega al mismo personaje en el mismo bracket, no en otro", () => {
@@ -105,6 +141,9 @@ test("el perfil se pega al mismo personaje en el mismo bracket, no en otro", () 
       equippedItemLevel: 640,
       averageItemLevel: 640,
       talentLoadoutCode: "FIRE",
+      talents: null,
+      pvpTalents: null,
+      heroTalentTree: null,
       gearBySlot: new Map([["HEAD", 9]]),
     },
   ];

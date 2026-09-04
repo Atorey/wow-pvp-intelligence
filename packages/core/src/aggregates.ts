@@ -26,8 +26,11 @@ import { confidenceFor } from "./confidence";
 import {
   comparableItemsByGroup,
   hasComparableGear,
+  hasComparablePvpTalents,
+  hasComparableTalents,
   type AdoptionRate,
   type PlayerBuild,
+  type TalentSelection,
 } from "./player-gap";
 import { median, percentile } from "./stats";
 import type { ConfidenceLevel } from "./types";
@@ -35,13 +38,18 @@ import type { ConfidenceLevel } from "./types";
 /**
  * Tipos de variable agregada.
  *
- * Es un conjunto cerrado a propósito: son las dos que el schema de hoy puede
+ * Es un conjunto cerrado a propósito: son las que el schema de hoy puede
  * observar. Stats secundarias y embellishments (§13.1) no están porque
- * `character_snapshot_gear` no las guarda, y los nodos de talento sueltos
- * esperan a #24. Añadir una variable es añadir aquí un valor y en la migración
- * un check — no hay un cajón genérico donde meter cualquier cosa sin decidirlo.
+ * `character_snapshot_gear` no las guarda. Añadir una variable es añadir aquí un
+ * valor y en la migración un check — no hay un cajón genérico donde meter
+ * cualquier cosa sin decidirlo.
+ *
+ * `talent-code` sigue estando aunque no agrupe casi nada: el reparto de códigos
+ * es en sí el dato que mide esa división, y su histórico arranca antes que el de
+ * los nodos (ADR 0026).
  */
-export type AggregateVariableKind = "gear-item" | "talent-code";
+export type AggregateVariableKind =
+  "gear-item" | "talent-code" | "talent-node" | "pvp-talent" | "hero-tree";
 
 /** El adoption_rate de una variable dentro de un segmento (§13.2). */
 export interface AggregatedVariable {
@@ -52,6 +60,12 @@ export interface AggregatedVariable {
   slotGroup: string | null;
   /** item_id, para que el llamante pueda resolver el nombre. null en talentos. */
   itemId: number | null;
+  /** Árbol del nodo. null salvo en 'talent-node' y 'pvp-talent'. */
+  talentTree: string | null;
+  /** Id del nodo o del talento PvP; en 'hero-tree', el id del árbol. */
+  talentId: number | null;
+  /** Nombre legible al calcular. null es "no disponible" (regla 5), no "sin nombre". */
+  talentName: string | null;
   adoption: AdoptionRate;
 }
 
@@ -77,7 +91,17 @@ export interface SegmentSummary {
    */
   itemLevelSample: number;
   gearSample: number;
+  /** Miembros con `talent_loadout_code`. No es la base de los nodos. */
   talentSample: number;
+  /**
+   * Miembros con nodos, y con talentos PvP. Tres cifras y no una porque
+   * divergen: el código lleva guardado desde agosto de 2026 y los nodos empiezan
+   * con el ADR 0026, así que durante días habrá segmentos con `talentSample` a
+   * 100 y `talentNodeSample` a 0. Fundirlos daría un número que no describe a
+   * ninguna de las tres.
+   */
+  talentNodeSample: number;
+  pvpTalentSample: number;
 }
 
 export function summarizeSegment(population: readonly PlayerBuild[]): SegmentSummary {
@@ -98,6 +122,8 @@ export function summarizeSegment(population: readonly PlayerBuild[]): SegmentSum
     itemLevelSample: itemLevels.length,
     gearSample: population.filter(hasComparableGear).length,
     talentSample: population.filter((member) => member.talentLoadoutCode !== null).length,
+    talentNodeSample: population.filter(hasComparableTalents).length,
+    pvpTalentSample: population.filter(hasComparablePvpTalents).length,
   };
 }
 
@@ -144,6 +170,9 @@ export function aggregateGearItems(population: readonly PlayerBuild[]): Aggregat
         key: `${group}:${itemId}`,
         slotGroup: group,
         itemId,
+        talentTree: null,
+        talentId: null,
+        talentName: null,
         adoption: { value: users / denominator, users, denominator, unavailable },
       });
     }
@@ -154,12 +183,14 @@ export function aggregateGearItems(population: readonly PlayerBuild[]): Aggregat
 /**
  * adoption_rate de cada `talent_loadout_code` observado.
  *
- * Sigue siendo coincidencia exacta del código completo, con la limitación de
- * siempre: dos builds que difieran en un solo nodo cuentan como distintas, así
- * que en la mayoría de specs esto describe una población muy dividida y no una
- * "build del segmento" (#24). Se agrega igualmente porque el reparto de códigos
- * es en sí el dato que mide esa división, y porque cuando #24 decodifique los
- * nodos hará falta el histórico para saber desde cuándo.
+ * Coincidencia exacta del código completo, con la limitación de siempre: dos
+ * builds que difieran en un solo nodo cuentan como distintas, así que esto
+ * describe una población muy dividida y no una "build del segmento". Lo que se
+ * compara de verdad son los nodos (`aggregateTalentNodes`, ADR 0026).
+ *
+ * Se sigue agregando porque el reparto de códigos es en sí el dato que mide esa
+ * división, y porque su histórico arranca antes que el de los nodos: sin él no
+ * se podría saber desde cuándo.
  */
 export function aggregateTalentCodes(population: readonly PlayerBuild[]): AggregatedVariable[] {
   const counts = new Map<string, number>();
@@ -183,6 +214,146 @@ export function aggregateTalentCodes(population: readonly PlayerBuild[]): Aggreg
       key: code,
       slotGroup: null,
       itemId: null,
+      talentTree: null,
+      talentId: null,
+      talentName: null,
+      adoption: { value: users / denominator, users, denominator, unavailable },
+    }));
+}
+
+/**
+ * adoption_rate de cada nodo de talento observado.
+ *
+ * Esta es la variable que sí agrupa, y la razón de ser del ADR 0026: dos
+ * jugadores comparten nodos aunque no compartan build. Con el código completo no
+ * la comparten casi nunca —entre 75 y 97 códigos distintos por cada 100 perfiles
+ * de un segmento— así que aquel porcentaje describía personas y este describe el
+ * escalón.
+ *
+ * Misma forma que `aggregateGearItems`: una sola pasada contando, y los perfiles
+ * sin nodos legibles fuera del denominador y contados en `unavailable` (regla 5).
+ * Un personaje del que solo tenemos la fila de leaderboard no es alguien que "no
+ * lleva ese talento".
+ */
+export function aggregateTalentNodes(population: readonly PlayerBuild[]): AggregatedVariable[] {
+  return countSelections(
+    population,
+    hasComparableTalents,
+    (member) => member.talents ?? [],
+    "talent-node",
+  );
+}
+
+/**
+ * adoption_rate de cada talento PvP.
+ *
+ * Separado de los nodos y con su propio denominador porque cuelgan de la spec y
+ * no del loadout: faltan por razones distintas, y meterlos en la misma base
+ * contaría como "no disponible de talentos" a quien tiene el loadout entero.
+ */
+export function aggregatePvpTalents(population: readonly PlayerBuild[]): AggregatedVariable[] {
+  return countSelections(
+    population,
+    hasComparablePvpTalents,
+    (member) => member.pvpTalents ?? [],
+    "pvp-talent",
+  );
+}
+
+/**
+ * Reparto de árboles de héroe: una elección entre dos por spec.
+ *
+ * Es la variable de talentos con menos cardinalidad que existe, y por eso la
+ * única que se lee de un vistazo ("71% Mountain Thane, 29% Slayer"). Comparte
+ * denominador con los nodos porque sale del mismo loadout, pero su `unavailable`
+ * es mayor: la API no trae el árbol en ~8% de los loadouts que sí traen nodos.
+ */
+export function aggregateHeroTrees(population: readonly PlayerBuild[]): AggregatedVariable[] {
+  const counts = new Map<number, { name: string; users: number }>();
+  let denominator = 0;
+  let unavailable = 0;
+
+  for (const member of population) {
+    const tree = member.heroTalentTree;
+    if (tree === null) {
+      unavailable++;
+      continue;
+    }
+    denominator++;
+    const seen = counts.get(tree.id);
+    if (seen) seen.users++;
+    else counts.set(tree.id, { name: tree.name, users: 1 });
+  }
+
+  return [...counts]
+    .sort(([a], [b]) => a - b)
+    .map(([id, { name, users }]) => ({
+      kind: "hero-tree" as const,
+      key: String(id),
+      slotGroup: null,
+      itemId: null,
+      talentTree: null,
+      talentId: id,
+      talentName: name,
+      adoption: { value: users / denominator, users, denominator, unavailable },
+    }));
+}
+
+/**
+ * El contador que comparten nodos y talentos PvP: idénticos salvo en de dónde
+ * sale la lista y en qué denominador les toca.
+ *
+ * El nombre se queda con la primera aparición que lo traiga: la API deja algún
+ * nodo sin tooltip, y descartar el nodo por eso perdería una selección observada
+ * por no saber cómo se llama.
+ */
+function countSelections(
+  population: readonly PlayerBuild[],
+  isComparable: (member: PlayerBuild) => boolean,
+  selectionsOf: (member: PlayerBuild) => readonly TalentSelection[],
+  kind: "talent-node" | "pvp-talent",
+): AggregatedVariable[] {
+  const counts = new Map<string, { selection: TalentSelection; users: number }>();
+  let denominator = 0;
+  let unavailable = 0;
+
+  for (const member of population) {
+    if (!isComparable(member)) {
+      unavailable++;
+      continue;
+    }
+    denominator++;
+
+    // Un Set porque la misma selección repetida dentro de un mismo personaje
+    // sigue siendo un usuario, no dos.
+    const seen = new Set<string>();
+    for (const selection of selectionsOf(member)) {
+      const key = `${selection.tree}:${selection.talentId}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      const entry = counts.get(key);
+      if (entry) {
+        entry.users++;
+        if (entry.selection.talentName === null && selection.talentName !== null) {
+          entry.selection = selection;
+        }
+      } else {
+        counts.set(key, { selection, users: 1 });
+      }
+    }
+  }
+
+  return [...counts]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, { selection, users }]) => ({
+      kind,
+      key,
+      slotGroup: null,
+      itemId: null,
+      talentTree: selection.tree,
+      talentId: selection.talentId,
+      talentName: selection.talentName,
       adoption: { value: users / denominator, users, denominator, unavailable },
     }));
 }
@@ -198,7 +369,13 @@ export function aggregateTalentCodes(population: readonly PlayerBuild[]): Aggreg
  * una decisión de retención (#48), no de agregación.
  */
 export function aggregateSegment(population: readonly PlayerBuild[]): AggregatedVariable[] {
-  return [...aggregateGearItems(population), ...aggregateTalentCodes(population)];
+  return [
+    ...aggregateGearItems(population),
+    ...aggregateTalentCodes(population),
+    ...aggregateTalentNodes(population),
+    ...aggregatePvpTalents(population),
+    ...aggregateHeroTrees(population),
+  ];
 }
 
 /**

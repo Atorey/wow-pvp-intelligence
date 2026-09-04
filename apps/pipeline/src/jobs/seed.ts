@@ -327,6 +327,8 @@ async function insertProfiles(
       averageItemLevel: profile.averageItemLevel,
       equippedItemLevel: profile.equippedItemLevel,
       talentCode: profile.talentLoadoutCode,
+      talents: profile.talents,
+      heroTree: profile.heroTalentTree,
       gear: profile.gear.map((item) => ({
         slot: item.slot,
         itemId: item.itemId,

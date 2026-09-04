@@ -20,6 +20,7 @@ import {
   findTalentLoadout,
   formatUsage,
   mapEquipment,
+  mapPvpTalents,
   type TalentOutcome,
   type TalentResult,
 } from "@wowpvp/blizzard";
@@ -124,6 +125,9 @@ interface BucketReport {
   confidence: ConfidenceLevel;
   canCompare: boolean;
   talents: Record<TalentOutcome, number>;
+  /** Perfiles con nodos y con talentos PvP: denominadores propios (ADR 0026). */
+  talentNodes: number;
+  pvpTalents: number;
   gearRows: number;
   itemLevelAvailable: number;
   failures: {
@@ -421,6 +425,8 @@ async function sampleBucket(
     confidence: "insufficient",
     canCompare: false,
     talents: { ok: 0, "spec-not-listed": 0, "no-loadout": 0, "no-code": 0, "api-error": 0 },
+    talentNodes: 0,
+    pvpTalents: 0,
     gearRows: 0,
     itemLevelAvailable: 0,
     failures: { noRating: 0, profileError: 0, equipmentError: 0, specializationsError: 0 },
@@ -462,8 +468,15 @@ async function sampleBucket(
     const talent: TalentResult =
       capture.specializations.status === 200
         ? findTalentLoadout(capture.specializations.data ?? {}, spec)
-        : { code: null, outcome: "api-error" };
+        : { code: null, outcome: "api-error", talents: [], heroTree: null };
     report.talents[talent.outcome]++;
+    if (talent.talents.length > 0) report.talentNodes++;
+
+    const pvpTalents =
+      capture.specializations.status === 200
+        ? mapPvpTalents(capture.specializations.data ?? {}, spec)
+        : null;
+    if (pvpTalents !== null) report.pvpTalents++;
 
     const gear = mapEquipment(capture.equipment.data ?? {});
     report.gearRows += gear.length;
@@ -479,6 +492,8 @@ async function sampleBucket(
       stats,
       profile: capture.profile.data,
       talentCode: talent.code,
+      talents: [...talent.talents, ...(pvpTalents ?? [])],
+      heroTree: talent.heroTree,
       gear,
     });
     if (isNew) report.snapshots++;
@@ -509,7 +524,8 @@ function printReport(reports: BucketReport[]): void {
     console.log(
       `   Talentos: ${r.talents.ok} con código · ${r.talents["no-code"]} sin código · ` +
         `${r.talents["spec-not-listed"]} spec no listada · ${r.talents["no-loadout"]} sin loadout · ` +
-        `${r.talents["api-error"]} sin respuesta`,
+        `${r.talents["api-error"]} sin respuesta · ${r.talentNodes} con nodos · ` +
+        `${r.pvpTalents} con talentos PvP`,
     );
     if (r.failures.noRating > 0) {
       console.log(`   ${r.failures.noRating} ya no aparecen en el bracket (rotación).`);

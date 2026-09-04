@@ -15,8 +15,9 @@
  * - No compara stats secundarias ni embellishments, que sí aparecen en el
  *   mockup de §13.1: el schema de hoy no guarda ni unas ni otros, y deducirlos
  *   por heurística sería inventar dato en la feature que promete no inventarlo.
- * - No compara talentos nodo a nodo, solo por coincidencia exacta de código
- *   (decisión tomada en #9; decodificar el loadout se pospone a #24).
+ * - No compara talentos nodo a nodo, solo por coincidencia exacta de código.
+ *   Los nodos ya se agregan y se publican por segmento (`aggregateTalentNodes`,
+ *   ADR 0026); traerlos a esta comparación es #18.
  */
 import { canShowComparison, confidenceFor } from "./confidence";
 import { median } from "./stats";
@@ -93,6 +94,22 @@ export interface PlayerBuild {
   /** null = no disponible (regla 5 del proyecto), nunca "no lleva talentos". */
   talentLoadoutCode: string | null;
   /**
+   * Nodos seleccionados del loadout de su spec. null = no pudimos leerlos, y ese
+   * perfil sale del denominador de nodos; nunca "no lleva ninguno".
+   *
+   * Es la variable que sí agrupa: el código completo la lleva distinta casi cada
+   * jugador, así que agregarlo describe personas y no escalones (ADR 0026).
+   */
+  talents: readonly TalentSelection[] | null;
+  /** Árbol de héroe elegido. null = no disponible. */
+  heroTalentTree: HeroTreeSelection | null;
+  /**
+   * Talentos PvP. Denominador propio y no compartido con `talents`: cuelgan de
+   * la spec y no del loadout, y la API los omite en ~12% de las entradas de spec
+   * por razones que no dicen nada del loadout (ADR 0026).
+   */
+  pvpTalents: readonly TalentSelection[] | null;
+  /**
    * Item level de lo que lleva puesto. Es el que se compara: `average_item_level`
    * cuenta también lo mejor que tenga en el banco y en las bolsas, que no es lo
    * que el jugador está usando en la arena. Difieren en más de la mitad de los
@@ -101,6 +118,23 @@ export interface PlayerBuild {
   equippedItemLevel: number | null;
   /** Se transporta como contexto, pero no entra en la comparación. */
   averageItemLevel: number | null;
+}
+
+/** Un nodo de talento observado, ya resuelto: no hay nada que decodificar. */
+export interface TalentSelection {
+  /** Namespace del id: 'class' | 'spec' | 'hero' son nodos; 'pvp', talentos PvP. */
+  tree: TalentTree;
+  talentId: number;
+  /** null = no disponible. La selección está observada; su etiqueta, no. */
+  talentName: string | null;
+}
+
+export type TalentTree = "class" | "spec" | "hero" | "pvp";
+
+/** El árbol de héroe elegido en un loadout: una elección entre dos por spec. */
+export interface HeroTreeSelection {
+  id: number;
+  name: string;
 }
 
 /**
@@ -170,6 +204,24 @@ export function isDiscriminative(delta: number): boolean {
 /** Si el equipo de este miembro es legible; si no, sale de los denominadores de gear. */
 export function hasComparableGear(member: PlayerBuild): boolean {
   return member.gearBySlot.size > 0;
+}
+
+// --- Talentos ---
+
+/**
+ * Si los nodos de este miembro son legibles.
+ *
+ * A diferencia del gear, que usa "el mapa está vacío", aquí la ausencia es
+ * `null` explícito: un personaje siempre lleva talentos, así que una lista vacía
+ * no podría distinguirse de no haberla podido leer.
+ */
+export function hasComparableTalents(member: PlayerBuild): boolean {
+  return member.talents !== null;
+}
+
+/** Denominador propio, por la razón del ADR 0026: falta por motivos distintos. */
+export function hasComparablePvpTalents(member: PlayerBuild): boolean {
+  return member.pvpTalents !== null;
 }
 
 /**
@@ -392,8 +444,8 @@ export interface TalentCodeAdoption {
  * gradiente que el dato no tiene. Lo que sí es honesto: qué códigos lleva el
  * segmento objetivo y en qué proporción, y dónde cae el del jugador.
  *
- * Cuando #24 decodifique el loadout en nodos, cada nodo pasa a ser una variable
- * con su adoption_rate y entonces sí habrá alignment score real.
+ * Los nodos ya tienen su propio adoption_rate por segmento desde el ADR 0026,
+ * así que el alignment score real es posible; construirlo es #18.
  */
 export interface TalentComparison {
   /** Códigos más frecuentes del segmento objetivo, de mayor a menor adopción. */

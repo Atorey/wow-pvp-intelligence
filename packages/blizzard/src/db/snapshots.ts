@@ -1,6 +1,6 @@
 import type pg from "pg";
 import type { SpecEntry } from "@wowpvp/core";
-import type { GearRow } from "../profile-mapping";
+import type { GearRow, HeroTreeRef, TalentRow } from "../profile-mapping";
 
 /**
  * Inserción de snapshots de perfil (los que traen gear/talentos, a diferencia de
@@ -29,6 +29,15 @@ export interface ProfileSnapshotInput {
   averageItemLevel: number | null;
   equippedItemLevel: number | null;
   talentCode: string | null;
+  /**
+   * Nodos del mismo loadout que `talentCode`, más los talentos PvP de la spec.
+   * Vacío significa "no pudimos leerlos", igual que un `gear` vacío: los nodos
+   * salen de la misma respuesta que el código, así que un personaje con código y
+   * sin nodos es un fallo de lectura, no alguien sin talentos.
+   */
+  talents: readonly TalentRow[];
+  /** null = la API no trajo el árbol de héroe, nunca "no eligió" (regla 5). */
+  heroTree: HeroTreeRef | null;
   gear: readonly GearRow[];
 }
 
@@ -40,12 +49,13 @@ export interface ProfileSnapshotResult {
 }
 
 /**
- * Inserta el snapshot y su gear. Siempre INSERT, nunca UPDATE (append-only,
- * ADR 0002): un update sobre rating/gear/talentos destruiría el histórico, que
- * es el moat del producto.
+ * Inserta el snapshot con su gear y sus talentos. Siempre INSERT, nunca UPDATE
+ * (append-only, ADR 0002): un update sobre rating/gear/talentos destruiría el
+ * histórico, que es el moat del producto.
  *
- * Recibe un client con transacción abierta: el snapshot y su gear entran juntos
- * o no entran, y quien llama suele meter también la identidad en la misma.
+ * Recibe un client con transacción abierta: el snapshot y lo que cuelga de él
+ * entran juntos o no entran, y quien llama suele meter también la identidad en
+ * la misma.
  */
 export async function insertProfileSnapshot(
   client: pg.PoolClient,
@@ -55,8 +65,9 @@ export async function insertProfileSnapshot(
     `insert into character_snapshots
        (character_id, captured_at, source, season_id, bracket, class_slug, spec_slug,
         rating, matches_played, matches_won, matches_lost, pvp_tier_id,
-        average_item_level, equipped_item_level, talent_loadout_code)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+        average_item_level, equipped_item_level, talent_loadout_code,
+        hero_talent_tree_id, hero_talent_tree_name)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
      on conflict (character_id, bracket, captured_at) do nothing
      returning id`,
     [
@@ -77,6 +88,8 @@ export async function insertProfileSnapshot(
       input.averageItemLevel,
       input.equippedItemLevel,
       input.talentCode,
+      input.heroTree?.id ?? null,
+      input.heroTree?.name ?? null,
     ],
   );
 
@@ -116,6 +129,26 @@ export async function insertProfileSnapshot(
         item.enchantmentIds,
         item.gemItemIds,
         item.bonusList,
+      ],
+    );
+  }
+
+  // Los talentos sí van en bloque: no tienen columnas de array, así que unnest
+  // no puede aplanar nada, y son ~85 filas por personaje — una consulta por nodo
+  // multiplicaría por cinco los viajes a la base de cada perfil.
+  if (snapshotId && input.talents.length > 0) {
+    await client.query(
+      `insert into character_snapshot_talents (snapshot_id, tree, talent_id, talent_name, rank)
+       select $1, tree, talent_id, talent_name, rank
+         from unnest($2::text[], $3::bigint[], $4::text[], $5::int[])
+              as t(tree, talent_id, talent_name, rank)
+       on conflict (snapshot_id, tree, talent_id) do nothing`,
+      [
+        snapshotId,
+        input.talents.map((t) => t.tree),
+        input.talents.map((t) => t.talentId),
+        input.talents.map((t) => t.talentName),
+        input.talents.map((t) => t.rank),
       ],
     );
   }

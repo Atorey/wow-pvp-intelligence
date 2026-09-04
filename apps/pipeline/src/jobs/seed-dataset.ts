@@ -432,6 +432,21 @@ export interface SeedProfile {
   matchesWon: number;
   matchesLost: number;
   gear: SeedGearItem[];
+  /**
+   * Nodos del loadout más los tres talentos PvP, en la misma lista plana que
+   * espera el INSERT. Vacía cuando el perfil no trae talentos: eso sale del
+   * denominador de nodos, nunca cuenta como no-adopción (regla 5).
+   */
+  talents: SeedTalent[];
+  heroTalentTree: { id: number; name: string } | null;
+}
+
+/** Una selección de talento sembrada. Misma forma que la fila que se inserta. */
+export interface SeedTalent {
+  tree: "class" | "spec" | "hero" | "pvp";
+  talentId: number;
+  talentName: string | null;
+  rank: number | null;
 }
 
 /** Cuántas veces le hemos visto en la lista, que no es cuántas veces cambió. */
@@ -662,6 +677,122 @@ function talentCode(random: () => number): string {
   return code;
 }
 
+/**
+ * Los nodos, al revés que los códigos: aquí sí tiene que haber señal.
+ *
+ * El seed de códigos existe para que nadie construya una pantalla apoyada en
+ * una señal que en producción no hay. Con los nodos el problema es el simétrico:
+ * si todos los personajes de todos los segmentos llevaran lo mismo, no se podría
+ * comprobar en local que la lista de diferencias funciona. Así que el catálogo
+ * imita la forma medida en los 594 perfiles reales:
+ *
+ * - un núcleo que lleva casi todo el mundo y no discrimina nada (§13.3),
+ * - unos pocos que se mueven con el rating, que son los que la caja enseñaría,
+ * - y un árbol de héroe muy escorado, como el 98/2 de Frost o el 71/29 de Fury.
+ */
+interface TalentNodeSpec {
+  tree: "class" | "spec" | "hero";
+  name: string;
+  /** Adopción en 1600. */
+  base: number;
+  /** Cuánto se mueve por cada escalón de 200 puntos. 0 = no discrimina. */
+  drift: number;
+}
+
+const CORE_NODE_COUNT = 46;
+// Base es la adopción en 1600 y drift lo que se mueve por escalón, así que
+// entre dos escalones contiguos la diferencia es exactamente `drift`: para que
+// un nodo salga en la lista tiene que superar los 10 puntos de
+// `isDiscriminative`. Los números salen de los medidos entre 1800-2000 y
+// 2000-2200 en los 594 perfiles reales. `Flash Freeze` va deliberadamente por
+// debajo del umbral: hace falta un nodo muy adoptado que NO discrimine, o el
+// filtro de §13.3 nunca se ejercitaría en local.
+const DRIFTING_NODES: readonly TalentNodeSpec[] = [
+  { tree: "spec", name: "Frozen Touch", base: 0.44, drift: 0.18 },
+  { tree: "spec", name: "Flash Freeze", base: 0.72, drift: 0.05 },
+  { tree: "class", name: "Improved Blink", base: 0.36, drift: 0.13 },
+  { tree: "class", name: "Shimmer", base: 0.65, drift: -0.14 },
+  { tree: "class", name: "Improved Spellsteal", base: 0.15, drift: 0.13 },
+  { tree: "hero", name: "Rimecaster", base: 0.59, drift: 0.12 },
+  { tree: "hero", name: "Splintering Sorcery", base: 0.6, drift: -0.12 },
+];
+
+const PVP_TALENTS: readonly { name: string; base: number; drift: number }[] = [
+  { name: "Master Shepherd", base: 0.33, drift: 0.16 },
+  { name: "Overpowered Barrier", base: 0.69, drift: 0.02 },
+  { name: "Improved Mass Invisibility", base: 0.68, drift: 0.0 },
+  { name: "Snowdrift", base: 0.54, drift: -0.04 },
+  { name: "Ice Wall", base: 0.34, drift: -0.08 },
+  { name: "Precognition", base: 0.22, drift: 0.06 },
+];
+
+const HERO_TREES: readonly [string, string] = ["Spellslinger", "Frostfire"];
+
+/** Ids estables por spec: dos specs distintas no comparten nodo, como en el juego. */
+function talentIdBase(specSlugId: string): number {
+  let hash = 0;
+  for (const char of specSlugId) hash = (hash * 31 + char.charCodeAt(0)) % 100000;
+  return 90000 + hash * 10;
+}
+
+/** La adopción de un nodo en un escalón, acotada para que nunca sea 0% ni 100%. */
+function adoptionAt(base: number, drift: number, segmentMin: number): number {
+  const steps = (segmentMin - 1600) / 200;
+  return Math.min(0.97, Math.max(0.03, base + drift * steps));
+}
+
+function buildTalents(
+  specSlugId: string,
+  segmentMin: number,
+  random: () => number,
+): { talents: SeedTalent[]; heroTree: { id: number; name: string } } {
+  const idBase = talentIdBase(specSlugId);
+  const talents: SeedTalent[] = [];
+
+  // El núcleo: obligatorio de hecho, no de derecho. Es lo que hace que la lista
+  // de diferencias tenga que filtrar por poder discriminante en vez de enseñar
+  // los primeros por adopción.
+  for (let i = 0; i < CORE_NODE_COUNT; i++) {
+    if (random() > 0.94) continue;
+    talents.push({
+      tree: i % 3 === 0 ? "class" : i % 3 === 1 ? "spec" : "hero",
+      talentId: idBase + i,
+      talentName: `Nodo ${specSlugId} ${i}`,
+      rank: random() < 0.3 ? 2 : 1,
+    });
+  }
+
+  DRIFTING_NODES.forEach((node, i) => {
+    if (random() >= adoptionAt(node.base, node.drift, segmentMin)) return;
+    talents.push({
+      tree: node.tree,
+      talentId: idBase + CORE_NODE_COUNT + i,
+      talentName: node.name,
+      rank: 1,
+    });
+  });
+
+  // Tres huecos de PvP, elegidos por peso: no hay rangos y el hueco no forma
+  // parte de la identidad del talento (ADR 0026).
+  const chosen = [...PVP_TALENTS]
+    .map((talent, i) => ({
+      talent,
+      i,
+      weight: random() * adoptionAt(talent.base, talent.drift, segmentMin),
+    }))
+    .sort((a, b) => b.weight - a.weight)
+    .slice(0, 3);
+  for (const { talent, i } of chosen) {
+    talents.push({ tree: "pvp", talentId: idBase + 900 + i, talentName: talent.name, rank: null });
+  }
+
+  // Escorado y no al 50%: el árbol de héroe es la variable con menos
+  // cardinalidad que hay, y en producción casi siempre hay uno dominante.
+  const dominant = random() < adoptionAt(0.82, 0.05, segmentMin);
+  const name = HERO_TREES[dominant ? 0 : 1];
+  return { talents, heroTree: { id: idBase + (dominant ? 990 : 991), name } };
+}
+
 /** Rating dentro del escalón, más denso abajo que arriba, como la población real. */
 function ratingIn(segmentMin: number, random: () => number): number {
   return segmentMin + Math.floor(Math.pow(random(), 1.35) * 199);
@@ -832,6 +963,8 @@ export function buildSeedDataset(options: {
 
     const gear = buildGear(slots, segmentMin, random);
     const equipped = equippedLevel(gear);
+    const talentSelections = buildTalents(specSlugId, segmentMin, random);
+    const dropsPvpTalents = random() < 0.12;
     const played = asProfileCounter(leaderboardPlayed, random);
     const won = Math.round(played * (0.46 + random() * 0.12));
 
@@ -847,6 +980,14 @@ export function buildSeedDataset(options: {
       matchesWon: won,
       matchesLost: played - won,
       gear,
+      // Los nodos vienen de la misma respuesta que el código, así que comparten
+      // cobertura. Los talentos PvP no: cuelgan de la spec, y la API los omite
+      // en ~12% de las entradas por razones que no dicen nada del loadout, así
+      // que aquí se caen aparte para que el seed tenga los dos denominadores.
+      talents: withTalents
+        ? talentSelections.talents.filter((t) => t.tree !== "pvp" || !dropsPvpTalents)
+        : [],
+      heroTalentTree: withTalents ? talentSelections.heroTree : null,
     };
   };
 

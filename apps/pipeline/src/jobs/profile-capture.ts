@@ -5,9 +5,11 @@ import {
   type BlizzardClient,
   type EquipmentResponse,
   type GearRow,
+  type HeroTreeRef,
   type ProfileResponse,
   type PvpBracketResponse,
   type SpecializationsResponse,
+  type TalentRow,
 } from "@wowpvp/blizzard";
 
 /**
@@ -93,11 +95,14 @@ export interface ProfileSnapshotDraft {
   stats: PvpBracketResponse;
   profile: ProfileResponse | null;
   talentCode: string | null;
+  /** Nodos del mismo loadout que `talentCode`, más los talentos PvP de la spec. */
+  talents: readonly TalentRow[];
+  heroTree: HeroTreeRef | null;
   gear: readonly GearRow[];
 }
 
 /**
- * Inserta el snapshot y su gear en una transacción. El INSERT en sí vive en
+ * Inserta el snapshot con su gear y sus talentos en una transacción. El INSERT en sí vive en
  * db/snapshots.ts, compartido también con la búsqueda bajo demanda: las tres
  * fuentes escriben la misma forma de snapshot y solo difieren en el `source`.
  *
@@ -131,6 +136,8 @@ export async function saveProfileSnapshot(
       averageItemLevel: draft.profile?.average_item_level ?? null,
       equippedItemLevel: draft.profile?.equipped_item_level ?? null,
       talentCode: draft.talentCode,
+      talents: draft.talents,
+      heroTree: draft.heroTree,
       gear: draft.gear,
     });
 

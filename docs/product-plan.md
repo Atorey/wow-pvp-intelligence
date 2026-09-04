@@ -441,6 +441,8 @@ Sin verbo de recomendación. El jugador saca su propia conclusión — coherente
 
 **[HYPOTHESIS]** El valor diferencial no está en "mostrar la build top", que ya hacen bien Murlok y PvPLeaderboard — está en mostrarla **segmentada por rating**, algo que hoy nadie hace de forma sistemática (Drustvar y Seramate muestran tier lists/spec stats generales, no desglose fino por bracket de rating).
 
+> **Corregido el 4 de septiembre de 2026 ([ADR 0026](decisions/0026-talentos-por-nodo.md))**: esta sección nunca definió la unidad de agregación, al contrario que §16, que sí nombra el ítem. "La build" no es una entidad que dos jugadores compartan: entre 75 y 97 códigos de loadout distintos por cada 100 perfiles de un segmento, de modo que "la build más popular" describe a un puñado de personas. **La unidad es el nodo**, más el árbol de héroe y los tres talentos PvP, y es lo que §13.2 daba por supuesto desde el principio ("para cada variable comparable: talento individual, item, gema, encantamiento"). La hipótesis de valor —segmentar por rating en vez de enseñar el top global— no cambia; lo que se segmenta, sí.
+
 # 16. Gear Analytics
 
 Mismo principio que builds: ítems/trinkets/gemas/encantamientos más usados, **segmentados por rango de rating y spec**, no solo "top players".
@@ -590,7 +592,7 @@ Build · Gear · Talents · Stats · Trends  ← detalle progresivo (progressive
 - 1 modalidad: **Solo Shuffle** (ver justificación sección 7 del brief / sección 27 de este documento).
 - 1 región para el lanzamiento (US o EU, a decidir por tamaño relativo de comunidad — **[UNKNOWN]**, requiere validación rápida de volumen antes de Sprint 0).
 - Player Profile básico.
-- Player Gap (talentos + gear, con las reservas de la sección 11 sobre el riesgo del endpoint de talentos).
+- Player Gap (talentos + gear, con las reservas de la sección 11 sobre el riesgo del endpoint de talentos). **Corregido el 21 de agosto de 2026**: el Player Gap del lanzamiento es **solo de gear** (§8.2 de findings). El riesgo de la sección 11 se cerró —el dato llega—, pero la comparación por código exacto no informa. Los talentos por nodo sí se agregan y se publican por segmento desde el [ADR 0026](decisions/0026-talentos-por-nodo.md); entrar en la caja es #18.
 - Búsqueda de personaje.
 - Página de metodología.
 

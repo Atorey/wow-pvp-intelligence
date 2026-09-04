@@ -5,12 +5,16 @@ import {
   MIN_SAMPLE_HIGH,
   MIN_SAMPLE_MEDIUM,
   aggregateGearItems,
+  aggregateHeroTrees,
+  aggregateTalentNodes,
   biggestGearDifferences,
   canShowComparison,
   confidenceFor,
   deriveActivity,
   foldSlug,
   hasComparableGear,
+  hasComparablePvpTalents,
+  hasComparableTalents,
   isActiveWithin,
   isDiscriminative,
   segmentFor,
@@ -28,6 +32,7 @@ import {
   SEGMENT_PLAN,
   type SeedDataset,
   type SeedParticipation,
+  type SeedTalent,
 } from "./seed-dataset";
 
 const NOW = new Date("2026-08-24T09:00:00.000Z");
@@ -55,6 +60,15 @@ function inSegment(participations: SeedParticipation[], segmentMin: number): See
   return participations.filter((p) => segmentFor(latestRating(p)).min === segmentMin);
 }
 
+/**
+ * Una lista vacía es "no lo pudimos leer", no "no lleva ninguno" (regla 5), que
+ * es lo mismo que hace el job: sin filas en `character_snapshot_talents` para un
+ * snapshot, el miembro entra con `null` y sale del denominador.
+ */
+function nullIfEmpty(selections: SeedTalent[] | undefined): SeedTalent[] | null {
+  return selections && selections.length > 0 ? selections : null;
+}
+
 /** La misma forma con la que `refresh-aggregates` pasa la población a core. */
 function asPlayerBuild(participation: SeedParticipation): PlayerBuild {
   const profile = participation.profile;
@@ -63,6 +77,11 @@ function asPlayerBuild(participation: SeedParticipation): PlayerBuild {
     rating: latestRating(participation),
     gearBySlot: new Map(profile?.gear.map((item) => [item.slot, item.itemId]) ?? []),
     talentLoadoutCode: profile?.talentLoadoutCode ?? null,
+    // Igual que en el job: sin perfil no hay nodos, y `null` los saca del
+    // denominador en vez de contarlos como no-adopción.
+    talents: nullIfEmpty(profile?.talents.filter((t) => t.tree !== "pvp")),
+    pvpTalents: nullIfEmpty(profile?.talents.filter((t) => t.tree === "pvp")),
+    heroTalentTree: profile?.heroTalentTree ?? null,
     equippedItemLevel: profile?.equippedItemLevel ?? null,
     averageItemLevel: profile?.averageItemLevel ?? null,
   };
@@ -196,6 +215,50 @@ describe("la comparación que sostiene el Player Gap", () => {
     const variables = aggregateGearItems(objetivo);
     const dominantes = variables.filter((v) => v.adoption.value > 0.98);
     assert.equal(dominantes.length, 0, "hay slots con un único item posible");
+  });
+
+  it("la base de nodos alcanza para comparar, y es menor que la de gear", () => {
+    // Menor a propósito: el `talentCoverage` del plan deja perfiles con gear y
+    // sin talentos, que es el estado en el que estará producción los primeros
+    // días tras el ADR 0026. Un seed donde las dos bases coincidieran dejaría
+    // sin ejercitar justo el motivo por el que son dos columnas.
+    for (const escalon of [propio, objetivo]) {
+      const nodos = escalon.filter(hasComparableTalents).length;
+      assert.ok(canShowComparison(nodos), `solo ${nodos} perfiles con nodos`);
+      assert.ok(nodos < escalon.filter(hasComparableGear).length);
+    }
+  });
+
+  it("hay nodos que discriminan entre un escalón y el siguiente", () => {
+    // La razón de ser del ADR 0026, en el dataset local: si esta lista saliera
+    // vacía, el seed tendría talentos y ninguna comparación que enseñar, que es
+    // exactamente lo que pasa con el código de loadout completo.
+    const propias = new Map(aggregateTalentNodes(propio).map((v) => [v.key, v.adoption.value]));
+    const discriminantes = aggregateTalentNodes(objetivo).filter((v) =>
+      isDiscriminative(v.adoption.value - (propias.get(v.key) ?? 0)),
+    );
+
+    assert.ok(
+      discriminantes.length >= 3,
+      `solo ${discriminantes.length} nodo(s) se mueven 10 puntos entre escalones`,
+    );
+  });
+
+  it("el árbol de héroe está escorado, como en producción", () => {
+    // 98/2 en Frost y 71/29 en Fury sobre datos reales: un 50/50 sembrado daría
+    // una variable que no describe ninguna elección.
+    const trees = aggregateHeroTrees(objetivo);
+    assert.equal(trees.length, 2);
+    assert.ok(Math.max(...trees.map((t) => t.adoption.value)) > 0.6);
+  });
+
+  it("nodos y talentos PvP no comparten denominador", () => {
+    // El seed tira ~12% de los talentos PvP a propósito: si los dos
+    // denominadores fueran iguales, nadie notaría que el código los fundió.
+    const conNodos = objetivo.filter(hasComparableTalents).length;
+    const conPvp = objetivo.filter(hasComparablePvpTalents).length;
+    assert.ok(conPvp < conNodos, "el seed no distingue las dos ausencias");
+    assert.ok(conPvp >= MIN_SAMPLE_MEDIUM);
   });
 
   it("la mediana de item level sube con el escalón", () => {

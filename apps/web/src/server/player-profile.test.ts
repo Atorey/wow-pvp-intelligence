@@ -56,6 +56,8 @@ function segment(
     population: provenance(bases.population),
     gear: provenance(bases.gear),
     talents: provenance(0),
+    talentNodes: provenance(0),
+    pvpTalents: provenance(0),
     itemLevel: provenance(bases.itemLevel ?? bases.gear),
     rating: { median: null, p25: null, p75: null, min, max: min + 199 },
     equippedItemLevelMedian: bases.median === undefined ? 246 : bases.median,

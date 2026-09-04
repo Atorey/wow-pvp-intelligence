@@ -13,8 +13,10 @@ import {
   type ActivityEvidence,
   type ActivityWindowDays,
   type AggregatedVariable,
+  type HeroTreeSelection,
   type PlayerBuild,
   type SegmentSummary,
+  type TalentSelection,
 } from "@wowpvp/core";
 import { getRegion } from "../config";
 import { createPool } from "../db/pool";
@@ -110,6 +112,10 @@ export interface ProfileRow {
   equippedItemLevel: number | null;
   averageItemLevel: number | null;
   talentLoadoutCode: string | null;
+  /** null = el snapshot no trae nodos, no que el personaje no tenga (regla 5). */
+  talents: TalentSelection[] | null;
+  pvpTalents: TalentSelection[] | null;
+  heroTalentTree: HeroTreeSelection | null;
   gearBySlot: Map<string, number>;
 }
 
@@ -172,6 +178,9 @@ export function buildMembers(
       profileCapturedAt: profile?.capturedAt ?? null,
       gearBySlot: profile?.gearBySlot ?? new Map<string, number>(),
       talentLoadoutCode: profile?.talentLoadoutCode ?? null,
+      talents: profile?.talents ?? null,
+      pvpTalents: profile?.pvpTalents ?? null,
+      heroTalentTree: profile?.heroTalentTree ?? null,
       equippedItemLevel: profile?.equippedItemLevel ?? null,
       averageItemLevel: profile?.averageItemLevel ?? null,
     };
@@ -367,10 +376,13 @@ async function loadProfiles(
     average_item_level: number | null;
     equipped_item_level: number | null;
     talent_loadout_code: string | null;
+    hero_talent_tree_id: number | null;
+    hero_talent_tree_name: string | null;
   }>(
     `select distinct on (s.character_id, s.bracket)
             s.id, s.character_id, s.bracket, s.captured_at,
-            s.average_item_level, s.equipped_item_level, s.talent_loadout_code
+            s.average_item_level, s.equipped_item_level, s.talent_loadout_code,
+            s.hero_talent_tree_id, s.hero_talent_tree_name
        from character_snapshots s
        join characters c on c.id = s.character_id
       where c.region = $1 and s.season_id = $2 and s.captured_at >= $3
@@ -390,6 +402,37 @@ async function loadProfiles(
       where g.snapshot_id = any($1::bigint[])`,
     [snapshots.map((row) => row.id)],
   );
+
+  // Misma forma que la consulta de gear: los nodos cuelgan del snapshot, y se
+  // piden en bloque para los snapshots que ya sabemos que entran.
+  const { rows: talentRows } = await pool.query<{
+    snapshot_id: string;
+    tree: string;
+    talent_id: string;
+    talent_name: string | null;
+  }>(
+    `select t.snapshot_id, t.tree, t.talent_id, t.talent_name
+       from character_snapshot_talents t
+      where t.snapshot_id = any($1::bigint[])`,
+    [snapshots.map((row) => row.id)],
+  );
+
+  // Nodos y talentos PvP se separan aquí y no en la consulta porque tienen
+  // denominadores distintos: un snapshot puede traer el loadout entero y no los
+  // talentos PvP, o al revés (ADR 0026). Fundirlos en una lista los ataría.
+  const talentsBySnapshot = new Map<string, TalentSelection[]>();
+  const pvpBySnapshot = new Map<string, TalentSelection[]>();
+  for (const row of talentRows) {
+    const selection: TalentSelection = {
+      tree: row.tree as TalentSelection["tree"],
+      talentId: Number(row.talent_id),
+      talentName: row.talent_name,
+    };
+    const target = row.tree === "pvp" ? pvpBySnapshot : talentsBySnapshot;
+    const list = target.get(row.snapshot_id);
+    if (list) list.push(selection);
+    else target.set(row.snapshot_id, [selection]);
+  }
 
   const gearBySnapshot = new Map<string, Map<string, number>>();
   const itemNames = new Map<number, string>();
@@ -411,6 +454,14 @@ async function loadProfiles(
     equippedItemLevel: row.equipped_item_level,
     averageItemLevel: row.average_item_level,
     talentLoadoutCode: row.talent_loadout_code,
+    // `?? null` y no `?? []`: sin filas no sabemos si el personaje no tiene
+    // nodos o si el snapshot es anterior al ADR 0026. Sale del denominador.
+    talents: talentsBySnapshot.get(row.id) ?? null,
+    pvpTalents: pvpBySnapshot.get(row.id) ?? null,
+    heroTalentTree:
+      row.hero_talent_tree_id !== null && row.hero_talent_tree_name !== null
+        ? { id: row.hero_talent_tree_id, name: row.hero_talent_tree_name }
+        : null,
     gearBySlot: gearBySnapshot.get(row.id) ?? new Map<string, number>(),
   }));
 
@@ -546,10 +597,11 @@ async function writeSegments(
             sample_size, confidence, rating_median, rating_p25, rating_p75,
             rating_min, rating_max, equipped_item_level_median,
             item_level_sample, gear_sample, talent_sample,
+            talent_node_sample, pvp_talent_sample,
             profile_data_from, profile_data_to, excluded_search,
             active_by_delta, active_by_first_seen)
          values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
-                 $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
+                 $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28)
          returning id`,
         [
           computedAt,
@@ -573,6 +625,8 @@ async function writeSegments(
           summary.itemLevelSample,
           summary.gearSample,
           summary.talentSample,
+          summary.talentNodeSample,
+          summary.pvpTalentSample,
           segment.profileFrom,
           segment.profileTo,
           segment.excludedSearch,
@@ -588,8 +642,9 @@ async function writeSegments(
         await client.query(
           `insert into aggregate_snapshots
              (population_segment_id, variable_kind, variable_key, slot_group, item_id,
-              item_name, users, denominator, unavailable, adoption_rate)
-           values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+              item_name, talent_tree, talent_id, talent_name,
+              users, denominator, unavailable, adoption_rate)
+           values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
           [
             segmentRowId,
             variable.kind,
@@ -597,6 +652,9 @@ async function writeSegments(
             variable.slotGroup,
             variable.itemId,
             variable.itemId === null ? null : (itemNames.get(variable.itemId) ?? null),
+            variable.talentTree,
+            variable.talentId,
+            variable.talentName,
             variable.adoption.users,
             variable.adoption.denominator,
             variable.adoption.unavailable,

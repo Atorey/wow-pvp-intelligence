@@ -2,12 +2,19 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   aggregateGearItems,
+  aggregateHeroTrees,
   aggregateSegment,
   aggregateTalentCodes,
+  aggregateTalentNodes,
   groupBySegment,
   summarizeSegment,
 } from "./aggregates";
-import { slotItemAdoption, type PlayerBuild } from "./player-gap";
+import {
+  adoptionRate,
+  slotItemAdoption,
+  type PlayerBuild,
+  type TalentSelection,
+} from "./player-gap";
 import { segmentFor } from "./segments";
 
 function build(overrides: Partial<PlayerBuild> & { rating: number }): PlayerBuild {
@@ -15,6 +22,9 @@ function build(overrides: Partial<PlayerBuild> & { rating: number }): PlayerBuil
     characterId: `c${overrides.rating}-${Math.random()}`,
     gearBySlot: new Map(),
     talentLoadoutCode: null,
+    talents: null,
+    heroTalentTree: null,
+    pvpTalents: null,
     equippedItemLevel: null,
     averageItemLevel: null,
     ...overrides,
@@ -144,4 +154,98 @@ test("cada personaje cae en un único segmento", () => {
 
   assert.deepEqual([...grouped.keys()].sort(), ["1800-2000", "2000-2200"]);
   assert.equal(grouped.get("2000-2200")?.length, 2);
+});
+
+// --- Nodos de talento (ADR 0026) ---
+
+const NODES: TalentSelection[] = [
+  { tree: "class", talentId: 1, talentName: "Shimmer" },
+  { tree: "spec", talentId: 2, talentName: "Frozen Touch" },
+];
+
+test("los nodos ausentes salen del denominador, no cuentan como no-adopción", () => {
+  // Es la regla 5 sobre la variable nueva, y el motivo por el que `talents` es
+  // `null` y no `[]`: un personaje del que solo tenemos la fila de leaderboard
+  // no es alguien que "no lleva ese talento".
+  const population = [
+    build({ rating: 1810, talents: NODES }),
+    build({ rating: 1850, talents: [NODES[0]!] }),
+    build({ rating: 1900 }),
+    build({ rating: 1950 }),
+  ];
+
+  const nodes = new Map(aggregateTalentNodes(population).map((v) => [v.key, v.adoption]));
+  assert.equal(nodes.get("class:1")?.users, 2);
+  assert.equal(nodes.get("class:1")?.denominator, 2);
+  assert.equal(nodes.get("class:1")?.unavailable, 2);
+  assert.equal(nodes.get("spec:2")?.value, 1 / 2);
+});
+
+test("un nodo repetido dentro del mismo personaje sigue siendo un usuario", () => {
+  const nodes = aggregateTalentNodes([build({ rating: 1810, talents: [NODES[0]!, NODES[0]!] })]);
+  assert.equal(nodes.length, 1);
+  assert.equal(nodes[0]?.adoption.users, 1);
+});
+
+test("el nombre se recupera del primer personaje que lo traiga", () => {
+  // La API deja algún nodo sin tooltip. Si el primero que llega es ese, el
+  // agregado no puede quedarse sin etiqueta para siempre.
+  const nodes = aggregateTalentNodes([
+    build({ rating: 1810, talents: [{ tree: "class", talentId: 1, talentName: null }] }),
+    build({ rating: 1850, talents: [{ tree: "class", talentId: 1, talentName: "Shimmer" }] }),
+  ]);
+
+  assert.equal(nodes[0]?.talentName, "Shimmer");
+  assert.equal(nodes[0]?.talentTree, "class");
+  assert.equal(nodes[0]?.talentId, 1);
+});
+
+test("nodos, talentos PvP y código tienen cada uno su denominador", () => {
+  // El caso que hay durante los primeros días tras el ADR 0026: código guardado
+  // desde antes, nodos recién empezados, y talentos PvP que faltan por su
+  // cuenta. Un solo denominador describiría mal a las tres.
+  const population = [
+    build({ rating: 1810, talentLoadoutCode: "A", talents: NODES, pvpTalents: [] }),
+    build({ rating: 1850, talentLoadoutCode: "B", talents: NODES }),
+    build({ rating: 1900, talentLoadoutCode: "C" }),
+  ];
+
+  const summary = summarizeSegment(population);
+  assert.equal(summary.talentSample, 3);
+  assert.equal(summary.talentNodeSample, 2);
+  assert.equal(summary.pvpTalentSample, 1);
+});
+
+test("el árbol de héroe se reparte entre los que lo tienen", () => {
+  const population = [
+    build({ rating: 1810, heroTalentTree: { id: 64, name: "Spellslinger" } }),
+    build({ rating: 1850, heroTalentTree: { id: 64, name: "Spellslinger" } }),
+    build({ rating: 1900, heroTalentTree: { id: 65, name: "Frostfire" } }),
+    build({ rating: 1950 }),
+  ];
+
+  const trees = new Map(aggregateHeroTrees(population).map((v) => [v.talentName, v.adoption]));
+  assert.equal(trees.get("Spellslinger")?.value, 2 / 3);
+  assert.equal(trees.get("Frostfire")?.value, 1 / 3);
+  assert.equal(trees.get("Frostfire")?.unavailable, 1);
+});
+
+test("la agregación de nodos da el mismo número que adoptionRate uno a uno", () => {
+  // El mismo blindaje que ya tiene el gear: el agregado que se publica y la
+  // cifra que vería una comparación no pueden divergir en silencio.
+  const population = [
+    build({ rating: 2010, talents: NODES }),
+    build({ rating: 2100, talents: [NODES[0]!] }),
+    build({ rating: 2150, talents: [] }),
+    build({ rating: 2050 }),
+  ];
+
+  for (const variable of aggregateTalentNodes(population)) {
+    const reference = adoptionRate(population, (member) =>
+      member.talents === null
+        ? null
+        : member.talents.some((talent) => `${talent.tree}:${talent.talentId}` === variable.key),
+    );
+    assert.deepEqual(variable.adoption, reference, variable.key);
+  }
 });

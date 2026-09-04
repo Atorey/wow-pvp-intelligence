@@ -28,6 +28,11 @@ function build(
     rating: 1900,
     gearBySlot: new Map(Object.entries(gear)),
     talentLoadoutCode,
+    // Player Gap sigue siendo de gear: los nodos se agregan y se publican, pero
+    // la caja no los compara todavía (ADR 0026, decisión 8; issue #18).
+    talents: null,
+    heroTalentTree: null,
+    pvpTalents: null,
     equippedItemLevel,
     // Deliberadamente distinto del equipado: si algún día la comparación
     // volviera a usar este campo por error, los asserts de abajo fallarían.

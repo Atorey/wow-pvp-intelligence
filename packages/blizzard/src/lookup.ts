@@ -19,6 +19,7 @@ import { insertProfileSnapshot } from "./db/snapshots";
 import {
   findTalentLoadout,
   mapEquipment,
+  mapPvpTalents,
   type EquipmentResponse,
   type GearRow,
   type ProfileResponse,
@@ -365,10 +366,13 @@ export async function lookupCharacter(deps: LookupDeps, ref: CharacterRef): Prom
       // temporada. Es rotación, un dato más, no un error.
       if (typeof stats.rating !== "number") continue;
 
-      const talentCode = specializations
-        ? findTalentLoadout(specializations, bracketRef.spec).code
-        : null;
-      if (talentCode) result.talentCodes++;
+      const talents = specializations ? findTalentLoadout(specializations, bracketRef.spec) : null;
+      if (talents?.code) result.talentCodes++;
+
+      // Los talentos PvP se piden aparte porque cuelgan de la spec y no del
+      // loadout: existen aunque el personaje no lleve activa esta spec, que es
+      // justo lo contrario que el gear (ADR 0026).
+      const pvpTalents = specializations ? mapPvpTalents(specializations, bracketRef.spec) : null;
 
       const bracketGear = wearsGear(bracketRef.spec) ? gear : [];
       result.gearRows += bracketGear.length;
@@ -390,7 +394,9 @@ export async function lookupCharacter(deps: LookupDeps, ref: CharacterRef): Prom
         pvpTierId: stats.tier?.id ?? null,
         averageItemLevel: profile.average_item_level ?? null,
         equippedItemLevel: profile.equipped_item_level ?? null,
-        talentCode,
+        talentCode: talents?.code ?? null,
+        talents: [...(talents?.talents ?? []), ...(pvpTalents ?? [])],
+        heroTree: talents?.heroTree ?? null,
         gear: bracketGear,
       });
       if (isNew) result.snapshotsInserted++;

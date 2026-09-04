@@ -275,7 +275,7 @@ Escribe dos archivos por personaje en `reports/`: un `.json` auditable con los d
 
 **La población se filtra por ventana de actividad** (§27), y la ventana se mide **desde el momento del run**, no desde el reloj de hoy: un reporte tiene que poder reproducirse tal y como se publicó. El sujeto pedido con `--character` no se filtra —es quien pregunta, no parte de la población de referencia—, y `--all` desactiva el filtro entero, avisando en el propio reporte de que sin ventana los porcentajes no describen el meta actual.
 
-Lo que la comparación **no** incluye, y cada reporte declara: stats secundarias y embellishments (el schema no los guarda), y talentos por nodo (#24 — ver el hallazgo de la sección 6.2 de [sprint-0-findings](../../docs/sprint-0-findings.md), la coincidencia exacta de código no da señal utilizable).
+Lo que la comparación **no** incluye, y cada reporte declara: stats secundarias y embellishments (el schema no los guarda), y talentos por nodo, que desde el [ADR 0026](../../docs/decisions/0026-talentos-por-nodo.md) sí se agregan por segmento pero todavía no entran en la comparación (#18). La coincidencia exacta de código, que es la que este reporte usa, no da señal utilizable: ver la sección 6.2 de [sprint-0-findings](../../docs/sprint-0-findings.md).
 
 ### `seed`
 
