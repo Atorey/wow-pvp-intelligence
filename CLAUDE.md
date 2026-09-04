@@ -39,6 +39,7 @@ Fase actual: **Phase 0 (Data Feasibility)**, casi cerrada. La web existe como an
 - Tests con `node:test` para lógica pura y para lo que se pueda probar con reloj inyectable.
 - Antes de dar algo por terminado: `npm run typecheck && npm test && npm run format:check`.
 - **Nunca `git commit` ni `git push` sin que se haya pedido explícitamente en esa conversación.** Se deja el trabajo en el working tree y se dice qué hay cambiado; el commit lo decide quien revisa, no el agente.
+- **La palabra que cierra una issue desde un PR es `Closes`, en inglés y en la primera línea del cuerpo** (`Closes #21`). El resto del PR va en español como todo lo demás, pero esta no se traduce: GitHub solo reconoce sus palabras clave en inglés, así que un «Cierra #21» se ve igual de bien en la descripción y **no enlaza ni cierra nada**. En un commit que no cierra la issue —porque el trabajo sigue— la referencia es `Refs #21`.
 
 ## Cuidado con
 
