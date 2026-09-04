@@ -254,9 +254,11 @@ Desde el [ADR 0025](../decisions/0025-componentes-con-shadcn-ui.md) hay dos clas
 - **Los de `components/ui/`** los genera `npx shadcn add` y **no los hemos escrito nosotros**. Están exentos de la convención de comentarios y solo se editan para tokenizar, quitar `dark:` y lo mínimo que exigen nuestros flags de TypeScript. Sus reglas están en [su README](../../apps/web/src/components/ui/README.md).
 - **Los de `components/`** son nuestros. Envuelven a los anteriores cuando hace falta comportamiento propio, y son los únicos donde vive una decisión de producto.
 
+**Si la librería lo trae, se usa la librería.** Un chip, un badge, un separador o una caja de aviso no se escriben a mano "porque son cuatro clases": traerlos con `npx shadcn add` cuesta un comando y deja el estado de foco, el `asChild` y las variantes ya resueltos y verificados en un solo sitio. Lo nuestro son las piezas que llevan una decisión de producto dentro.
+
 Lo que shadcn **no** trae, y sigue siendo trabajo nuestro, es justo la pieza central: la caja Player Gap con sus tres layouts no es un componente de librería, es cumplimiento del principio de correlación. Y tener el catálogo delante no es permiso para usarlo: la [§4.6 del brief](brief.md#46-lo-que-no-va-a-existir-en-la-interfaz) sigue prohibiendo _upsell_, _gating_, tablas densas en el componente central y la muestra en un tooltip, aunque ahora exista un `Tooltip` a un comando de distancia.
 
-`Alert`, `Input` y `Skeleton` están traídos y todavía no los usa nadie: son para las páginas de datos que faltan. `Alert` en concreto es para los tres estados de confianza y **no** para envolver prosa estática — lleva `role="alert"`, que es una región viva, y "esta lectura todavía no está publicada" no es algo que acabe de ocurrir; esas cajas son `Card` con el borde discontinuo.
+`Input` y `Skeleton` están traídos y todavía no los usa nadie: son para las páginas de datos que faltan. `Alert` ya lo usa el aviso de muestra reducida del perfil, y es para los tres estados de confianza y **no** para envolver prosa estática — lleva `role="alert"`, que es una región viva, y "esta lectura todavía no está publicada" no es algo que acabe de ocurrir; esas cajas son `Card` con el borde discontinuo.
 
 `Command` se generó y se borró: es lo que el plan quería para los buscadores y es justo donde no cabe (ver §5.4). Volver a traerlo cuesta un comando.
 
