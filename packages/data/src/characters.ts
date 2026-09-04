@@ -1,5 +1,5 @@
-import { MIN_SAMPLE_MEDIUM } from "@wowpvp/core";
-import type { ActivityEvidence, Region, SnapshotSource } from "@wowpvp/core";
+import { standingWithin } from "@wowpvp/core";
+import type { ActivityEvidence, Region, SnapshotSource, Standing } from "@wowpvp/core";
 import type { ObservationProvenance } from "./provenance";
 import type { Queryable } from "./queryable";
 
@@ -217,26 +217,15 @@ export async function readActivity(
 }
 
 /**
- * Dónde cae un rating dentro de la población **observada** de su bracket.
+ * Dónde cae un rating dentro de la población **observada** de su bracket, con el
+ * máximo de esa misma población al lado.
  *
- * Es la capa descriptiva del ADR 0011 (punto 2b): un recuento, no una
- * inferencia. Por eso no pasa por `canShowComparison()` —contar cuántos
- * observados están por debajo de un rating no estima nada sobre una población
- * mayor— y por eso el denominador viaja crudo.
+ * La regla —qué es el percentil y desde cuándo se puede escribir— vive en
+ * `standingWithin()` de `packages/core`, no aquí: es dominio compartido y la
+ * regla 2 del proyecto no admite dos copias. Lo que esta capa añade es lo que sí
+ * es asunto suyo, que es de dónde sale el recuento.
  */
-export interface StandingRead {
-  /** Cuántos personajes se han observado en ese bracket esta temporada. */
-  observed: number;
-  /** Cuántos de ellos están por debajo del rating consultado. */
-  below: number;
-  /**
-   * Percentil, o null si el bracket no llega a `MIN_SAMPLE_MEDIUM` observados.
-   *
-   * Punto 4 del ADR 0011: por debajo se enseña la fracción y no el porcentaje.
-   * "3 de 6 observados" es honesto; "percentil 50" sobre 6 personas no lo es.
-   * El umbral no es nuevo — es el que ya vive en `packages/core`.
-   */
-  percentile: number | null;
+export interface StandingRead extends Standing {
   /**
    * El rating más alto de **esta misma** población observada.
    *
@@ -268,6 +257,12 @@ interface StandingRow {
  * temporada, que es lo que significa la palabra "observados" del punto 6 del ADR
  * 0011. Recortarlo a siete días daría un percentil que se mueve solo cada noche
  * sin que el jugador haya hecho nada.
+ *
+ * Tampoco se usa `ACTIVITY_WINDOWS.seasonActive`, aunque exista y aunque la §27
+ * del plan la reserve precisamente para un ranking: ese ranking de temporada es
+ * una página que el ADR 0020 dejó declarada y sin código. Traerla aquí le daría
+ * a este bloque una tercera población, distinta de la de los agregados y de la
+ * que ya enseña, que es lo que el punto 5 del ADR 0011 prohíbe.
  */
 export async function readStanding(
   db: Queryable,
@@ -290,17 +285,7 @@ export async function readStanding(
   );
 
   const row = rows[0] ?? { observed: 0, below: 0, highest: null };
-  return { ...row, percentile: percentileFor(row) };
-}
-
-/**
- * El percentil solo existe por encima del umbral, y se separa en su propia
- * función para que se pueda probar sin base de datos: es la regla de producto,
- * no la consulta.
- */
-export function percentileFor(counts: { observed: number; below: number }): number | null {
-  if (counts.observed < MIN_SAMPLE_MEDIUM) return null;
-  return (counts.below / counts.observed) * 100;
+  return { ...standingWithin(row), highest: row.highest };
 }
 
 /**

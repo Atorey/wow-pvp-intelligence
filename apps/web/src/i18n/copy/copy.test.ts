@@ -66,6 +66,15 @@ test("la línea de atribución dice las dos cosas que le quedan", () => {
   assert.match(es, /son marcas de Blizzard Entertainment, Inc\./);
 });
 
+test("el bloque de posición dice el tope del leaderboard en las dos lenguas", () => {
+  // Mismo motivo que la línea de atribución: es una obligación externa (§14 del
+  // plan pide la limitación "en la propia UI") y una obligación externa no puede
+  // quedar sujeta a que nadie reescriba la frase. Se comprueba la cifra, que es
+  // lo que no puede desaparecer, con el separador de cada lengua.
+  assert.match(copyFor("en").player.standing.ladderCap, /5,000/);
+  assert.match(copyFor("es").player.standing.ladderCap, /5\.000/);
+});
+
 /**
  * Construcciones que convierten una correlación en un consejo. Salen de la §3.8
  * del brief, y el español lleva las suyas propias (§3.7) porque la finalidad se
