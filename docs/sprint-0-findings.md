@@ -128,6 +128,8 @@ Casi cada jugador tiene un código único. El código completo codifica el árbo
 
 **Consecuencia**: decodificar el loadout en nodos individuales (#24) deja de ser `mvp-plus`. Sin eso, Player Gap se sostiene solo sobre gear, y "Talents" del mockup de §13.1 no se puede pintar. Es la decisión de producto que sale de este issue.
 
+> **Anotado el 4 de septiembre de 2026 ([ADR 0026](decisions/0026-talentos-por-nodo.md))**: el hallazgo de arriba se confirma con la población de #66 detrás —entre 75 y 97 códigos distintos por cada 100 perfiles, y 101 de los 140 pares servibles con la build más repetida por debajo del 10%—, pero **la conclusión sobre el coste era falsa**. No hacía falta decodificar nada: la respuesta de `/specializations` que ya descargábamos trae `selected_class_talents`, `selected_spec_talents`, `selected_hero_talents`, `selected_hero_talent_tree` y `pvp_talent_slots` ya resueltos por Blizzard. Solo los estábamos tirando, porque `SpecializationsResponse` modelaba únicamente el código.
+
 ### 6.3 Dos correcciones que salieron de leer los reportes
 
 - **Abalorios y anillos se comparan por grupo, no por hueco**. `TRINKET_1`/`TRINKET_2` y `FINGER_1`/`FINGER_2` son intercambiables, y comparar por el slot literal partía la adopción del mismo item en dos: en la primera versión, el mismo abalorio de Fury salía a la vez como +16 puntos en `TRINKET_2` y −11 en `TRINKET_1`. Puro artefacto del orden en que la API devuelve el equipo, con toda la apariencia de un insight.
@@ -180,7 +182,7 @@ Es literalmente el plan de contingencia que §32 del plan ya contemplaba —"GO 
 **Por qué no al revés**, teniendo el mockup de §13.1 cuatro barras:
 
 - **Gear es la única categoría con señal discriminante demostrada** (§6.1), y stats secundarias y embellishments ni siquiera están en el schema. Meter #24 no daría las cuatro barras, daría dos.
-- **#24 es investigación de duración desconocida** —parsear el árbol de talentos de cada spec contra un formato que Blizzard no documenta como API— y ponerlo en el camino crítico ata la fecha de lanzamiento a algo sin estimar.
+- ~~**#24 es investigación de duración desconocida** —parsear el árbol de talentos de cada spec contra un formato que Blizzard no documenta como API— y ponerlo en el camino crítico ata la fecha de lanzamiento a algo sin estimar.~~ **Premisa errónea, corregida el 4 de septiembre de 2026** ([ADR 0026](decisions/0026-talentos-por-nodo.md)): Blizzard entrega los nodos decodificados en la misma respuesta que el código, así que no había parser que escribir ni cuota que gastar. Lo que sí sigue en pie es la otra razón —la comparación por código exacto no informa— y por eso el Player Gap del lanzamiento **sigue siendo de gear**: los nodos se agregan y se publican por segmento, y llevarlos a la caja es #18.
 - **La categoría que falta no se disimula, se declara.** La comparación exacta se queda en el reporte marcada con `hasUsableSignal: false` y explicando la limitación antes de enseñar nada, que es lo que ya hace hoy.
 
 Consecuencia inmediata: **#57 queda desbloqueado con la respuesta clara** —la caja "WHAT SEPARATES YOU FROM 2000+?" tiene **una sola categoría**, no cuatro—, y lo que #57 decide es qué enseña esa caja en esas condiciones. Las barras del mockup, con una sola categoría, dejan de tener sentido como forma; la lista de _biggest differences_ sí está completa y cumple el formato fijo de §13.6.
@@ -290,7 +292,9 @@ En las 439 filas de la corrida del 22 de agosto:
 | `talent_sample`     |  **0** |
 | `excluded_search`   |  **0** |
 
-Cero perfiles significa cero en todo lo que la caja Player Gap pinta: ni la lista de diferencias, ni el solapamiento de gear, ni **la mediana de item level del segmento objetivo**, que no existe en ninguna de las 439 filas. Es decir, al lanzar hoy la caja está en estado `insufficient` por la causa (b) del [brief](design/brief.md#15-los-tres-estados-de-confianza) —hay gente, no tenemos su equipo— en el 100 % de los casos, sin excepción.
+Cero perfiles significa cero en todo lo que la caja Player Gap pinta: ni la lista de diferencias, ni el solapamiento de gear, ni **la mediana de item level del segmento objetivo**, que no existe en ninguna de las 439 filas.
+
+> **Superado el 4 de septiembre de 2026**: #66 llenó los denominadores. En la corrida del 29 de agosto hay **140 pares `(spec, segmento)` con `gear_sample >= 30`** y otros tantos con `talent_sample >= 30`. Lo que sí arranca de cero otra vez es `talent_node_sample`, que empieza a contar con la migración 0012 ([ADR 0026](decisions/0026-talentos-por-nodo.md)) y tarda unos diez días en alcanzar al resto. Es decir, al lanzar hoy la caja está en estado `insufficient` por la causa (b) del [brief](design/brief.md#15-los-tres-estados-de-confianza) —hay gente, no tenemos su equipo— en el 100 % de los casos, sin excepción.
 
 ### 13.3 La población sí llega, y llega justo donde vive el ICP
 

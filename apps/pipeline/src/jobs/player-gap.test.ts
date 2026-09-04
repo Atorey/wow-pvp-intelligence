@@ -16,6 +16,9 @@ function build(characterId: string): PlayerBuild {
     rating: 2100,
     gearBySlot: new Map([["HEAD", 1]]),
     talentLoadoutCode: "CODE",
+    talents: null,
+    heroTalentTree: null,
+    pvpTalents: null,
     equippedItemLevel: 630,
     averageItemLevel: 632,
   };

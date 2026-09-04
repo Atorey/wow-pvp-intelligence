@@ -23,6 +23,7 @@ import {
   findTalentLoadout,
   formatUsage,
   mapEquipment,
+  mapPvpTalents,
 } from "@wowpvp/blizzard";
 import {
   getBlizzardCredentials,
@@ -502,6 +503,14 @@ interface RunReport {
   snapshots: number;
   gearRows: number;
   withTalentCode: number;
+  /**
+   * Perfiles de los que se guardaron nodos y talentos PvP. Aparte de
+   * `withTalentCode` porque son tres denominadores que divergen: el código está
+   * guardado desde agosto de 2026 y los nodos empiezan con el ADR 0026, así que
+   * vigilar cómo se acercan es el único modo de saber cuándo hay base.
+   */
+  withTalentNodes: number;
+  withPvpTalents: number;
   /** Ya no aparecen en su bracket: rotación, que es un dato y no un error. */
   noRating: number;
   apiErrors: number;
@@ -578,8 +587,18 @@ async function refreshPair(
     const talent =
       parts.specializations.status === 200
         ? findTalentLoadout(parts.specializations.data ?? {}, spec)
-        : { code: null };
+        : { code: null, talents: [], heroTree: null };
     if (talent.code !== null) report.withTalentCode++;
+    if (talent.talents.length > 0) report.withTalentNodes++;
+
+    // Aparte del loadout: los talentos PvP cuelgan de la spec, y que falten no
+    // dice nada del loadout ni al revés (ADR 0026). Denominador propio, por eso
+    // también contador propio.
+    const pvpTalents =
+      parts.specializations.status === 200
+        ? mapPvpTalents(parts.specializations.data ?? {}, spec)
+        : null;
+    if (pvpTalents !== null) report.withPvpTalents++;
 
     const gear = mapEquipment(parts.equipment.data ?? {});
     report.gearRows += gear.length;
@@ -594,6 +613,8 @@ async function refreshPair(
       stats,
       profile: parts.profile.data,
       talentCode: talent.code,
+      talents: [...talent.talents, ...(pvpTalents ?? [])],
+      heroTree: talent.heroTree,
       gear,
     });
     if (isNew) report.snapshots++;
@@ -676,7 +697,11 @@ function printReport(report: RunReport, plan: RunPlan): void {
   console.log("\n=== INGESTA CONTINUA DE PERFILES ===");
   console.log(
     `${report.profiles}/${plan.profiles} perfiles bajados · ${report.snapshots} snapshots nuevos · ` +
-      `${report.gearRows} filas de gear · ${report.withTalentCode} con código de talentos.`,
+      `${report.gearRows} filas de gear.`,
+  );
+  console.log(
+    `Talentos: ${report.withTalentCode} con código · ${report.withTalentNodes} con nodos · ` +
+      `${report.withPvpTalents} con talentos PvP.`,
   );
   if (report.noRating > 0) {
     console.log(`${report.noRating} ya no aparecen en su bracket (rotación).`);
@@ -777,6 +802,8 @@ export async function refreshProfiles(args: string[] = []): Promise<void> {
       snapshots: 0,
       gearRows: 0,
       withTalentCode: 0,
+      withTalentNodes: 0,
+      withPvpTalents: 0,
       noRating: 0,
       apiErrors: 0,
       movedSegment: 0,

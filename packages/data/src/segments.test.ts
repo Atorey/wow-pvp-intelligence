@@ -27,6 +27,8 @@ function row(overrides: Partial<SegmentRow> = {}): SegmentRow & { confidence: st
     sample_size: 3000,
     gear_sample: 0,
     talent_sample: 0,
+    talent_node_sample: 0,
+    pvp_talent_sample: 0,
     item_level_sample: 0,
     rating_median: "1897.5",
     rating_p25: "1840.0",
@@ -106,6 +108,27 @@ describe("readSegment", () => {
     const selected = call.text.slice(0, call.text.indexOf("from"));
     assert.ok(!/\bconfidence\b/.test(selected), `la SELECT pide confidence:\n${selected}`);
     assert.ok(/\bgear_sample\b/.test(selected));
+    assert.ok(/\btalent_node_sample\b/.test(selected));
+    assert.ok(/\bpvp_talent_sample\b/.test(selected));
+  });
+
+  it("cada base de comparación deriva su confianza de su propio denominador", async () => {
+    // Población de sobra, gear justo, nodos recién empezados: es el estado real
+    // de los primeros días tras el ADR 0026, y leer una sola cifra lo taparía.
+    const db = fakeDb([
+      row({ sample_size: 3000, gear_sample: 120, talent_node_sample: 40, pvp_talent_sample: 0 }),
+    ]);
+    const read = await readSegment(db, {
+      region: "eu",
+      seasonId: 42,
+      bracket: "shuffle-priest-holy",
+      segmentId: "1800-2000",
+    });
+
+    assert.equal(read?.population.confidence, "high");
+    assert.equal(read?.gear.confidence, "high");
+    assert.equal(read?.talentNodes.confidence, "medium");
+    assert.equal(read?.pvpTalents.confidence, "insufficient");
   });
 
   it("pide el computed_at más alto, no el de hoy", async () => {
@@ -179,6 +202,9 @@ describe("readAdoption", () => {
         slot_group: "TRINKET_1",
         item_id: "228858",
         item_name: "Signet of the Priory",
+        talent_tree: null,
+        talent_id: null,
+        talent_name: null,
         icon_url: "https://render.worldofwarcraft.com/eu/icons/56/7384535.jpg",
         users: 111,
         denominator: 148,
@@ -207,6 +233,9 @@ describe("readAdoption", () => {
         slot_group: null,
         item_id: null,
         item_name: null,
+        talent_tree: null,
+        talent_id: null,
+        talent_name: null,
         icon_url: null,
         users: 3,
         denominator: 40,
@@ -233,6 +262,9 @@ describe("readAdoption", () => {
         slot_group: "TRINKET_1",
         item_id: "228858",
         item_name: "Signet of the Priory",
+        talent_tree: null,
+        talent_id: null,
+        talent_name: null,
         icon_url: "https://render.worldofwarcraft.com/eu/icons/56/7384535.jpg",
         users: 111,
         denominator: 148,
@@ -257,6 +289,9 @@ describe("readAdoption", () => {
         slot_group: "TRINKET_1",
         item_id: "228858",
         item_name: "Signet of the Priory",
+        talent_tree: null,
+        talent_id: null,
+        talent_name: null,
         icon_url: null,
         users: 111,
         denominator: 148,
@@ -283,5 +318,62 @@ describe("readAdoption", () => {
     await readAdoption(withLimit, segment, "gear-item", { limit: 5 });
     assert.match(withLimit.calls[0]?.text ?? "", /limit \$3/);
     assert.deepEqual(withLimit.calls[0]?.values, [segment.rowId, "gear-item", 5]);
+  });
+});
+
+describe("readAdoption con variables de talento", () => {
+  const segment = toSegmentRead(row({ sample_size: 400, talent_node_sample: 100 }));
+
+  it("trae el árbol, el id y el nombre del nodo (ADR 0026)", async () => {
+    const db = fakeDb([
+      {
+        variable_kind: "talent-node",
+          variable_key: "class:99846",
+          slot_group: null,
+          item_id: null,
+          item_name: null,
+          talent_tree: "class",
+          talent_id: "99846",
+          talent_name: "Shimmer",
+          icon_url: null,
+          users: 62,
+          denominator: 100,
+          unavailable: 340,
+          adoption_rate: "0.62",
+      },
+    ]);
+
+    const [adoption] = await readAdoption(db, segment, "talent-node");
+    assert.equal(adoption?.talentTree, "class");
+    assert.equal(adoption?.talentId, 99846);
+    assert.equal(adoption?.talentName, "Shimmer");
+    assert.equal(adoption?.rate, 0.62);
+    // El denominador es el de la fila, no el gear_sample del escalón.
+    assert.equal(adoption?.provenance.denominator, 100);
+    assert.equal(adoption?.unavailable, 340);
+  });
+
+  it("un nodo sin nombre resuelto sigue siendo una adopción que enseñar", async () => {
+    const db = fakeDb([
+      {
+        variable_kind: "talent-node",
+          variable_key: "spec:1",
+          slot_group: null,
+          item_id: null,
+          item_name: null,
+          talent_tree: "spec",
+          talent_id: "1",
+          talent_name: null,
+          icon_url: null,
+          users: 5,
+          denominator: 10,
+          unavailable: 0,
+          adoption_rate: "0.5",
+      },
+    ]);
+
+    const [adoption] = await readAdoption(db, segment, "talent-node");
+    assert.equal(adoption?.talentName, null);
+    assert.equal(adoption?.rate, 0.5);
   });
 });

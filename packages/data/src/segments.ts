@@ -42,8 +42,19 @@ export interface SegmentRead {
   population: Provenance;
   /** Base de comparación del gear: `gear_sample`. La que decide el Player Gap. */
   gear: Provenance;
-  /** Base de comparación de talentos. Separada porque no coincide con la de gear. */
+  /**
+   * Base de comparación por código de loadout. Separada de la de gear porque no
+   * coinciden, y separada de `talentNodes` porque miden cosas distintas: esta
+   * cuenta quién tiene código, que es un dato más viejo y más disponible.
+   *
+   * Lo que sostiene una comparación de talentos es `talentNodes`, no esta
+   * (ADR 0026).
+   */
   talents: Provenance;
+  /** Base de comparación por nodo: la que decide si se puede comparar la build. */
+  talentNodes: Provenance;
+  /** Base de los talentos PvP. Propia: faltan por razones que no son las del loadout. */
+  pvpTalents: Provenance;
   /** Base de la mediana de item level. */
   itemLevel: Provenance;
   rating: {
@@ -85,6 +96,8 @@ export interface SegmentRow {
   sample_size: number;
   gear_sample: number;
   talent_sample: number;
+  talent_node_sample: number;
+  pvp_talent_sample: number;
   item_level_sample: number;
   rating_median: string | null;
   rating_p25: string | null;
@@ -109,7 +122,8 @@ export interface SegmentRow {
  */
 const SEGMENT_COLUMNS = `id, computed_at, region, season_id, bracket, class_slug, spec_slug,
        segment_id, segment_min, segment_max, activity_window_days,
-       sample_size, gear_sample, talent_sample, item_level_sample,
+       sample_size, gear_sample, talent_sample, talent_node_sample, pvp_talent_sample,
+       item_level_sample,
        rating_median, rating_p25, rating_p75, rating_min, rating_max,
        equipped_item_level_median, profile_data_from, profile_data_to,
        excluded_search, active_by_delta, active_by_first_seen`;
@@ -138,6 +152,8 @@ export function toSegmentRead(row: SegmentRow): SegmentRead {
     population: provenanceFor({ ...base, denominator: row.sample_size }),
     gear: provenanceFor({ ...base, denominator: row.gear_sample }),
     talents: provenanceFor({ ...base, denominator: row.talent_sample }),
+    talentNodes: provenanceFor({ ...base, denominator: row.talent_node_sample }),
+    pvpTalents: provenanceFor({ ...base, denominator: row.pvp_talent_sample }),
     itemLevel: provenanceFor({ ...base, denominator: row.item_level_sample }),
     rating: {
       median: toNumberOrNull(row.rating_median),
@@ -206,8 +222,19 @@ export async function readBracketSegments(
   return rows.map(toSegmentRead);
 }
 
-/** Qué variable se agregó. Las dos que hoy escribe `refresh-aggregates`. */
-export type VariableKind = "gear-item" | "talent-code";
+/**
+ * Qué variable se agregó. Las que escribe `refresh-aggregates` (ADR 0026).
+ *
+ * `talent-code` sigue existiendo y casi nunca agrupa: entre 75 y 97 códigos
+ * distintos por cada 100 perfiles de un segmento. Lo que describe un escalón es
+ * `talent-node`.
+ */
+export type VariableKind =
+  | "gear-item"
+  | "talent-code"
+  | "talent-node"
+  | "pvp-talent"
+  | "hero-tree";
 
 /**
  * Un `adoption_rate` con todo lo que hace falta para poder enseñarlo.
@@ -218,12 +245,24 @@ export type VariableKind = "gear-item" | "talent-code";
  */
 export interface AdoptionRead {
   kind: VariableKind;
-  /** Clave de la variable: el `item_id` como texto, o el código de talentos. */
+  /**
+   * Clave de la variable dentro del escalón: `'TRINKET:207581'`, `'class:99846'`,
+   * `'pvp:3755'`, el id del árbol de héroe o el código de talentos completo.
+   */
   variableKey: string;
-  /** 'TRINKET_1', 'HEAD'… null en las variables que no son de gear. */
+  /** 'TRINKET', 'HEAD'… null en las variables que no son de gear. */
   slotGroup: string | null;
   itemId: number | null;
   itemName: string | null;
+  /** 'class' | 'spec' | 'hero' | 'pvp'. null fuera de las variables de talento. */
+  talentTree: string | null;
+  /** Id del nodo o del talento PvP; en 'hero-tree', el id del árbol. */
+  talentId: number | null;
+  /**
+   * Nombre del talento tal como estaba al calcular. `null` es "no disponible"
+   * (regla 5): la API deja algún nodo sin tooltip, y ese nodo sí está observado.
+   */
+  talentName: string | null;
   /**
    * URL del icono en el CDN de Blizzard, del catálogo `item_media` (#67).
    *
@@ -255,6 +294,9 @@ interface AdoptionRow {
   slot_group: string | null;
   item_id: string | null;
   item_name: string | null;
+  talent_tree: string | null;
+  talent_id: string | null;
+  talent_name: string | null;
   icon_url: string | null;
   users: number;
   denominator: number;
@@ -284,6 +326,7 @@ export async function readAdoption(
 ): Promise<AdoptionRead[]> {
   const { rows } = await db.query<AdoptionRow>(
     `select a.variable_kind, a.variable_key, a.slot_group, a.item_id, a.item_name,
+            a.talent_tree, a.talent_id, a.talent_name,
             m.icon_url, a.users, a.denominator, a.unavailable, a.adoption_rate
        from aggregate_snapshots a
        -- left join, nunca inner: un item sin icono resuelto sigue siendo una
@@ -302,6 +345,9 @@ export async function readAdoption(
     slotGroup: row.slot_group,
     itemId: row.item_id === null ? null : toNumber(row.item_id),
     itemName: row.item_name,
+    talentTree: row.talent_tree,
+    talentId: row.talent_id === null ? null : toNumber(row.talent_id),
+    talentName: row.talent_name,
     iconUrl: row.icon_url,
     users: row.users,
     unavailable: row.unavailable,

@@ -287,6 +287,11 @@ async function loadPopulation(
       rating: row.rating,
       gearBySlot: gearBySnapshot.get(row.id) ?? new Map<string, number>(),
       talentLoadoutCode: row.talent_loadout_code,
+      // Este reporte compara por código exacto y no lee nodos: el ADR 0026
+      // publica la agregación por nodo, y llevarla a la comparación es #18.
+      talents: null,
+      heroTalentTree: null,
+      pvpTalents: null,
       equippedItemLevel: row.equipped_item_level,
       averageItemLevel: row.average_item_level,
     };
@@ -554,9 +559,9 @@ function renderMarkdown(context: ReportContext): string {
     );
     lines.push("");
     lines.push(
-      "Esta comparación solo será informativa cuando el loadout se decodifique en nodos " +
-        "individuales y cada nodo tenga su propio `adoption_rate` (#24). Hasta entonces, el " +
-        "Player Gap se sostiene sobre gear, no sobre talentos.",
+      "La comparación informativa es la de nodos, que desde el ADR 0026 tienen su propio " +
+        "`adoption_rate` por segmento. Este reporte sigue siendo el del código exacto: el " +
+        "Player Gap se sostiene sobre gear mientras no la levante #18.",
     );
   } else {
     if (talents.playerCode === null) {
@@ -584,7 +589,7 @@ function renderMarkdown(context: ReportContext): string {
     lines.push(
       "La coincidencia es **exacta** sobre el código completo: dos builds que difieran en un " +
         "solo nodo cuentan como distintas. No hay un “% de talentos alineados” porque con " +
-        "coincidencia exacta solo podría valer 0 o 100 (#24).",
+        "coincidencia exacta solo podría valer 0 o 100.",
     );
   }
   lines.push("");
@@ -661,7 +666,8 @@ function toJson(context: ReportContext): unknown {
           `momento del run: subida observada de season_match_statistics.played o, a falta de ` +
           `ella, primera observación del personaje.`,
       "Sin stats secundarias ni embellishments: el schema no los guarda todavía.",
-      "Talentos por coincidencia exacta de talent_loadout_code (#24 pendiente).",
+      "Talentos por coincidencia exacta de talent_loadout_code: este reporte no lee los " +
+        "nodos que agrega el ADR 0026.",
     ],
   };
 }

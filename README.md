@@ -48,7 +48,7 @@ Para conseguir las credenciales de Blizzard, ver [apps/pipeline/README.md](apps/
 Resumen honesto:
 
 - ✅ Los 4 endpoints core responden bien en EU — sobre una muestra de 3 personajes / 3 clases.
-- ⚠️ `talent_loadout_code` presente en esa muestra, pero **3 clases de 13 no bastan** para comprometer la comparación de talentos: el bug de 11.2 no afectaba a todas por igual.
+- ⚠️ `talent_loadout_code` presente en esa muestra. La validación se amplió después a las 13 clases y el riesgo del parche 11.2 quedó cerrado; el que apareció en su lugar es de agregación —el código completo no agrupa— y se resuelve observando **nodos** ([ADR 0026](docs/decisions/0026-talentos-por-nodo.md)).
 - ✅ Leaderboard de 3 specs ingerido; la cobertura por debajo de 1800 depende mucho de la spec.
 - ⬜ Muestreo de perfiles completos (gear + talentos) → **siguiente paso real**.
 - ⬜ Primer Player Gap con datos completos, y GO/NO-GO formal de Sprint 0.

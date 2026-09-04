@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { requireSpec } from "@wowpvp/core";
-import { findTalentLoadout, mapEquipment, specNameToSlug } from "./profile-mapping";
+import { findTalentLoadout, mapEquipment, mapPvpTalents, specNameToSlug } from "./profile-mapping";
 
 const FROST_MAGE = requireSpec("mage", "frost");
 
@@ -101,7 +101,8 @@ test("se coge el loadout de la spec del bracket, no el de la spec activa", () =>
     FROST_MAGE,
   );
 
-  assert.deepEqual(result, { code: "CODIGO-FROST", outcome: "ok" });
+  assert.equal(result.code, "CODIGO-FROST");
+  assert.equal(result.outcome, "ok");
 });
 
 test("dentro de la spec correcta se prefiere el loadout activo", () => {
@@ -136,32 +137,39 @@ test("sin loadout activo se usa el primero que traiga código", () => {
     FROST_MAGE,
   );
 
-  assert.deepEqual(result, { code: "UNICO", outcome: "ok" });
+  assert.equal(result.code, "UNICO");
+  assert.equal(result.outcome, "ok");
 });
 
 test("los motivos de null se distinguen entre sí", () => {
   // El riesgo del parche 11.2 es 'no-code': la API responde y aun así no trae
   // el código. Confundirlo con 'spec-not-listed' borraría el dato que este
   // muestreo viene a medir.
-  assert.deepEqual(
-    findTalentLoadout({ specializations: [{ specialization: { name: "Fire" } }] }, FROST_MAGE),
-    { code: null, outcome: "spec-not-listed" },
+  const outcomes = (response: Parameters<typeof findTalentLoadout>[0]) => {
+    const result = findTalentLoadout(response, FROST_MAGE);
+    // Sin loadout elegido no hay nodos que sacar de ninguna parte: la lista vacía
+    // acompaña siempre a un código nulo, nunca lo contradice.
+    assert.deepEqual(result.talents, []);
+    assert.equal(result.heroTree, null);
+    assert.equal(result.code, null);
+    return result.outcome;
+  };
+
+  assert.equal(
+    outcomes({ specializations: [{ specialization: { name: "Fire" } }] }),
+    "spec-not-listed",
   );
-  assert.deepEqual(
-    findTalentLoadout(
-      { specializations: [{ specialization: { name: "Frost" }, loadouts: [] }] },
-      FROST_MAGE,
-    ),
-    { code: null, outcome: "no-loadout" },
+  assert.equal(
+    outcomes({ specializations: [{ specialization: { name: "Frost" }, loadouts: [] }] }),
+    "no-loadout",
   );
-  assert.deepEqual(
-    findTalentLoadout(
-      { specializations: [{ specialization: { name: "Frost" }, loadouts: [{ is_active: true }] }] },
-      FROST_MAGE,
-    ),
-    { code: null, outcome: "no-code" },
+  assert.equal(
+    outcomes({
+      specializations: [{ specialization: { name: "Frost" }, loadouts: [{ is_active: true }] }],
+    }),
+    "no-code",
   );
-  assert.deepEqual(findTalentLoadout({}, FROST_MAGE), { code: null, outcome: "spec-not-listed" });
+  assert.equal(outcomes({}), "spec-not-listed");
 });
 
 test("un código vacío cuenta como ausente, no como código", () => {
@@ -195,4 +203,152 @@ test("los nombres de spec de varias palabras casan con su slug", () => {
     ).code,
     "BM",
   );
+});
+
+// --- Nodos de talento (ADR 0026) ---
+
+/** Un loadout completo de Frost, con nodos, árbol de héroe y talentos PvP. */
+const FROST_WITH_NODES = {
+  specializations: [
+    {
+      specialization: { name: "Frost" },
+      pvp_talent_slots: [
+        { selected: { talent: { id: 3517, name: "Ice Wall" } } },
+        { selected: { talent: { id: 828, name: "Precognition" } } },
+      ],
+      loadouts: [
+        {
+          is_active: true,
+          talent_loadout_code: "CODIGO-FROST",
+          selected_class_talents: [
+            { id: 62191, rank: 1, tooltip: { talent: { name: "Shimmer" } } },
+            { id: 62192, rank: 2, tooltip: { talent: { name: "Improved Blink" } } },
+          ],
+          selected_spec_talents: [
+            { id: 62432, rank: 1, tooltip: { talent: { name: "Frozen Touch" } } },
+          ],
+          selected_hero_talents: [
+            { id: 94900, rank: 1, tooltip: { talent: { name: "Rimecaster" } } },
+          ],
+          selected_hero_talent_tree: { id: 64, name: "Spellslinger" },
+        },
+      ],
+    },
+  ],
+};
+
+test("los nodos salen del mismo loadout que el código, no de otra spec", () => {
+  // El caso que hace falta blindar: si los nodos los eligiera una función
+  // aparte, el código sería de Frost y los nodos de Fire, y las dos mitades
+  // serían individualmente correctas (ADR 0026).
+  const result = findTalentLoadout(
+    {
+      specializations: [
+        {
+          specialization: { name: "Fire" },
+          loadouts: [
+            {
+              is_active: true,
+              talent_loadout_code: "CODIGO-FIRE",
+              selected_spec_talents: [{ id: 111, tooltip: { talent: { name: "Fuego" } } }],
+              selected_hero_talent_tree: { id: 9, name: "Sunfury" },
+            },
+          ],
+        },
+        ...FROST_WITH_NODES.specializations,
+      ],
+    },
+    FROST_MAGE,
+  );
+
+  assert.equal(result.code, "CODIGO-FROST");
+  assert.equal(result.heroTree?.name, "Spellslinger");
+  assert.deepEqual(
+    result.talents.map((talent) => talent.talentName),
+    ["Shimmer", "Improved Blink", "Frozen Touch", "Rimecaster"],
+  );
+  assert.deepEqual(
+    result.talents.map((talent) => talent.tree),
+    ["class", "class", "spec", "hero"],
+  );
+  assert.deepEqual(
+    result.talents.map((talent) => talent.rank),
+    [1, 2, 1, 1],
+  );
+});
+
+test("un nodo sin tooltip entra con el nombre a null, no se descarta", () => {
+  // La selección está observada; lo que falta es cómo se llama. Descartarla
+  // perdería un nodo real por un problema de etiqueta (regla 5).
+  const result = findTalentLoadout(
+    {
+      specializations: [
+        {
+          specialization: { name: "Frost" },
+          loadouts: [
+            {
+              is_active: true,
+              talent_loadout_code: "C",
+              selected_class_talents: [{ id: 99846, rank: 1 }],
+            },
+          ],
+        },
+      ],
+    },
+    FROST_MAGE,
+  );
+
+  assert.deepEqual(result.talents, [{ tree: "class", talentId: 99846, talentName: null, rank: 1 }]);
+});
+
+test("sin árbol de héroe el loadout sigue valiendo, con heroTree a null", () => {
+  // Pasa en ~8% de los loadouts medidos: no invalida los nodos.
+  const result = findTalentLoadout(
+    {
+      specializations: [
+        {
+          specialization: { name: "Frost" },
+          loadouts: [
+            {
+              is_active: true,
+              talent_loadout_code: "C",
+              selected_spec_talents: [{ id: 1, tooltip: { talent: { name: "X" } } }],
+            },
+          ],
+        },
+      ],
+    },
+    FROST_MAGE,
+  );
+
+  assert.equal(result.outcome, "ok");
+  assert.equal(result.heroTree, null);
+  assert.equal(result.talents.length, 1);
+});
+
+test("los talentos PvP se leen de la spec del bracket aunque no sea la activa", () => {
+  const talents = mapPvpTalents(FROST_WITH_NODES, FROST_MAGE);
+
+  assert.deepEqual(talents, [
+    { tree: "pvp", talentId: 3517, talentName: "Ice Wall", rank: null },
+    { tree: "pvp", talentId: 828, talentName: "Precognition", rank: null },
+  ]);
+});
+
+test("sin talentos PvP se devuelve null, nunca una lista vacía", () => {
+  // `[]` diría "los miramos y no lleva ninguno". La API los omite en ~12% de
+  // las entradas de spec, y eso es "no disponible" (regla 5): esos perfiles
+  // salen del denominador de PvP sin salir del de nodos.
+  assert.equal(
+    mapPvpTalents({ specializations: [{ specialization: { name: "Frost" } }] }, FROST_MAGE),
+    null,
+  );
+  assert.equal(
+    mapPvpTalents(
+      { specializations: [{ specialization: { name: "Frost" }, pvp_talent_slots: [{}] }] },
+      FROST_MAGE,
+    ),
+    null,
+  );
+  assert.equal(mapPvpTalents({}, FROST_MAGE), null);
 });
