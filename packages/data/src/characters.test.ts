@@ -1,7 +1,14 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { MIN_SAMPLE_MEDIUM } from "@wowpvp/core";
-import { percentileFor, readActivity, readLatestSnapshot, readStanding } from "./characters";
+import {
+  percentileFor,
+  readActivity,
+  readLatestObservedSeason,
+  readLatestSnapshot,
+  readPeakRating,
+  readStanding,
+} from "./characters";
 import { fakeDb } from "./fake-db";
 
 const OBSERVED_AT = new Date("2026-08-21T19:04:00Z");
@@ -132,19 +139,19 @@ describe("readActivity", () => {
 
 describe("percentileFor", () => {
   it("no da percentil por debajo del umbral: la fracción sí, el porcentaje no", () => {
-    assert.equal(percentileFor({ observed: 6, below: 3, percentile: null }), null);
-    assert.equal(percentileFor({ observed: MIN_SAMPLE_MEDIUM - 1, below: 10, percentile: null }), null);
+    assert.equal(percentileFor({ observed: 6, below: 3 }), null);
+    assert.equal(percentileFor({ observed: MIN_SAMPLE_MEDIUM - 1, below: 10 }), null);
   });
 
   it("lo da a partir del umbral", () => {
-    assert.equal(percentileFor({ observed: MIN_SAMPLE_MEDIUM, below: 15, percentile: null }), 50);
-    assert.equal(percentileFor({ observed: 2282, below: 1598, percentile: null }), (1598 / 2282) * 100);
+    assert.equal(percentileFor({ observed: MIN_SAMPLE_MEDIUM, below: 15 }), 50);
+    assert.equal(percentileFor({ observed: 2282, below: 1598 }), (1598 / 2282) * 100);
   });
 });
 
 describe("readStanding", () => {
   it("excluye los snapshots de búsqueda, igual que los agregados", async () => {
-    const db = fakeDb([{ observed: 2282, below: 1598 }]);
+    const db = fakeDb([{ observed: 2282, below: 1598, highest: 2709 }]);
     await readStanding(db, {
       region: "eu",
       seasonId: 42,
@@ -156,7 +163,7 @@ describe("readStanding", () => {
   });
 
   it("no aplica ventana de actividad: describe observados, no activos", async () => {
-    const db = fakeDb([{ observed: 2282, below: 1598 }]);
+    const db = fakeDb([{ observed: 2282, below: 1598, highest: 2709 }]);
     await readStanding(db, {
       region: "eu",
       seasonId: 42,
@@ -168,7 +175,7 @@ describe("readStanding", () => {
   });
 
   it("cuenta una vez por personaje aunque tenga varios snapshots", async () => {
-    const db = fakeDb([{ observed: 2282, below: 1598 }]);
+    const db = fakeDb([{ observed: 2282, below: 1598, highest: 2709 }]);
     const read = await readStanding(db, {
       region: "eu",
       seasonId: 42,
@@ -181,6 +188,21 @@ describe("readStanding", () => {
     assert.equal(read.below, 1598);
   });
 
+  it("el máximo sale de la misma población que el recuento", async () => {
+    // Si viniera de `population_segments` podría quedar por debajo del rating
+    // del propio jugador, porque aquellos cuentan con ventana de actividad.
+    const db = fakeDb([{ observed: 2282, below: 1598, highest: 2709 }]);
+    const read = await readStanding(db, {
+      region: "eu",
+      seasonId: 42,
+      bracket: "shuffle-priest-holy",
+      rating: 1834,
+    });
+
+    assert.equal(read.highest, 2709);
+    assert.match(db.calls[0]?.text ?? "", /max\(rating\)/);
+  });
+
   it("devuelve un recuento vacío en vez de fallar si el bracket no tiene población", async () => {
     const db = fakeDb([]);
     const read = await readStanding(db, {
@@ -190,6 +212,46 @@ describe("readStanding", () => {
       rating: 1834,
     });
 
-    assert.deepEqual(read, { observed: 0, below: 0, percentile: null });
+    assert.deepEqual(read, { observed: 0, below: 0, highest: null, percentile: null });
+  });
+});
+
+describe("readLatestObservedSeason", () => {
+  it("devuelve la última temporada en la que se observó al personaje", async () => {
+    const db = fakeDb([{ season_id: 42 }]);
+    const season = await readLatestObservedSeason(db, {
+      region: "eu",
+      realmSlug: "sanguino",
+      nameSlug: "anatorey",
+    });
+
+    assert.equal(season, 42);
+  });
+
+  it("null es 'no consta en la población', no 'no existe'", async () => {
+    // Un personaje por debajo del corte de 5.000 al que nadie ha buscado
+    // todavía no tiene ni una fila, y eso no dice nada sobre si existe.
+    const db = fakeDb([{ season_id: null }]);
+    const season = await readLatestObservedSeason(db, {
+      region: "eu",
+      realmSlug: "sanguino",
+      nameSlug: "nadie",
+    });
+
+    assert.equal(season, null);
+  });
+});
+
+describe("readPeakRating", () => {
+  it("mira el histórico entero y no la última fila", async () => {
+    const db = fakeDb([{ peak: 2012 }]);
+    const peak = await readPeakRating(db, {
+      characterId: "0f1c…",
+      bracket: "shuffle-priest-holy",
+      seasonId: 42,
+    });
+
+    assert.equal(peak, 2012);
+    assert.match(db.calls[0]?.text ?? "", /max\(rating\)/);
   });
 });

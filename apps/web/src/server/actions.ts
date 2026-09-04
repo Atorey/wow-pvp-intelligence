@@ -1,8 +1,9 @@
 "use server";
 
-import { playerPath, searchPath } from "@wowpvp/core";
-import { redirect } from "next/navigation";
+import { playerPath, resolvePlayerRoute, searchPath } from "@wowpvp/core";
+import { notFound, redirect } from "next/navigation";
 import { SOURCE_LOCALE, isLocale, localizedPathname } from "../i18n/locales";
+import { refreshCharacter } from "./refresh";
 import { resolveSearch } from "./search";
 
 /**
@@ -45,4 +46,45 @@ export async function submitSearch(formData: FormData): Promise<never> {
   // página los pinta sin volver a preguntar, así que refrescarla no cuesta otra
   // llamada ni convierte un "no se pudo mirar" en un "no existe".
   redirect(landing(resolution.status));
+}
+
+/**
+ * Lo que ocurre al pulsar "Actualizar" en un perfil.
+ *
+ * Es una Server Action por lo mismo que el buscador: vuelve a preguntarle a
+ * Blizzard y lo que responde entra al dataset. Colgado de un `GET`, cada
+ * precarga del navegador sobre un enlace al perfil gastaría cuota compartida
+ * con el pipeline, y bastaría con recargar la página para volver a gastarla.
+ *
+ * Vuelve al mismo perfil con el resultado en la URL —la misma forma que usa
+ * `/search`— para que refrescar la página después no dispare otra llamada.
+ */
+export async function refreshPlayer(formData: FormData): Promise<never> {
+  const field = (key: string): string => {
+    const value = formData.get(key);
+    return typeof value === "string" ? value.trim() : "";
+  };
+
+  const written = field("locale");
+  const locale = isLocale(written) ? written : SOURCE_LOCALE;
+
+  const resolution = resolvePlayerRoute({
+    region: field("region"),
+    realm: field("realm"),
+    name: field("name"),
+  });
+  // El formulario lleva la identidad ya canónica, así que aquí solo puede
+  // llegar algo que no lo sea si alguien lo ha reescrito: no hay a quién
+  // actualizar y tampoco a dónde volver.
+  if (resolution.status !== "canonical") notFound();
+
+  const status = await refreshCharacter(resolution.route);
+
+  const query = new URLSearchParams({ refresh: status });
+  const spec = field("spec");
+  if (spec) query.set("spec", spec);
+  const tab = field("tab");
+  if (tab) query.set("tab", tab);
+
+  redirect(`${localizedPathname(playerPath(resolution.route), locale)}?${query.toString()}`);
 }

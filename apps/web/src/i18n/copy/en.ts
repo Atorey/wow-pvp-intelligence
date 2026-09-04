@@ -10,6 +10,8 @@
  * verbos dirigidos al lector en el copy de datos, nada de superlativos, nada de
  * fechas, y "observed" en vez de "players" (§2.5).
  */
+import type { GearSlot } from "@wowpvp/core";
+
 export const en = {
   site: {
     name: "One Rung",
@@ -167,6 +169,228 @@ export const en = {
   player: {
     title: "Player profile",
     lead: "Rating, percentile, spec and activity, and what separates this character from the next rung.",
+
+    /**
+     * Un personaje del que no consta ni una observación. No es "no existe": por
+     * debajo del corte de 5.000 del leaderboard solo entra al dataset quien ha
+     * sido buscado, así que lo que falta es la búsqueda, no el personaje.
+     */
+    unknown: {
+      title: "This character isn't in the population yet",
+      body: "Nobody has looked them up here, and they haven't been seen on the ladder this season. A search asks Blizzard about them and adds them.",
+      action: "Look this character up",
+    },
+
+    /**
+     * El botón que vuelve a preguntarle a Blizzard. Lo que dice cuando el
+     * perfil está fresco no es un error: es el TTL de §28 evitando que consultar
+     * cinco veces al mismo personaje cueste cinco fichas de cuota compartida.
+     */
+    refresh: {
+      action: "Refresh",
+      fresh: (minutes: string) => `Looked up less than ${minutes} minutes ago.`,
+      unavailable:
+        "Blizzard couldn't be asked just now. What's below is the last observation on record.",
+    },
+
+    /** La observación de la que sale la ficha, fechada. */
+    observedAt: (when: string) => `Observed ${when}`,
+    season: (id: string) => `Season ${id}`,
+
+    figures: {
+      rating: "rating",
+      peak: (rating: string) => `highest observed ${rating}`,
+      matches: "played",
+      /**
+       * Solo comparable con su misma fuente: perfil y leaderboard no cuadran
+       * (ADR 0008). La etiqueta va delante del número en las dos lenguas porque
+       * en español "1 perdidas" no concuerda, y este diccionario no tiene
+       * plurales que dependan de la cantidad (ADR 0020).
+       */
+      record: (won: string, lost: string) => `Won: ${won} · Lost: ${lost}`,
+      itemLevel: "item level (equipped)",
+      itemLevelMedian: (segment: string, median: string) => `${segment} median: ${median}`,
+      percentile: "percentile in the spec",
+      below: (below: string, observed: string) => `${below} of ${observed} below`,
+    },
+
+    /** El selector de spec. Un personaje juega varias, y cada una es otro bracket. */
+    specs: {
+      label: "Specs observed this season",
+    },
+
+    tabs: {
+      label: "Profile sections",
+      summary: "Summary",
+      gear: "Gear",
+    },
+
+    /**
+     * La caja Player Gap (§1 del brief). Los tres estados son tres layouts, no
+     * tres colores, y el copy es la mitad de esa diferencia.
+     */
+    gap: {
+      title: (segment: string) => `What separates you from ${segment}?`,
+      subject: (spec: string, bracket: string, rating: string) =>
+        `${spec} · ${bracket} · ${rating}`,
+      segments: (own: string, target: string) => `You ${own} → target ${target}`,
+      /**
+       * "Profiles" y no "players": el denominador son los perfiles cuyo equipo
+       * se ha podido leer, que son muchos menos que la gente que hay ahí arriba
+       * (§2.5, decisión 6 del ADR 0011).
+       */
+      sampled: (sample: string, segment: string) => `${sample} profiles sampled in ${segment}`,
+      confidence: {
+        high: "Confidence: high",
+        medium: "Confidence: medium",
+        insufficient: "No comparison",
+      },
+      /**
+       * El aviso de muestra reducida. Ocupa espacio y desplaza al contenido a
+       * propósito: si se puede pasar por alto haciendo scroll, no cumple §13.4.
+       */
+      smallSample:
+        "Small sample (30-99 profiles). These figures will move as more of this segment is sampled.",
+      none: {
+        title: "No comparison yet.",
+        /**
+         * Causa (a) con el contador a cero, que no es un caso raro al empezar
+         * la temporada. Va aparte porque "Only 0 have reached" no es una frase:
+         * el cero no se cuenta, se dice.
+         */
+        noneObserved: (spec: string, segment: string, needed: string) =>
+          `No ${spec} has been observed in ${segment} this season. ${needed} are needed before a percentage means anything.`,
+        /** Causa (a): la gente no ha llegado ahí arriba. No es cosa nuestra. */
+        byPopulation: (observed: string, spec: string, segment: string, needed: string) =>
+          `Only ${observed} ${spec} have reached ${segment} this season. ${needed} are needed before a percentage means anything.`,
+        /**
+         * Causa (c): de quien mira no tenemos perfil. Aparecer en el
+         * leaderboard no trae equipo, y sin equipo suyo no hay nada que
+         * comparar aunque el segmento de arriba esté muestreado.
+         */
+        bySubject:
+          "This character's equipment hasn't been read yet. The ladder carries their rating and nothing else; a profile lookup carries the rest.",
+        /** Causa (b): hay gente, lo que falta es su equipo. Sí es cosa nuestra. */
+        bySampling: (population: string, loaded: string, segment: string, needed: string) =>
+          `${population} characters are in ${segment}, but the gear of only ${loaded} of them has been loaded. ${needed} are needed. That's our sampling, not the population, and it's filling in.`,
+      },
+      /** §1.6: en el tramo abierto no hay escalón de arriba, y eso no es falta de muestra. */
+      topSegment: {
+        title: "There's no rung above this one.",
+        body: "This character is in the open top segment, so there's no next segment to compare against.",
+      },
+      itemLevel: {
+        label: "Item level (equipped)",
+        reading: (player: string, segment: string, median: string) =>
+          `You ${player} · ${segment} median ${median}`,
+      },
+      notCompared: "Not compared yet: talents, secondary stats, embellishments.",
+      /**
+       * La nota de causalidad, fija siempre que haya comparación. Dice qué es el
+       * dato, no qué hacer con él (regla 3 del proyecto).
+       */
+      causality:
+        "This describes a correlation between gear and rating segment. A correlation is not a cause.",
+    },
+
+    /** El bloque descriptivo: dónde cae el jugador en la población observada. */
+    standing: {
+      title: "Where you stand",
+      sentence: (below: string, observed: string, spec: string, rating: string) =>
+        `${below} of the ${observed} ${spec} observed this season are below ${rating}.`,
+      /** La fracción manda y el porcentaje acompaña, nunca al revés (§2.5). */
+      percentile: (value: string) => `That's the ${value}th percentile.`,
+      segment: (segment: string) => `Segment ${segment}`,
+      /**
+       * Las dos cifras del bloque no cuentan a la misma gente y por eso se dice:
+       * el percentil cuenta la temporada entera y los tamaños de segmento solo a
+       * quien estuvo activo en la ventana. Sin esta línea se leerían como partes
+       * del mismo total, y no suman.
+       */
+      segmentsNote: (days: string) =>
+        `Segment sizes count who has been active in the last ${days} days; the figure above counts the whole season.`,
+      highest: "Highest observed rating",
+      observedNote: "Observed = seen on the ladder or looked up here. Not every player.",
+    },
+
+    brackets: {
+      title: "Other brackets",
+      none: "This site only reads Solo Shuffle. 2v2, 3v3, RBG and BG Blitz aren't observed in this release.",
+    },
+
+    /** Una línea por ausencia, con su causa y su denominador. Sin fechas (§2.3). */
+    missing: {
+      title: "What's missing",
+      /**
+       * Cuando lo que falta es gente arriba, la primera línea no habla de gear:
+       * decir "0 de 0 perfiles cargados" señalaría nuestro muestreo cuando el
+       * muestreo no tiene a quien mirar todavía (§2.4, variante a).
+       */
+      population: {
+        label: (segment: string) => `Characters in ${segment}`,
+        body: (observed: string, needed: string) => `${observed} so far. ${needed} are needed.`,
+      },
+      /** Lo que falta cuando el lado que no tenemos es el del propio personaje. */
+      subject: {
+        label: "This character's gear",
+        body: "Not read yet. It's what the comparison above needs.",
+      },
+      gear: {
+        label: (segment: string) => `Gear of ${segment}`,
+        body: (loaded: string, population: string) =>
+          `${loaded} of ${population} profiles loaded. It's what the comparison above needs.`,
+      },
+      itemLevel: {
+        label: (segment: string) => `Item level of ${segment}`,
+        body: "Same reason: no profiles yet.",
+      },
+      talents: {
+        label: "Talents",
+        body: "The build code is on record, undecoded into nodes. It isn't compared in this release.",
+      },
+      stats: {
+        label: "Secondary stats and embellishments",
+        body: "The endpoints we read don't return them.",
+      },
+    },
+
+    gear: {
+      title: "Observed gear",
+      /**
+       * El equipo y el rating vienen de observaciones distintas del mismo
+       * personaje, y el desfase se declara en vez de dejarlo suponer.
+       */
+      note: (when: string) =>
+        `This is the reading from ${when}, when their last update was recorded. An item with no icon keeps its slot: the name and the item level are the information.`,
+      empty:
+        "No equipment has been read for this character in this bracket. The leaderboard doesn't carry gear; a profile lookup does.",
+      /**
+       * Cómo se escribe cada slot. La clave es el vocabulario de Blizzard, que
+       * es el que guarda la columna y con el que se cuenta la adopción por slot.
+       */
+      slots: {
+        HEAD: "Head",
+        NECK: "Neck",
+        SHOULDER: "Shoulders",
+        BACK: "Back",
+        CHEST: "Chest",
+        WRIST: "Wrists",
+        HANDS: "Hands",
+        WAIST: "Waist",
+        LEGS: "Legs",
+        FEET: "Feet",
+        FINGER_1: "Ring",
+        FINGER_2: "Ring",
+        TRINKET_1: "Trinket",
+        TRINKET_2: "Trinket",
+        MAIN_HAND: "Weapon",
+        OFF_HAND: "Off hand",
+        SHIRT: "Shirt",
+        TABARD: "Tabard",
+      } satisfies Record<GearSlot, string>,
+    },
+
+    methodology: "How we count this → Methodology",
   },
 
   spec: {

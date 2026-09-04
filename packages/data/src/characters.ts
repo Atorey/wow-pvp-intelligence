@@ -237,11 +237,24 @@ export interface StandingRead {
    * El umbral no es nuevo — es el que ya vive en `packages/core`.
    */
   percentile: number | null;
+  /**
+   * El rating más alto de **esta misma** población observada.
+   *
+   * Sale de aquí y no de `population_segments` por una razón que se ve en
+   * pantalla: los segmentos cuentan con ventana de actividad, así que su máximo
+   * puede quedar por debajo del rating del propio jugador que se está mirando.
+   * Un "rating más alto observado: 2545" debajo de alguien con 2595 no es un
+   * matiz metodológico, es una contradicción (punto 5 del ADR 0011).
+   *
+   * `null` cuando no hay ninguna observación en ese bracket.
+   */
+  highest: number | null;
 }
 
 interface StandingRow {
   observed: number;
   below: number;
+  highest: number | null;
 }
 
 /**
@@ -270,12 +283,13 @@ export async function readStanding(
         order by s.character_id, s.captured_at desc
      )
      select count(*)::int as observed,
-            count(*) filter (where rating < $4)::int as below
+            count(*) filter (where rating < $4)::int as below,
+            max(rating)::int as highest
        from latest`,
     [key.region, key.seasonId, key.bracket, key.rating],
   );
 
-  const row = rows[0] ?? { observed: 0, below: 0 };
+  const row = rows[0] ?? { observed: 0, below: 0, highest: null };
   return { ...row, percentile: percentileFor(row) };
 }
 
@@ -284,7 +298,57 @@ export async function readStanding(
  * función para que se pueda probar sin base de datos: es la regla de producto,
  * no la consulta.
  */
-export function percentileFor(counts: StandingRead | StandingRow): number | null {
+export function percentileFor(counts: { observed: number; below: number }): number | null {
   if (counts.observed < MIN_SAMPLE_MEDIUM) return null;
   return (counts.below / counts.observed) * 100;
+}
+
+/**
+ * La temporada más reciente en la que hemos observado a un personaje.
+ *
+ * La web no puede preguntarle a Blizzard cuál es la temporada en curso —eso
+ * cuesta dos llamadas y una ficha de cuota por visita—, y tampoco le sirve: lo
+ * que la página de perfil enseña es lo último que sabemos de **este**
+ * personaje, y decir "temporada 42" sobre alguien a quien solo vimos en la 41
+ * sería fechar mal un dato real.
+ *
+ * `null` es "no consta en la población", que no es "no existe": puede estar por
+ * debajo del corte de 5.000 del leaderboard y no haberlo buscado nadie todavía.
+ */
+export async function readLatestObservedSeason(
+  db: Queryable,
+  key: CharacterKey,
+): Promise<number | null> {
+  const { rows } = await db.query<{ season_id: number | null }>(
+    `select max(s.season_id) as season_id
+       from character_snapshots s
+       join characters c on c.id = s.character_id
+      where c.region = $1 and c.realm_slug = $2 and c.name_slug = $3`,
+    [key.region, key.realmSlug, key.nameSlug],
+  );
+
+  return rows[0]?.season_id ?? null;
+}
+
+/**
+ * El rating más alto que le hemos visto a un personaje en un bracket.
+ *
+ * Es "el más alto observado", no "el más alto que alcanzó": desde el ADR 0009
+ * solo se inserta la fila cuyo rating cambia respecto a la anterior, así que
+ * entre dos observaciones pudo subir y volver a bajar sin que quede rastro. Se
+ * cuenta sobre el histórico entero de la temporada y no sobre la última fila,
+ * que es lo que lo distingue del rating actual.
+ */
+export async function readPeakRating(
+  db: Queryable,
+  key: { characterId: string; bracket: string; seasonId: number },
+): Promise<number | null> {
+  const { rows } = await db.query<{ peak: number | null }>(
+    `select max(rating) as peak
+       from character_snapshots
+      where character_id = $1 and bracket = $2 and season_id = $3`,
+    [key.characterId, key.bracket, key.seasonId],
+  );
+
+  return rows[0]?.peak ?? null;
 }
