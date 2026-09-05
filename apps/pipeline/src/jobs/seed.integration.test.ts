@@ -22,6 +22,7 @@ import {
   isComparable,
   readActivity,
   readAdoption,
+  readAdoptionFor,
   readBracketSegments,
   readLatestSnapshot,
   readLatestSnapshotsByBracket,
@@ -256,6 +257,55 @@ describe("lecturas de @wowpvp/data contra el schema real", { skip }, () => {
       // código, y esos salen del denominador en vez de contar como no-adopción.
       assert.ok(target.talents.denominator < target.gear.denominator);
       assert.ok(target.talents.denominator > 0);
+    });
+
+    it("publica gemas y encantamientos sobre el denominador del gear", async () => {
+      // Las dos variables que §16 nombraba y no se agregaban (ADR 0027). Lo que
+      // se comprueba contra el schema real es que comparten `gear_sample`: si
+      // alguien les diera un denominador propio, la fila diría otra cosa.
+      const gems = await readAdoption(pool, target, "gear-gem");
+      const enchants = await readAdoption(pool, target, "gear-enchant");
+
+      assert.ok(gems.length > 0, "el seed no sembró gemas");
+      assert.ok(enchants.length > 0, "el seed no sembró encantamientos");
+
+      for (const gem of gems) {
+        assert.equal(gem.slotGroup, null, "una gema no se agrupa por hueco");
+        assert.ok(gem.itemId !== null, "una gema es un item y lleva su id");
+        assert.equal(gem.provenance.denominator, target.gear.denominator);
+      }
+      for (const enchant of enchants) {
+        // Sin item_id, y por eso sin icono: lo que falta ahí es la ilustración
+        // (#92), no la cifra.
+        assert.equal(enchant.itemId, null);
+        assert.equal(enchant.iconUrl, null);
+        assert.ok(enchant.enchantmentId !== null);
+        assert.equal(enchant.provenance.denominator, target.gear.denominator);
+      }
+    });
+
+    it("readAdoptionFor trae dos escalones a la vez, cada uno con lo suyo", async () => {
+      const own = await readSegment(pool, {
+        region,
+        seasonId: CURRENT_SEASON,
+        bracket: frostMage,
+        segmentId: "1800-2000",
+      });
+      assert.ok(own);
+
+      const byRowId = await readAdoptionFor(pool, [own, target], "gear-item");
+
+      assert.deepEqual([...byRowId.keys()].sort(), [own.rowId, target.rowId].sort());
+      const byId = new Map<string, SegmentRead>([
+        [own.rowId, own],
+        [target.rowId, target],
+      ]);
+      for (const [rowId, adoptions] of byRowId) {
+        const denominator = byId.get(rowId)?.gear.denominator;
+        for (const adoption of adoptions) {
+          assert.equal(adoption.provenance.denominator, denominator);
+        }
+      }
     });
 
     it("no devuelve nada de un escalón sin perfiles, y no falla", async () => {

@@ -19,6 +19,8 @@ function build(characterId: string): PlayerBuild {
     talents: null,
     heroTalentTree: null,
     pvpTalents: null,
+    gems: [],
+    enchantments: [],
     equippedItemLevel: 630,
     averageItemLevel: 632,
   };

@@ -16,8 +16,14 @@ export interface EquipmentResponse {
     name?: string;
     level?: { value?: number };
     quality?: { type?: string };
-    enchantments?: { enchantment_id?: number }[];
-    sockets?: { item?: { id?: number } }[];
+    /**
+     * `display_string` es de dónde sale el nombre del encantamiento. La API no
+     * publica uno aparte y tampoco media para la mayoría (#92), pero el texto
+     * llega siempre: sin él, un encantamiento agregado sería un número.
+     */
+    enchantments?: { enchantment_id?: number; display_string?: string }[];
+    /** Un socket sin `item` es un hueco sin engemar, que es una observación. */
+    sockets?: { item?: { id?: number; name?: string } }[];
     bonus_list?: number[];
   }[];
 }
@@ -86,12 +92,65 @@ export interface GearRow {
   itemLevel: number | null;
   quality: string | null;
   enchantmentIds: number[];
+  /**
+   * Nombres de los encantamientos, **paralelos por posición** a
+   * `enchantmentIds`. Un null es "no disponible" (regla 5), no un encantamiento
+   * sin nombre: los dos arrays se construyen en la misma pasada justamente para
+   * que no puedan desalinearse.
+   */
+  enchantmentNames: (string | null)[];
   gemItemIds: number[];
+  /** Nombres de las gemas, paralelos por posición a `gemItemIds`. */
+  gemItemNames: (string | null)[];
   bonusList: number[];
 }
 
 function numbers(values: readonly (number | undefined)[] | undefined): number[] {
   return (values ?? []).filter((v): v is number => typeof v === "number");
+}
+
+/**
+ * El nombre de un encantamiento, sacado de su `display_string`.
+ *
+ * La API no publica el nombre en un campo propio: viene dentro de una frase
+ * hecha para un tooltip, con el prefijo "Enchanted: " y, cuando lo aplicó una
+ * profesión con calidad, un marcador de icono del cliente del juego al final
+ * (`|A:Professions-ChatIcon-Quality-Tier2:20:20|a`). Se quitan los dos: son
+ * envoltorio de presentación de Blizzard, no parte del nombre.
+ *
+ * Lo que queda no siempre es un nombre — hay encantamientos cuyo display es su
+ * efecto ("+41 Intellect & +115 Stamina")— y se guarda igual: es lo que la API
+ * da para nombrar esa variable, y describirla por su id sería peor.
+ */
+export function enchantmentName(displayString: string | undefined): string | null {
+  if (!displayString) return null;
+  const text = displayString
+    .replace(/^Enchanted:\s*/, "")
+    .replace(/\|A:.*$/, "")
+    .trim();
+  return text === "" ? null : text;
+}
+
+/**
+ * Ids y nombres de una lista, en dos arrays alineados.
+ *
+ * Las entradas sin id se caen —no hay nada que agregar sin id— y con ellas su
+ * nombre, que es lo que mantiene la correspondencia por posición.
+ */
+function idsAndNames<T>(
+  entries: readonly T[] | undefined,
+  idOf: (entry: T) => number | undefined,
+  nameOf: (entry: T) => string | null,
+): { ids: number[]; names: (string | null)[] } {
+  const ids: number[] = [];
+  const names: (string | null)[] = [];
+  for (const entry of entries ?? []) {
+    const id = idOf(entry);
+    if (typeof id !== "number") continue;
+    ids.push(id);
+    names.push(nameOf(entry));
+  }
+  return { ids, names };
 }
 
 /**
@@ -114,14 +173,27 @@ export function mapEquipment(equipment: EquipmentResponse): GearRow[] {
     // fallaría entero. Nos quedamos con la primera aparición.
     if (bySlot.has(slot)) continue;
 
+    const enchantments = idsAndNames(
+      item.enchantments,
+      (e) => e.enchantment_id,
+      (e) => enchantmentName(e.display_string),
+    );
+    const gems = idsAndNames(
+      item.sockets,
+      (s) => s.item?.id,
+      (s) => s.item?.name ?? null,
+    );
+
     bySlot.set(slot, {
       slot,
       itemId,
       itemName: item.name ?? null,
       itemLevel: item.level?.value ?? null,
       quality: item.quality?.type ?? null,
-      enchantmentIds: numbers((item.enchantments ?? []).map((e) => e.enchantment_id)),
-      gemItemIds: numbers((item.sockets ?? []).map((s) => s.item?.id)),
+      enchantmentIds: enchantments.ids,
+      enchantmentNames: enchantments.names,
+      gemItemIds: gems.ids,
+      gemItemNames: gems.names,
       bonusList: numbers(item.bonus_list),
     });
   }

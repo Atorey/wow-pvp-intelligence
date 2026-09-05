@@ -206,6 +206,8 @@ npm run pipeline -- refresh-aggregates --window 30  # fuerza la ventana de "seas
 | `--window`  | por segmento | Fuerza la ventana de actividad: `7`, `14` o `30` (las de §27) |
 | `--dry-run` | —            | Calcula e imprime la tabla, pero no escribe ninguna fila      |
 
+**Se agregan siete variables por segmento**, con dos denominadores distintos: las tres de gear —item por grupo de slot, gema y encantamiento— sobre `gear_sample`, porque salen de la misma fila observada ([ADR 0027](../../docs/decisions/0027-gear-por-item-gema-y-encantamiento.md)); y las de talentos sobre los suyos, que sí divergen ([ADR 0026](../../docs/decisions/0026-talentos-por-nodo.md)). Un porcentaje leído contra el denominador equivocado dice otra cosa, así que cada fila lleva el suyo.
+
 **Cada corrida inserta filas nuevas con su `computed_at`**, nunca actualiza las anteriores: el histórico de agregados es lo que alimentará las tendencias de #27. Son las únicas tablas **derivadas** del proyecto — se reconstruyen enteras volviendo a ejecutar el job, a diferencia de `character_snapshots`.
 
 **La ventana de actividad se elige por segmento**, no por bracket: 7 días si llegan a n=30, si no 14 (§13.4), y queda escrita en `activity_window_days`. Un mismo bracket puede tener 7 días abajo y 14 arriba, y eso es correcto: forzar la misma a los dos significaría perder frescura abajo o muestra arriba.

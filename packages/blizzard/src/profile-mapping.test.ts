@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { requireSpec } from "@wowpvp/core";
-import { findTalentLoadout, mapEquipment, mapPvpTalents, specNameToSlug } from "./profile-mapping";
+import {
+  enchantmentName,
+  findTalentLoadout,
+  mapEquipment,
+  mapPvpTalents,
+  specNameToSlug,
+} from "./profile-mapping";
 
 const FROST_MAGE = requireSpec("mage", "frost");
 
@@ -14,8 +20,13 @@ test("un item completo se mapea con sus gemas, encantamientos y bonus", () => {
         name: "Yelmo",
         level: { value: 639 },
         quality: { type: "EPIC" },
-        enchantments: [{ enchantment_id: 7346 }],
-        sockets: [{ item: { id: 213743 } }, { item: { id: 213746 } }],
+        enchantments: [
+          { enchantment_id: 7346, display_string: "Enchanted: Enchant Boots - Farstrider's Hunt" },
+        ],
+        sockets: [
+          { item: { id: 213743, name: "Flawless Deadly Lapis" } },
+          { item: { id: 213746, name: "Culminating Blasphemite" } },
+        ],
         bonus_list: [1, 2, 3],
       },
     ],
@@ -29,10 +40,54 @@ test("un item completo se mapea con sus gemas, encantamientos y bonus", () => {
       itemLevel: 639,
       quality: "EPIC",
       enchantmentIds: [7346],
+      enchantmentNames: ["Enchant Boots - Farstrider's Hunt"],
       gemItemIds: [213743, 213746],
+      gemItemNames: ["Flawless Deadly Lapis", "Culminating Blasphemite"],
       bonusList: [1, 2, 3],
     },
   ]);
+});
+
+test("un socket vacío no desalinea el nombre de la gema siguiente", () => {
+  // 268 de los 2.779 huecos medidos venían sin gema. Si los ids se filtraran y
+  // los nombres no, la gema heredaría el nombre de la de al lado — que es el
+  // único fallo posible de guardar dos arrays paralelos.
+  const rows = mapEquipment({
+    equipped_items: [
+      {
+        slot: { type: "NECK" },
+        item: { id: 5 },
+        sockets: [{}, { item: { id: 240914, name: "Flawless Deadly Lapis" } }],
+      },
+    ],
+  });
+
+  assert.deepEqual(rows[0]?.gemItemIds, [240914]);
+  assert.deepEqual(rows[0]?.gemItemNames, ["Flawless Deadly Lapis"]);
+});
+
+test("una gema sin nombre sigue siendo una gema observada", () => {
+  const rows = mapEquipment({
+    equipped_items: [{ slot: { type: "NECK" }, item: { id: 5 }, sockets: [{ item: { id: 7 } }] }],
+  });
+
+  assert.deepEqual(rows[0]?.gemItemIds, [7]);
+  // null es "no disponible" (regla 5): la adopción se cuenta por id igual.
+  assert.deepEqual(rows[0]?.gemItemNames, [null]);
+});
+
+test("el nombre del encantamiento sale del display_string, sin envoltorio", () => {
+  // Las dos formas reales observadas en los 4.179 encantamientos medidos: la
+  // que nombra el encantamiento y la que describe su efecto.
+  assert.equal(
+    enchantmentName(
+      "Enchanted: Enchant Helm - Empowered Blessing of Speed |A:Professions-ChatIcon-Quality-12-Tier2:20:20|a",
+    ),
+    "Enchant Helm - Empowered Blessing of Speed",
+  );
+  assert.equal(enchantmentName("+41 Intellect & +115 Stamina"), "+41 Intellect & +115 Stamina");
+  assert.equal(enchantmentName(undefined), null);
+  assert.equal(enchantmentName("   "), null);
 });
 
 test("un item sin gemas ni encantamientos da arrays vacíos, nunca null", () => {
@@ -44,7 +99,9 @@ test("un item sin gemas ni encantamientos da arrays vacíos, nunca null", () => 
 
   assert.equal(rows.length, 1);
   assert.deepEqual(rows[0]?.enchantmentIds, []);
+  assert.deepEqual(rows[0]?.enchantmentNames, []);
   assert.deepEqual(rows[0]?.gemItemIds, []);
+  assert.deepEqual(rows[0]?.gemItemNames, []);
   assert.deepEqual(rows[0]?.bonusList, []);
   // Lo que sí falta de verdad va a null.
   assert.equal(rows[0]?.itemName, null);

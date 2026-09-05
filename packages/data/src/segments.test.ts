@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { fakeDb } from "./fake-db";
-import { readAdoption, readBracketSegments, readSegment, toSegmentRead } from "./segments";
+import {
+  readAdoption,
+  readAdoptionFor,
+  readBracketSegments,
+  readSegment,
+  toSegmentRead,
+} from "./segments";
 import type { SegmentRow } from "./segments";
 
 const COMPUTED_AT = new Date("2026-08-20T03:00:00Z");
@@ -205,6 +211,8 @@ describe("readAdoption", () => {
         talent_tree: null,
         talent_id: null,
         talent_name: null,
+        enchantment_id: null,
+        enchantment_name: null,
         icon_url: "https://render.worldofwarcraft.com/eu/icons/56/7384535.jpg",
         users: 111,
         denominator: 148,
@@ -236,6 +244,8 @@ describe("readAdoption", () => {
         talent_tree: null,
         talent_id: null,
         talent_name: null,
+        enchantment_id: null,
+        enchantment_name: null,
         icon_url: null,
         users: 3,
         denominator: 40,
@@ -265,6 +275,8 @@ describe("readAdoption", () => {
         talent_tree: null,
         talent_id: null,
         talent_name: null,
+        enchantment_id: null,
+        enchantment_name: null,
         icon_url: "https://render.worldofwarcraft.com/eu/icons/56/7384535.jpg",
         users: 111,
         denominator: 148,
@@ -292,6 +304,8 @@ describe("readAdoption", () => {
         talent_tree: null,
         talent_id: null,
         talent_name: null,
+        enchantment_id: null,
+        enchantment_name: null,
         icon_url: null,
         users: 111,
         denominator: 148,
@@ -335,6 +349,8 @@ describe("readAdoption con variables de talento", () => {
           talent_tree: "class",
           talent_id: "99846",
           talent_name: "Shimmer",
+          enchantment_id: null,
+          enchantment_name: null,
           icon_url: null,
           users: 62,
           denominator: 100,
@@ -364,6 +380,8 @@ describe("readAdoption con variables de talento", () => {
           talent_tree: "spec",
           talent_id: "1",
           talent_name: null,
+          enchantment_id: null,
+          enchantment_name: null,
           icon_url: null,
           users: 5,
           denominator: 10,
@@ -375,5 +393,120 @@ describe("readAdoption con variables de talento", () => {
     const [adoption] = await readAdoption(db, segment, "talent-node");
     assert.equal(adoption?.talentName, null);
     assert.equal(adoption?.rate, 0.5);
+  });
+});
+
+describe("readAdoption con variables de gear", () => {
+  const segment = toSegmentRead(row({ sample_size: 400, gear_sample: 150 }));
+
+  function adoptionRow(overrides: Record<string, unknown>) {
+    return {
+      variable_kind: "gear-gem",
+      variable_key: "gem:240914",
+      slot_group: null,
+      item_id: "240914",
+      item_name: "Flawless Deadly Lapis",
+      talent_tree: null,
+      talent_id: null,
+      talent_name: null,
+      enchantment_id: null,
+      enchantment_name: null,
+      icon_url: null,
+      users: 90,
+      denominator: 150,
+      unavailable: 0,
+      adoption_rate: "0.60000000",
+      ...overrides,
+    };
+  }
+
+  it("la gema lleva item_id, así que puede traer icono del catálogo", async () => {
+    const db = fakeDb([adoptionRow({ icon_url: "https://render.worldofwarcraft.com/x.jpg" })]);
+    const [gem] = await readAdoption(db, segment, "gear-gem");
+
+    assert.equal(gem?.itemId, 240914);
+    assert.equal(gem?.itemName, "Flawless Deadly Lapis");
+    assert.equal(gem?.slotGroup, null);
+    assert.equal(gem?.iconUrl, "https://render.worldofwarcraft.com/x.jpg");
+  });
+
+  it("el encantamiento sale sin item_id y sin icono, y sigue siendo una adopción", async () => {
+    // Lo que falta ahí es la ilustración (#92), no la cifra: §4.5 del brief
+    // reserva el hueco y la fila se enseña igual.
+    const db = fakeDb([
+      adoptionRow({
+        variable_kind: "gear-enchant",
+        variable_key: "enchant:7364",
+        item_id: null,
+        item_name: null,
+        enchantment_id: "7364",
+        enchantment_name: "Enchant Ring - Silvermoon's Alacrity",
+      }),
+    ]);
+    const [enchant] = await readAdoption(db, segment, "gear-enchant");
+
+    assert.equal(enchant?.itemId, null);
+    assert.equal(enchant?.iconUrl, null);
+    assert.equal(enchant?.enchantmentId, 7364);
+    assert.equal(enchant?.enchantmentName, "Enchant Ring - Silvermoon's Alacrity");
+    assert.equal(enchant?.rate, 0.6);
+    assert.equal(enchant?.provenance.denominator, 150);
+  });
+});
+
+describe("readAdoptionFor", () => {
+  const own = toSegmentRead(row({ id: "41", segment_id: "1800-2000", gear_sample: 150 }));
+  const target = toSegmentRead(row({ id: "42", segment_id: "2000-2200", gear_sample: 120 }));
+
+  function gearRow(segmentId: string, itemId: string, rate: string) {
+    return {
+      population_segment_id: segmentId,
+      variable_kind: "gear-item",
+      variable_key: `HEAD:${itemId}`,
+      slot_group: "HEAD",
+      item_id: itemId,
+      item_name: "Yelmo",
+      talent_tree: null,
+      talent_id: null,
+      talent_name: null,
+      enchantment_id: null,
+      enchantment_name: null,
+      icon_url: null,
+      users: 30,
+      denominator: 150,
+      unavailable: 0,
+      adoption_rate: rate,
+    };
+  }
+
+  it("trae los dos escalones en una sola consulta", async () => {
+    const db = fakeDb([gearRow("41", "1", "0.20000000"), gearRow("42", "1", "0.60000000")]);
+    const byRowId = await readAdoptionFor(db, [own, target], "gear-item");
+
+    assert.equal(db.calls.length, 1);
+    assert.equal(byRowId.get("41")?.[0]?.rate, 0.2);
+    assert.equal(byRowId.get("42")?.[0]?.rate, 0.6);
+  });
+
+  it("cada adopción hereda la procedencia de su propio escalón", async () => {
+    const db = fakeDb([gearRow("42", "1", "0.60000000")]);
+    const byRowId = await readAdoptionFor(db, [own, target], "gear-item");
+
+    assert.equal(byRowId.get("42")?.[0]?.provenance.computedAt, target.population.computedAt);
+  });
+
+  it("un escalón sin filas viene con la lista vacía, no ausente", async () => {
+    // "Todavía no se ha calculado ahí" es una respuesta; un undefined lo
+    // interpretaría cada llamante a su manera.
+    const db = fakeDb([gearRow("42", "1", "0.60000000")]);
+    const byRowId = await readAdoptionFor(db, [own, target], "gear-item");
+
+    assert.deepEqual(byRowId.get("41"), []);
+  });
+
+  it("sin escalones no va a la base", async () => {
+    const db = fakeDb([]);
+    assert.equal((await readAdoptionFor(db, [], "gear-item")).size, 0);
+    assert.equal(db.calls.length, 0);
   });
 });

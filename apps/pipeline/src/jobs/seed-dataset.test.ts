@@ -4,6 +4,8 @@ import {
   ACTIVITY_WINDOWS,
   MIN_SAMPLE_HIGH,
   MIN_SAMPLE_MEDIUM,
+  aggregateGearEnchants,
+  aggregateGearGems,
   aggregateGearItems,
   aggregateHeroTrees,
   aggregateTalentNodes,
@@ -20,6 +22,7 @@ import {
   segmentFor,
   shuffleBracketId,
   requireSpecSlug,
+  summarizeSegment,
   type PlayerBuild,
 } from "@wowpvp/core";
 import {
@@ -82,6 +85,14 @@ function asPlayerBuild(participation: SeedParticipation): PlayerBuild {
     talents: nullIfEmpty(profile?.talents.filter((t) => t.tree !== "pvp")),
     pvpTalents: nullIfEmpty(profile?.talents.filter((t) => t.tree === "pvp")),
     heroTalentTree: profile?.heroTalentTree ?? null,
+    // Sin `nullIfEmpty`: gemas y encantamientos no tienen denominador propio,
+    // salen de la misma fila que el item y su disponibilidad es la del gear.
+    gems: (profile?.gear ?? []).flatMap((item) =>
+      item.gemItemIds.map((id, i) => ({ id, name: item.gemItemNames[i] ?? null })),
+    ),
+    enchantments: (profile?.gear ?? []).flatMap((item) =>
+      item.enchantmentIds.map((id, i) => ({ id, name: item.enchantmentNames[i] ?? null })),
+    ),
     equippedItemLevel: profile?.equippedItemLevel ?? null,
     averageItemLevel: profile?.averageItemLevel ?? null,
   };
@@ -259,6 +270,37 @@ describe("la comparación que sostiene el Player Gap", () => {
     const conPvp = objetivo.filter(hasComparablePvpTalents).length;
     assert.ok(conPvp < conNodos, "el seed no distingue las dos ausencias");
     assert.ok(conPvp >= MIN_SAMPLE_MEDIUM);
+  });
+
+  it("hay gemas y encantamientos que discriminan entre un escalón y el siguiente", () => {
+    // Sin esto, la lista de diferencias de gear en local solo tendría items, y
+    // las dos variables que §16 nombra —y que en los 593 perfiles reales dan
+    // siete diferencias por encima de 10 puntos— no se podrían maquetar.
+    const discriminantes = (
+      aggregate: (builds: PlayerBuild[]) => { key: string; adoption: { value: number } }[],
+    ): number => {
+      const propias = new Map(aggregate(propio).map((v) => [v.key, v.adoption.value]));
+      return aggregate(objetivo).filter((v) =>
+        isDiscriminative(v.adoption.value - (propias.get(v.key) ?? 0)),
+      ).length;
+    };
+
+    assert.ok(discriminantes(aggregateGearGems) >= 1, "ninguna gema se mueve entre escalones");
+    assert.ok(
+      discriminantes(aggregateGearEnchants) >= 2,
+      "los encantamientos no discriminan, y en los datos reales son los que más",
+    );
+  });
+
+  it("gemas y encantamientos cuentan sobre el denominador del gear, sin uno propio", () => {
+    // La comprobación de que no se coló un gem_sample por el camino: si el
+    // denominador difiriera, la cifra publicada no sería sobre la gente que
+    // dice el escalón.
+    const gearSample = summarizeSegment(objetivo).gearSample;
+    for (const variables of [aggregateGearGems(objetivo), aggregateGearEnchants(objetivo)]) {
+      assert.ok(variables.length > 0);
+      assert.equal(variables[0]?.adoption.denominator, gearSample);
+    }
   });
 
   it("la mediana de item level sube con el escalón", () => {

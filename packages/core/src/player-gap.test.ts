@@ -33,6 +33,8 @@ function build(
     talents: null,
     heroTalentTree: null,
     pvpTalents: null,
+    gems: [],
+    enchantments: [],
     equippedItemLevel,
     // Deliberadamente distinto del equipado: si algún día la comparación
     // volviera a usar este campo por error, los asserts de abajo fallarían.

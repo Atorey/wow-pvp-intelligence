@@ -134,8 +134,10 @@ export function PlayerPage({
       {/*
        * Las pestañas son enlaces y no un componente con estado: se sirven ya
        * decididas desde el servidor, funcionan sin JavaScript y cada vista tiene
-       * su propia dirección. Talentos e Histórico no están porque no hay dato
-       * que enseñar (#24, #28) y una pestaña vacía es un "coming soon".
+       * su propia dirección. Talentos e Histórico no están porque todavía no
+       * tienen nada que enseñar: de los talentos hay nodos agregados por
+       * segmento pero no comparación, y del histórico no hay serie. Una pestaña
+       * vacía es un "coming soon".
        */}
       <nav aria-label={copy.tabs.label} className="border-border flex gap-1 border-b">
         <Tab href={href({ tab: "summary" })} current={tab === "summary"} accent={color.border}>

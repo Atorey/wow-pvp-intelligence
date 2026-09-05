@@ -44,12 +44,21 @@ import type { ConfidenceLevel } from "./types";
  * valor y en la migración un check — no hay un cajón genérico donde meter
  * cualquier cosa sin decidirlo.
  *
+ * Las tres de gear comparten denominador (`gear_sample`) porque salen de la
+ * misma fila observada, al revés que las de talentos (ADR 0027).
+ *
  * `talent-code` sigue estando aunque no agrupe casi nada: el reparto de códigos
  * es en sí el dato que mide esa división, y su histórico arranca antes que el de
  * los nodos (ADR 0026).
  */
 export type AggregateVariableKind =
-  "gear-item" | "talent-code" | "talent-node" | "pvp-talent" | "hero-tree";
+  | "gear-item"
+  | "gear-gem"
+  | "gear-enchant"
+  | "talent-code"
+  | "talent-node"
+  | "pvp-talent"
+  | "hero-tree";
 
 /** El adoption_rate de una variable dentro de un segmento (§13.2). */
 export interface AggregatedVariable {
@@ -60,12 +69,26 @@ export interface AggregatedVariable {
   slotGroup: string | null;
   /** item_id, para que el llamante pueda resolver el nombre. null en talentos. */
   itemId: number | null;
+  /**
+   * Nombre del item, cuando la observación lo traía consigo. Lo traen las gemas,
+   * que llegan con nombre en la misma respuesta; el item equipado no, porque
+   * `PlayerBuild` lo reduce a su id y el nombre lo resuelve quien escribe.
+   */
+  itemName: string | null;
   /** Árbol del nodo. null salvo en 'talent-node' y 'pvp-talent'. */
   talentTree: string | null;
   /** Id del nodo o del talento PvP; en 'hero-tree', el id del árbol. */
   talentId: number | null;
   /** Nombre legible al calcular. null es "no disponible" (regla 5), no "sin nombre". */
   talentName: string | null;
+  /**
+   * Id del encantamiento. Aparte de `itemId` y no por purismo: la lectura junta
+   * el catálogo de iconos por `item_id`, así que un encantamiento guardado ahí
+   * cruzaría con el item que compartiera ese número (ADR 0027).
+   */
+  enchantmentId: number | null;
+  /** Nombre del encantamiento, tal como lo daba su `display_string`. */
+  enchantmentName: string | null;
   adoption: AdoptionRate;
 }
 
@@ -170,9 +193,12 @@ export function aggregateGearItems(population: readonly PlayerBuild[]): Aggregat
         key: `${group}:${itemId}`,
         slotGroup: group,
         itemId,
+        itemName: null,
         talentTree: null,
         talentId: null,
         talentName: null,
+        enchantmentId: null,
+        enchantmentName: null,
         adoption: { value: users / denominator, users, denominator, unavailable },
       });
     }
@@ -214,11 +240,71 @@ export function aggregateTalentCodes(population: readonly PlayerBuild[]): Aggreg
       key: code,
       slotGroup: null,
       itemId: null,
+      itemName: null,
       talentTree: null,
       talentId: null,
       talentName: null,
+      enchantmentId: null,
+      enchantmentName: null,
       adoption: { value: users / denominator, users, denominator, unavailable },
     }));
+}
+
+/** Cómo se identifica un nodo o un talento PvP dentro de su segmento. */
+function talentIdentity(selection: TalentSelection): VariableIdentity {
+  return {
+    ...NO_IDENTITY,
+    key: `${selection.tree}:${selection.talentId}`,
+    talentTree: selection.tree,
+    talentId: selection.talentId,
+    talentName: selection.talentName,
+  };
+}
+
+/**
+ * adoption_rate de cada gema engarzada.
+ *
+ * Su denominador es el del gear y no uno propio: las gemas vienen en la misma
+ * fila observada que el item, así que quien tiene equipo legible tiene gemas
+ * legibles. Un equipo sin ninguna gema cuenta dentro con adopción 0 — eso es
+ * "no engemó", que es un hecho, y no "no lo sabemos" (ADR 0027).
+ *
+ * Sin `slotGroup`: la misma gema se engarza en piezas distintas y agruparla por
+ * hueco partiría su adopción en varias, que es el artefacto que §6.3 de findings
+ * ya corrigió con los abalorios.
+ */
+export function aggregateGearGems(population: readonly PlayerBuild[]): AggregatedVariable[] {
+  return countSelections(
+    population,
+    hasComparableGear,
+    (member) => member.gems,
+    "gear-gem",
+    (gem) => ({ ...NO_IDENTITY, key: `gem:${gem.id}`, itemId: gem.id, itemName: gem.name }),
+  );
+}
+
+/**
+ * adoption_rate de cada encantamiento.
+ *
+ * Mismo denominador y misma regla de agrupación que las gemas. Lo que cambia es
+ * que **no rellena `itemId`**: un encantamiento no es un item, y meter su id ahí
+ * lo cruzaría con el catálogo de iconos por un número que coincide sin querer.
+ * Se queda sin icono, que es el estado normal de §4.5 del brief — lo que falta
+ * ahí es la ilustración, no la cifra (#92).
+ */
+export function aggregateGearEnchants(population: readonly PlayerBuild[]): AggregatedVariable[] {
+  return countSelections(
+    population,
+    hasComparableGear,
+    (member) => member.enchantments,
+    "gear-enchant",
+    (enchant) => ({
+      ...NO_IDENTITY,
+      key: `enchant:${enchant.id}`,
+      enchantmentId: enchant.id,
+      enchantmentName: enchant.name,
+    }),
+  );
 }
 
 /**
@@ -241,6 +327,7 @@ export function aggregateTalentNodes(population: readonly PlayerBuild[]): Aggreg
     hasComparableTalents,
     (member) => member.talents ?? [],
     "talent-node",
+    talentIdentity,
   );
 }
 
@@ -257,6 +344,7 @@ export function aggregatePvpTalents(population: readonly PlayerBuild[]): Aggrega
     hasComparablePvpTalents,
     (member) => member.pvpTalents ?? [],
     "pvp-talent",
+    talentIdentity,
   );
 }
 
@@ -292,28 +380,42 @@ export function aggregateHeroTrees(population: readonly PlayerBuild[]): Aggregat
       key: String(id),
       slotGroup: null,
       itemId: null,
+      itemName: null,
       talentTree: null,
       talentId: id,
       talentName: name,
+      enchantmentId: null,
+      enchantmentName: null,
       adoption: { value: users / denominator, users, denominator, unavailable },
     }));
 }
 
+/** Una variable identificada, antes de saber a cuánta gente describe. */
+type VariableIdentity = Omit<AggregatedVariable, "kind" | "adoption">;
+
+/** La etiqueta de una variable, viva en la columna que le toque por familia. */
+function labelOf(identity: VariableIdentity): string | null {
+  return identity.itemName ?? identity.talentName ?? identity.enchantmentName;
+}
+
 /**
- * El contador que comparten nodos y talentos PvP: idénticos salvo en de dónde
- * sale la lista y en qué denominador les toca.
+ * El contador que comparten nodos, talentos PvP, gemas y encantamientos:
+ * idénticos salvo en de dónde sale la lista, en qué denominador les toca y en
+ * cómo se identifica cada selección.
  *
  * El nombre se queda con la primera aparición que lo traiga: la API deja algún
- * nodo sin tooltip, y descartar el nodo por eso perdería una selección observada
- * por no saber cómo se llama.
+ * nodo sin tooltip y las gemas de los snapshots anteriores a la migración 0013
+ * llegan sin nombre. Descartar la selección por eso perdería algo observado por
+ * no saber cómo se llama.
  */
-function countSelections(
+function countSelections<T>(
   population: readonly PlayerBuild[],
   isComparable: (member: PlayerBuild) => boolean,
-  selectionsOf: (member: PlayerBuild) => readonly TalentSelection[],
-  kind: "talent-node" | "pvp-talent",
+  selectionsOf: (member: PlayerBuild) => readonly T[],
+  kind: AggregateVariableKind,
+  identify: (selection: T) => VariableIdentity,
 ): AggregatedVariable[] {
-  const counts = new Map<string, { selection: TalentSelection; users: number }>();
+  const counts = new Map<string, { identity: VariableIdentity; users: number }>();
   let denominator = 0;
   let unavailable = 0;
 
@@ -325,38 +427,46 @@ function countSelections(
     denominator++;
 
     // Un Set porque la misma selección repetida dentro de un mismo personaje
-    // sigue siendo un usuario, no dos.
+    // sigue siendo un usuario, no dos: quien lleva la misma gema en tres huecos
+    // es una persona que la lleva.
     const seen = new Set<string>();
     for (const selection of selectionsOf(member)) {
-      const key = `${selection.tree}:${selection.talentId}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
+      const identity = identify(selection);
+      if (seen.has(identity.key)) continue;
+      seen.add(identity.key);
 
-      const entry = counts.get(key);
+      const entry = counts.get(identity.key);
       if (entry) {
         entry.users++;
-        if (entry.selection.talentName === null && selection.talentName !== null) {
-          entry.selection = selection;
+        if (labelOf(entry.identity) === null && labelOf(identity) !== null) {
+          entry.identity = identity;
         }
       } else {
-        counts.set(key, { selection, users: 1 });
+        counts.set(identity.key, { identity, users: 1 });
       }
     }
   }
 
   return [...counts]
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([key, { selection, users }]) => ({
+    .map(([, { identity, users }]) => ({
       kind,
-      key,
-      slotGroup: null,
-      itemId: null,
-      talentTree: selection.tree,
-      talentId: selection.talentId,
-      talentName: selection.talentName,
+      ...identity,
       adoption: { value: users / denominator, users, denominator, unavailable },
     }));
 }
+
+/** La identidad vacía, para no repetir siete nulls en cada familia. */
+const NO_IDENTITY: Omit<VariableIdentity, "key"> = {
+  slotGroup: null,
+  itemId: null,
+  itemName: null,
+  talentTree: null,
+  talentId: null,
+  talentName: null,
+  enchantmentId: null,
+  enchantmentName: null,
+};
 
 /**
  * Todas las variables agregables de un segmento.
@@ -371,6 +481,8 @@ function countSelections(
 export function aggregateSegment(population: readonly PlayerBuild[]): AggregatedVariable[] {
   return [
     ...aggregateGearItems(population),
+    ...aggregateGearGems(population),
+    ...aggregateGearEnchants(population),
     ...aggregateTalentCodes(population),
     ...aggregateTalentNodes(population),
     ...aggregatePvpTalents(population),
