@@ -328,8 +328,34 @@ describe("lecturas de @wowpvp/data contra el schema real", { skip }, () => {
     const MS_PER_DAY = 86_400_000;
     const cutoff = (): Date => new Date(Date.now() - ITEM_MEDIA_TTL_DAYS * MS_PER_DAY);
 
-    it("no ve pendientes con el catálogo recién sembrado", async () => {
-      assert.equal(await countPending(pool, cutoff()), 0);
+    /** Los item_id de gema que ha sembrado el generador. */
+    async function seededGems(): Promise<Set<number>> {
+      const { rows } = await pool.query<{ gem: string }>(
+        `select distinct gem::bigint as gem
+           from character_snapshot_gear, unnest(gem_item_ids) as gem`,
+      );
+      return new Set(rows.map((row) => Number(row.gem)));
+    }
+
+    it("lo único que el seed deja pendiente son las gemas", async () => {
+      // No es deuda olvidada: el generador siembra el catálogo de los items
+      // equipados y **no** el de las gemas, porque no tenemos sus URLs de icono
+      // verificadas. En local salen sin icono, que es el estado normal de §4.5
+      // del brief y el que hay que saber pintar; en producción las recoge
+      // `resolve-item-media`, cuyo catálogo de pendientes ya las incluye
+      // (ADR 0022, ADR 0027). Medido el 4 de septiembre de 2026, ninguna de las
+      // 107 gemas de producción está resuelta todavía, así que esto reproduce
+      // el estado real.
+      const gems = await seededGems();
+      assert.ok(gems.size > 0, "el seed tiene que sembrar gemas");
+      assert.equal(await countPending(pool, cutoff()), gems.size);
+
+      const pending = await loadPending(pool, cutoff(), gems.size + 10);
+      assert.deepEqual(
+        pending.filter((item) => !gems.has(item.itemId)),
+        [],
+        "ningún item equipado debería quedarse sin fila en el catálogo",
+      );
     });
 
     it("cuenta lo que falta y lo que ha caducado, con lo nuevo primero", async () => {
@@ -347,9 +373,15 @@ describe("lecturas de @wowpvp/data contra el schema real", { skip }, () => {
       );
 
       try {
-        assert.equal(await countPending(pool, cutoff()), 2);
+        // Sobre la línea base, que son las gemas que el seed no resuelve.
+        const gems = await seededGems();
+        assert.equal(await countPending(pool, cutoff()), gems.size + 2);
 
-        const pending = await loadPending(pool, cutoff(), 10);
+        // Se miran solo los dos que este test manipula: las gemas también son
+        // nuevas y comparten el primer grupo del orden.
+        const pending = (await loadPending(pool, cutoff(), gems.size + 10)).filter(
+          (item) => item.itemId === nuevo || item.itemId === caducado,
+        );
         assert.deepEqual(
           pending.map((item) => item.itemId),
           [nuevo, caducado],
