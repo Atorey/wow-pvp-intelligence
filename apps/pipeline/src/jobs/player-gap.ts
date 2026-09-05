@@ -292,6 +292,11 @@ async function loadPopulation(
       talents: null,
       heroTalentTree: null,
       pvpTalents: null,
+      // Ni gemas ni encantamientos: este reporte es el de Sprint 0 y compara
+      // items por slot. Su agregación por segmento es #22 y vive en el job de
+      // agregados, que sí las carga.
+      gems: [],
+      enchantments: [],
       equippedItemLevel: row.equipped_item_level,
       averageItemLevel: row.average_item_level,
     };

@@ -8,5 +8,6 @@ export * from "./stats";
 export * from "./standing";
 export * from "./player-gap";
 export * from "./aggregates";
+export * from "./differences";
 export * from "./routes";
 export * from "./gear";

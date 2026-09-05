@@ -358,7 +358,9 @@ export const en = {
       },
       talents: {
         label: "Talents",
-        body: "The build code is on record, undecoded into nodes. It isn't compared in this release.",
+        body:
+          "The build's talent nodes are aggregated by segment. What's missing is the comparison " +
+          "against the segment above, so talents aren't compared in this release.",
       },
       stats: {
         label: "Secondary stats and embellishments",

@@ -146,7 +146,7 @@ Casi cada jugador tiene un código único. El código completo codifica el árbo
 
 - **Refresco 24-48h**: repetir la descarga y comprobar que se detectan cambios reales (§32, días 11-12). No ejecutado.
 - ~~**Ampliar a todas las specs** (#13)~~: hecho el 18 de agosto de 2026, ver sección 9.
-- **`adoption_rate` de producto** (#21, #22): lo de la sección 6 es un reporte de Sprint 0, no la agregación persistida que consumirá la web.
+- ~~**`adoption_rate` de producto** (#21, #22)~~: hecho. La agregación persistida existe desde #15 —esta línea se quedó atrás, que es el patrón contra el que avisa `CLAUDE.md`—, y el 4 de septiembre de 2026 se completó con lo que faltaba de las dos issues: los nodos de talento ([ADR 0026](decisions/0026-talentos-por-nodo.md)) y las gemas y encantamientos ([ADR 0027](decisions/0027-gear-por-item-gema-y-encantamiento.md)), que llevaban guardándose desde la migración 0002 sin que nadie los leyera. Lo de la sección 6 sigue siendo un reporte de Sprint 0, y ahora es una vía de cálculo entre dos: hay un test que comprueba que da lo mismo que la comparación sobre agregados.
 - ~~**GO/NO-GO formal de Sprint 0** (#10)~~: el veredicto estaba en §8 desde el 18 de agosto; lo que faltaba eran las dos decisiones de producto que colgaban de él, tomadas el 21 de agosto de 2026 (#56). Este apartado seguía listándolo como pendiente con el issue ya cerrado — el patrón contra el que avisa `CLAUDE.md`.
 
 ## 8. Estado del veredicto
@@ -154,7 +154,7 @@ Casi cada jugador tiene un código único. El código completo codifica el árbo
 Según el criterio de §32:
 
 - Rating: fiable ✅
-- Gear: fiable ✅ (9.775 filas por slot, con gemas y encantamientos) y **con señal discriminante demostrada** (sección 6.1)
+- Gear: fiable ✅ (9.775 filas por slot, con gemas y encantamientos) y **con señal discriminante demostrada** (sección 6.1). Las gemas y los encantamientos que aquí solo se contaban como "vienen" también discriminan, medido el 4 de septiembre de 2026 sobre los mismos perfiles: 29-39 gemas y 48-57 encantamientos distintos por cada ~100 perfiles de un segmento —la mitad de dispersos que los códigos de loadout, y por eso agrupan— y diez diferencias por encima de los 10 puntos entre 1800-2000 y 2000-2200 ([ADR 0027](decisions/0027-gear-por-item-gema-y-encantamiento.md))
 - Talentos: **disponibles ✅ pero no utilizables todavía** ⚠️ (sección 6.2) — el dato está, la comparación por código exacto no informa
 
 Sigue dando para un **GO**: §32 lo condiciona a que rating y gear sean fiables, y ambos lo son con la comparación real ya hecha. Pero el GO es sobre un Player Gap **de gear**, no el de tres categorías del mockup.

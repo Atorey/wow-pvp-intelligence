@@ -15,7 +15,7 @@ export interface SegmentKey {
  * Un escalón tal y como lo enseña la web: el `population_segments` más reciente
  * del par, con **una procedencia por cada base de cálculo distinta**.
  *
- * Cuatro y no una porque son cuatro denominadores que difieren en órdenes de
+ * Seis y no una porque son seis denominadores que difieren en órdenes de
  * magnitud: en agosto de 2026, 31.488 personajes de población frente a 0
  * perfiles con gear. Una sola `Provenance` obligaría a elegir uno, y el que
  * suena a respuesta —la población— es justo el que no lo es (ADR 0010, punto 3).
@@ -40,7 +40,11 @@ export interface SegmentRead {
    * necesitan gear (ADR 0011, punto 2b). Nunca la comparación.
    */
   population: Provenance;
-  /** Base de comparación del gear: `gear_sample`. La que decide el Player Gap. */
+  /**
+   * Base de comparación del gear: `gear_sample`. La que decide el Player Gap, y
+   * la de las **tres** variables de gear —item, gema y encantamiento—, que salen
+   * de la misma fila observada y por eso no necesitan una suya (ADR 0027).
+   */
   gear: Provenance;
   /**
    * Base de comparación por código de loadout. Separada de la de gear porque no
@@ -223,18 +227,31 @@ export async function readBracketSegments(
 }
 
 /**
- * Qué variable se agregó. Las que escribe `refresh-aggregates` (ADR 0026).
+ * Qué variable se agregó. Las que escribe `refresh-aggregates` (ADR 0026, 0027).
  *
  * `talent-code` sigue existiendo y casi nunca agrupa: entre 75 y 97 códigos
  * distintos por cada 100 perfiles de un segmento. Lo que describe un escalón es
  * `talent-node`.
+ *
+ * Las tres de gear comparten el `gear_sample` del escalón; las de talentos, no.
  */
 export type VariableKind =
   | "gear-item"
+  | "gear-gem"
+  | "gear-enchant"
   | "talent-code"
   | "talent-node"
   | "pvp-talent"
   | "hero-tree";
+
+/**
+ * Las columnas de una adopción, compartidas por las dos lecturas. `icon_url` da
+ * por hecho el `left join` con `item_media` que las dos hacen.
+ */
+const ADOPTION_COLUMNS = `a.variable_kind, a.variable_key, a.slot_group, a.item_id, a.item_name,
+            a.talent_tree, a.talent_id, a.talent_name,
+            a.enchantment_id, a.enchantment_name,
+            m.icon_url, a.users, a.denominator, a.unavailable, a.adoption_rate`;
 
 /**
  * Un `adoption_rate` con todo lo que hace falta para poder enseñarlo.
@@ -263,6 +280,18 @@ export interface AdoptionRead {
    * (regla 5): la API deja algún nodo sin tooltip, y ese nodo sí está observado.
    */
   talentName: string | null;
+  /**
+   * Id del encantamiento, aparte de `itemId` porque no es un item: guardarlo
+   * ahí lo cruzaría con `item_media` por un número que coincide sin querer y la
+   * fila saldría con el icono de otra cosa (ADR 0027).
+   */
+  enchantmentId: number | null;
+  /**
+   * Nombre del encantamiento, sacado del `display_string` de la API. `null` es
+   * "no disponible" en los snapshots anteriores a la migración 0013, que traen
+   * el id sin él: la adopción es correcta igual, la etiqueta llega después.
+   */
+  enchantmentName: string | null;
   /**
    * URL del icono en el CDN de Blizzard, del catálogo `item_media` (#67).
    *
@@ -297,6 +326,8 @@ interface AdoptionRow {
   talent_tree: string | null;
   talent_id: string | null;
   talent_name: string | null;
+  enchantment_id: string | null;
+  enchantment_name: string | null;
   icon_url: string | null;
   users: number;
   denominator: number;
@@ -325,9 +356,7 @@ export async function readAdoption(
   options: { limit?: number } = {},
 ): Promise<AdoptionRead[]> {
   const { rows } = await db.query<AdoptionRow>(
-    `select a.variable_kind, a.variable_key, a.slot_group, a.item_id, a.item_name,
-            a.talent_tree, a.talent_id, a.talent_name,
-            m.icon_url, a.users, a.denominator, a.unavailable, a.adoption_rate
+    `select ${ADOPTION_COLUMNS}
        from aggregate_snapshots a
        -- left join, nunca inner: un item sin icono resuelto sigue siendo una
        -- adopción que hay que enseñar. Filtrar por el catálogo escondería
@@ -339,7 +368,55 @@ export async function readAdoption(
     options.limit === undefined ? [segment.rowId, kind] : [segment.rowId, kind, options.limit],
   );
 
-  return rows.map((row) => ({
+  return rows.map((row) => toAdoptionRead(row, segment));
+}
+
+/**
+ * Las adopciones de **varios** escalones a la vez, agrupadas por `rowId`.
+ *
+ * Existe para poder comparar un escalón con el de arriba sin ir dos veces a la
+ * base, que es lo que hace `biggestDifferences()` de core: la alternativa era
+ * que la web recargase las dos poblaciones enteras desde `character_snapshots`,
+ * y esa consulta no cabe en una petición de página.
+ *
+ * Sigue recibiendo los `SegmentRead` y no sus ids, por la razón del punto 8 del
+ * ADR 0014: cada adopción sale con la procedencia de su propio escalón, así que
+ * no se puede pintar un porcentaje sin su fecha ni su denominador. Un escalón
+ * sin filas de esa variable **aparece igual, con la lista vacía**: eso es
+ * "todavía no se ha calculado ahí", que es distinto de un `undefined` que el
+ * llamante interpretaría como quiera.
+ */
+export async function readAdoptionFor(
+  db: Queryable,
+  segments: readonly SegmentRead[],
+  kind: VariableKind,
+): Promise<Map<string, AdoptionRead[]>> {
+  const byRowId = new Map(segments.map((segment) => [segment.rowId, segment]));
+  const grouped = new Map<string, AdoptionRead[]>(segments.map((segment) => [segment.rowId, []]));
+  if (segments.length === 0) return grouped;
+
+  const { rows } = await db.query<AdoptionRow & { population_segment_id: string }>(
+    `select a.population_segment_id, ${ADOPTION_COLUMNS}
+       from aggregate_snapshots a
+       left join item_media m on m.item_id = a.item_id
+      where a.population_segment_id = any($1::bigint[]) and a.variable_kind = $2
+      order by a.population_segment_id, a.adoption_rate desc, a.variable_key`,
+    [[...byRowId.keys()], kind],
+  );
+
+  for (const row of rows) {
+    const segment = byRowId.get(row.population_segment_id);
+    // Imposible salvo que la base devuelva una fila que no se pidió, y en ese
+    // caso se descarta: sin su escalón no hay procedencia con la que enseñarla.
+    if (!segment) continue;
+    grouped.get(row.population_segment_id)?.push(toAdoptionRead(row, segment));
+  }
+
+  return grouped;
+}
+
+function toAdoptionRead(row: AdoptionRow, segment: SegmentRead): AdoptionRead {
+  return {
     kind: row.variable_kind,
     variableKey: row.variable_key,
     slotGroup: row.slot_group,
@@ -348,6 +425,8 @@ export async function readAdoption(
     talentTree: row.talent_tree,
     talentId: row.talent_id === null ? null : toNumber(row.talent_id),
     talentName: row.talent_name,
+    enchantmentId: row.enchantment_id === null ? null : toNumber(row.enchantment_id),
+    enchantmentName: row.enchantment_name,
     iconUrl: row.icon_url,
     users: row.users,
     unavailable: row.unavailable,
@@ -357,5 +436,5 @@ export async function readAdoption(
       sampleSize: segment.population.sampleSize,
       denominator: row.denominator,
     }),
-  }));
+  };
 }

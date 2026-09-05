@@ -22,6 +22,7 @@ import {
   isComparable,
   readActivity,
   readAdoption,
+  readAdoptionFor,
   readBracketSegments,
   readLatestSnapshot,
   readLatestSnapshotsByBracket,
@@ -258,6 +259,55 @@ describe("lecturas de @wowpvp/data contra el schema real", { skip }, () => {
       assert.ok(target.talents.denominator > 0);
     });
 
+    it("publica gemas y encantamientos sobre el denominador del gear", async () => {
+      // Las dos variables que §16 nombraba y no se agregaban (ADR 0027). Lo que
+      // se comprueba contra el schema real es que comparten `gear_sample`: si
+      // alguien les diera un denominador propio, la fila diría otra cosa.
+      const gems = await readAdoption(pool, target, "gear-gem");
+      const enchants = await readAdoption(pool, target, "gear-enchant");
+
+      assert.ok(gems.length > 0, "el seed no sembró gemas");
+      assert.ok(enchants.length > 0, "el seed no sembró encantamientos");
+
+      for (const gem of gems) {
+        assert.equal(gem.slotGroup, null, "una gema no se agrupa por hueco");
+        assert.ok(gem.itemId !== null, "una gema es un item y lleva su id");
+        assert.equal(gem.provenance.denominator, target.gear.denominator);
+      }
+      for (const enchant of enchants) {
+        // Sin item_id, y por eso sin icono: lo que falta ahí es la ilustración
+        // (#92), no la cifra.
+        assert.equal(enchant.itemId, null);
+        assert.equal(enchant.iconUrl, null);
+        assert.ok(enchant.enchantmentId !== null);
+        assert.equal(enchant.provenance.denominator, target.gear.denominator);
+      }
+    });
+
+    it("readAdoptionFor trae dos escalones a la vez, cada uno con lo suyo", async () => {
+      const own = await readSegment(pool, {
+        region,
+        seasonId: CURRENT_SEASON,
+        bracket: frostMage,
+        segmentId: "1800-2000",
+      });
+      assert.ok(own);
+
+      const byRowId = await readAdoptionFor(pool, [own, target], "gear-item");
+
+      assert.deepEqual([...byRowId.keys()].sort(), [own.rowId, target.rowId].sort());
+      const byId = new Map<string, SegmentRead>([
+        [own.rowId, own],
+        [target.rowId, target],
+      ]);
+      for (const [rowId, adoptions] of byRowId) {
+        const denominator = byId.get(rowId)?.gear.denominator;
+        for (const adoption of adoptions) {
+          assert.equal(adoption.provenance.denominator, denominator);
+        }
+      }
+    });
+
     it("no devuelve nada de un escalón sin perfiles, y no falla", async () => {
       const segment = await readSegment(pool, {
         region,
@@ -278,8 +328,34 @@ describe("lecturas de @wowpvp/data contra el schema real", { skip }, () => {
     const MS_PER_DAY = 86_400_000;
     const cutoff = (): Date => new Date(Date.now() - ITEM_MEDIA_TTL_DAYS * MS_PER_DAY);
 
-    it("no ve pendientes con el catálogo recién sembrado", async () => {
-      assert.equal(await countPending(pool, cutoff()), 0);
+    /** Los item_id de gema que ha sembrado el generador. */
+    async function seededGems(): Promise<Set<number>> {
+      const { rows } = await pool.query<{ gem: string }>(
+        `select distinct gem::bigint as gem
+           from character_snapshot_gear, unnest(gem_item_ids) as gem`,
+      );
+      return new Set(rows.map((row) => Number(row.gem)));
+    }
+
+    it("lo único que el seed deja pendiente son las gemas", async () => {
+      // No es deuda olvidada: el generador siembra el catálogo de los items
+      // equipados y **no** el de las gemas, porque no tenemos sus URLs de icono
+      // verificadas. En local salen sin icono, que es el estado normal de §4.5
+      // del brief y el que hay que saber pintar; en producción las recoge
+      // `resolve-item-media`, cuyo catálogo de pendientes ya las incluye
+      // (ADR 0022, ADR 0027). Medido el 4 de septiembre de 2026, ninguna de las
+      // 107 gemas de producción está resuelta todavía, así que esto reproduce
+      // el estado real.
+      const gems = await seededGems();
+      assert.ok(gems.size > 0, "el seed tiene que sembrar gemas");
+      assert.equal(await countPending(pool, cutoff()), gems.size);
+
+      const pending = await loadPending(pool, cutoff(), gems.size + 10);
+      assert.deepEqual(
+        pending.filter((item) => !gems.has(item.itemId)),
+        [],
+        "ningún item equipado debería quedarse sin fila en el catálogo",
+      );
     });
 
     it("cuenta lo que falta y lo que ha caducado, con lo nuevo primero", async () => {
@@ -297,9 +373,15 @@ describe("lecturas de @wowpvp/data contra el schema real", { skip }, () => {
       );
 
       try {
-        assert.equal(await countPending(pool, cutoff()), 2);
+        // Sobre la línea base, que son las gemas que el seed no resuelve.
+        const gems = await seededGems();
+        assert.equal(await countPending(pool, cutoff()), gems.size + 2);
 
-        const pending = await loadPending(pool, cutoff(), 10);
+        // Se miran solo los dos que este test manipula: las gemas también son
+        // nuevas y comparten el primer grupo del orden.
+        const pending = (await loadPending(pool, cutoff(), gems.size + 10)).filter(
+          (item) => item.itemId === nuevo || item.itemId === caducado,
+        );
         assert.deepEqual(
           pending.map((item) => item.itemId),
           [nuevo, caducado],

@@ -335,8 +335,10 @@ async function insertProfiles(
         itemName: item.itemName,
         itemLevel: item.itemLevel,
         quality: item.quality,
-        enchantmentIds: [],
-        gemItemIds: [],
+        enchantmentIds: item.enchantmentIds,
+        enchantmentNames: item.enchantmentNames,
+        gemItemIds: item.gemItemIds,
+        gemItemNames: item.gemItemNames,
         bonusList: [],
       })),
     });

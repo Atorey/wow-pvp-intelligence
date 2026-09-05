@@ -450,6 +450,8 @@ Mismo principio que builds: ítems/trinkets/gemas/encantamientos más usados, **
 **[DECISION] Core MVP**: adoption rate de gear por segmento (alimenta directamente Player Gap, sección 13).
 **V2**: evolución de adoption rate de un ítem concreto a lo largo del tiempo (útil tras cambios de balance/nuevo loot).
 
+> **Anotado el 4 de septiembre de 2026 ([ADR 0027](decisions/0027-gear-por-item-gema-y-encantamiento.md))**: las cuatro variables que nombra esta sección ya se agregan y se publican por segmento. Las tres —item por grupo de slot, gema y encantamiento— comparten el `gear_sample` del escalón, porque salen de la misma fila observada: si leímos su equipo, leímos sus gemas. La gema y el encantamiento **no se agrupan por slot**, al revés que el item, y por la misma razón por la que los abalorios se comparan por grupo y no por hueco (§6.3 de findings). El "alimenta directamente Player Gap" tiene ahora forma concreta: `biggestDifferences()` compara dos escalones sobre las filas ya agregadas, que es lo único que la web puede leer. Lo que falta es la pantalla — la caja es #18 y las rutas de spec son #99.
+
 # 17. Meta Analytics
 
 **[DECISION]** Explícitamente NO una tier list estática. Fórmula conceptual:

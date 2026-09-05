@@ -403,6 +403,11 @@ export interface SeedGearItem {
   itemName: string;
   itemLevel: number;
   quality: string;
+  /** Gemas de esta pieza, con su nombre: paralelos por posición, como en la BD. */
+  gemItemIds: number[];
+  gemItemNames: (string | null)[];
+  enchantmentIds: number[];
+  enchantmentNames: (string | null)[];
 }
 
 /** Una observación de leaderboard: lo que trae la lista, sin gear. */
@@ -632,10 +637,88 @@ function buildGear(
       itemName: item.name,
       itemLevel: item.itemLevel,
       quality: item.quality,
+      gemItemIds: [],
+      gemItemNames: [],
+      enchantmentIds: [],
+      enchantmentNames: [],
     });
   }
 
+  socket(gear, segmentMin, random);
   return gear;
+}
+
+/**
+ * Gemas y encantamientos, con la misma lógica de señal que los nodos.
+ *
+ * Los números salen de medir los 593 perfiles reales con equipo: 29-39 gemas
+ * distintas y 48-57 encantamientos por cada ~100 perfiles de un segmento —
+ * mucho menos dispersos que los códigos de talentos, y por eso agrupan—, y las
+ * diferencias que de verdad superaban los 10 puntos entre 1800-2000 y 2000-2200.
+ *
+ * Los `base`/`drift` son los medidos, así que en local la lista de diferencias
+ * enseña lo mismo que enseñaría en producción. Los que van por debajo del umbral
+ * están a propósito: sin ellos, `isDiscriminative()` nunca descartaría nada.
+ */
+interface SocketSpec {
+  id: number;
+  name: string;
+  /** Adopción en 1600. */
+  base: number;
+  /** Cuánto se mueve por escalón de 200 puntos. */
+  drift: number;
+}
+
+const GEMS: readonly SocketSpec[] = [
+  { id: 240914, name: "Flawless Deadly Lapis", base: 0.61, drift: 0.03 },
+  { id: 240918, name: "Flawless Versatile Peridot", base: 0.05, drift: 0.11 },
+  { id: 240922, name: "Indecipherable Eversong Diamond", base: 0.11, drift: 0.13 },
+  { id: 240926, name: "Flawless Quick Sapphire", base: 0.44, drift: -0.02 },
+  { id: 240930, name: "Culminating Blasphemite", base: 0.29, drift: -0.11 },
+];
+
+const ENCHANTS: readonly SocketSpec[] = [
+  { id: 7991, name: "Enchant Helm - Empowered Blessing of Speed", base: 0.58, drift: 0.04 },
+  { id: 7364, name: "Enchant Ring - Silvermoon's Alacrity", base: -0.03, drift: 0.16 },
+  { id: 7346, name: "Enchant Boots - Farstrider's Hunt", base: 0.36, drift: 0.13 },
+  { id: 7409, name: "Enchant Chest - Mark of Nalorakk", base: 0.09, drift: 0.12 },
+  { id: 7415, name: "Enchant Weapon - Acuity of the Ren'dorei", base: 0.52, drift: 0.11 },
+  { id: 7422, name: "Enchant Cloak - Chant of Winged Grace", base: 0.47, drift: -0.03 },
+];
+
+/**
+ * Reparte gemas y encantamientos por el equipo ya construido.
+ *
+ * Da igual en qué pieza cae cada uno —se agregan sin slot (ADR 0027)— pero se
+ * reparten en vez de amontonarlos en una fila, porque así el seed ejercita el
+ * mismo `unnest` por slot que hace el job. Lo cosmético se queda fuera: no se
+ * engema un tabardo.
+ *
+ * Ninguna gema se siembra en `item_media`, y eso también es deliberado: en local
+ * salen sin icono, que es el estado normal de §4.5 del brief y el que hay que
+ * saber pintar. En producción las resuelve `resolve-item-media`, cuyo catálogo
+ * ya incluye las gemas.
+ */
+function socket(gear: SeedGearItem[], segmentMin: number, random: () => number): void {
+  const wearable = gear.filter((item) => !COSMETIC_SLOTS.includes(item.slot));
+  if (wearable.length === 0) return;
+
+  const place = (specs: readonly SocketSpec[], into: "gem" | "enchant"): void => {
+    specs.forEach((spec, i) => {
+      if (random() >= adoptionAt(spec.base, spec.drift, segmentMin)) return;
+      const item = wearable[i % wearable.length] as SeedGearItem;
+      if (into === "gem") {
+        item.gemItemIds.push(spec.id);
+        item.gemItemNames.push(spec.name);
+      } else {
+        item.enchantmentIds.push(spec.id);
+        item.enchantmentNames.push(spec.name);
+      }
+    });
+  };
+
+  place(GEMS, "gem");
+  place(ENCHANTS, "enchant");
 }
 
 /** El equipado es la media de lo que lleva puesto, sin contar lo cosmético. */

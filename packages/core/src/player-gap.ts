@@ -110,6 +110,21 @@ export interface PlayerBuild {
    */
   pvpTalents: readonly TalentSelection[] | null;
   /**
+   * Gemas engarzadas en todo su equipo, sin el hueco del que salen.
+   *
+   * No es nullable, al revés que `talents`, y la diferencia no es un descuido:
+   * las gemas salen de la misma fila que el item, así que su disponibilidad es
+   * exactamente la del gear y la decide `hasComparableGear()`. Una lista vacía
+   * dentro de un equipo legible es un hecho observado —no engemó nada—, no una
+   * ausencia de dato, y por eso cuenta en el denominador con adopción 0.
+   *
+   * Van sin slot a propósito: la misma gema se pone en piezas distintas y la
+   * pregunta es "¿la lleva?", no "¿en qué hueco?" (ADR 0027).
+   */
+  gems: readonly GearSelection[];
+  /** Encantamientos aplicados, por la misma regla y con el mismo denominador. */
+  enchantments: readonly GearSelection[];
+  /**
    * Item level de lo que lleva puesto. Es el que se compara: `average_item_level`
    * cuenta también lo mejor que tenga en el banco y en las bolsas, que no es lo
    * que el jugador está usando en la arena. Difieren en más de la mitad de los
@@ -118,6 +133,19 @@ export interface PlayerBuild {
   equippedItemLevel: number | null;
   /** Se transporta como contexto, pero no entra en la comparación. */
   averageItemLevel: number | null;
+}
+
+/**
+ * Una gema o un encantamiento observados.
+ *
+ * `name` a null es "no disponible" (regla 5), no "sin nombre": el id identifica
+ * la variable y el nombre solo la etiqueta. Los snapshots anteriores a la
+ * migración 0013 traen el id sin él, así que la adopción es correcta desde el
+ * primer recálculo y la etiqueta se va rellenando.
+ */
+export interface GearSelection {
+  id: number;
+  name: string | null;
 }
 
 /** Un nodo de talento observado, ya resuelto: no hay nada que decodificar. */

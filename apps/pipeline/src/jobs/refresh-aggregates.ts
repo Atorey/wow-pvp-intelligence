@@ -13,6 +13,7 @@ import {
   type ActivityEvidence,
   type ActivityWindowDays,
   type AggregatedVariable,
+  type GearSelection,
   type HeroTreeSelection,
   type PlayerBuild,
   type SegmentSummary,
@@ -117,6 +118,14 @@ export interface ProfileRow {
   pvpTalents: TalentSelection[] | null;
   heroTalentTree: HeroTreeSelection | null;
   gearBySlot: Map<string, number>;
+  /**
+   * Gemas y encantamientos de todo el equipo, ya sin el hueco del que salen: se
+   * agregan sin slot (ADR 0027). Listas vacías y no null, porque su
+   * disponibilidad es la del gear — si el perfil no trae equipo, no hay filas de
+   * las que sacarlas y el personaje ya sale del denominador por `gearBySlot`.
+   */
+  gems: GearSelection[];
+  enchantments: GearSelection[];
 }
 
 /**
@@ -177,6 +186,8 @@ export function buildMembers(
       activityEvidence: row.activityEvidence,
       profileCapturedAt: profile?.capturedAt ?? null,
       gearBySlot: profile?.gearBySlot ?? new Map<string, number>(),
+      gems: profile?.gems ?? [],
+      enchantments: profile?.enchantments ?? [],
       talentLoadoutCode: profile?.talentLoadoutCode ?? null,
       talents: profile?.talents ?? null,
       pvpTalents: profile?.pvpTalents ?? null,
@@ -362,6 +373,25 @@ async function loadSearchOnly(
   return rows;
 }
 
+/**
+ * Acumula ids y nombres paralelos de una fila de gear en la lista del snapshot.
+ *
+ * Los nombres pueden venir cortos: los snapshots anteriores a la migración 0013
+ * traen los ids y el array vacío, y esa gema entra igual con el nombre a null —
+ * la adopción se cuenta por id y la etiqueta se rellena cuando vuelva a
+ * observarse (regla 5).
+ */
+function collectSelections(
+  target: Map<string, GearSelection[]>,
+  snapshotId: string,
+  ids: readonly number[] | null,
+  names: readonly (string | null)[] | null,
+): void {
+  const list = target.get(snapshotId) ?? [];
+  (ids ?? []).forEach((id, index) => list.push({ id, name: names?.[index] ?? null }));
+  if (list.length > 0) target.set(snapshotId, list);
+}
+
 async function loadProfiles(
   pool: pg.Pool,
   region: string,
@@ -396,8 +426,13 @@ async function loadProfiles(
     slot: string;
     item_id: string;
     item_name: string | null;
+    gem_item_ids: number[];
+    gem_item_names: (string | null)[];
+    enchantment_ids: number[];
+    enchantment_names: (string | null)[];
   }>(
-    `select g.snapshot_id, g.slot, g.item_id, g.item_name
+    `select g.snapshot_id, g.slot, g.item_id, g.item_name,
+            g.gem_item_ids, g.gem_item_names, g.enchantment_ids, g.enchantment_names
        from character_snapshot_gear g
       where g.snapshot_id = any($1::bigint[])`,
     [snapshots.map((row) => row.id)],
@@ -435,6 +470,8 @@ async function loadProfiles(
   }
 
   const gearBySnapshot = new Map<string, Map<string, number>>();
+  const gemsBySnapshot = new Map<string, GearSelection[]>();
+  const enchantsBySnapshot = new Map<string, GearSelection[]>();
   const itemNames = new Map<number, string>();
   for (const row of gear) {
     const itemId = Number(row.item_id);
@@ -445,6 +482,18 @@ async function loadProfiles(
     }
     slots.set(row.slot, itemId);
     if (row.item_name && !itemNames.has(itemId)) itemNames.set(itemId, row.item_name);
+
+    // Las gemas se acumulan del equipo entero y pierden el slot aquí: la
+    // pregunta que responde su adoption_rate es "¿la lleva?", no "¿dónde"
+    // (ADR 0027). El nombre viaja con ellas porque, al contrario que el del
+    // item, no está en ninguna otra columna que se pueda consultar después.
+    collectSelections(gemsBySnapshot, row.snapshot_id, row.gem_item_ids, row.gem_item_names);
+    collectSelections(
+      enchantsBySnapshot,
+      row.snapshot_id,
+      row.enchantment_ids,
+      row.enchantment_names,
+    );
   }
 
   const profiles = snapshots.map((row) => ({
@@ -463,6 +512,8 @@ async function loadProfiles(
         ? { id: row.hero_talent_tree_id, name: row.hero_talent_tree_name }
         : null,
     gearBySlot: gearBySnapshot.get(row.id) ?? new Map<string, number>(),
+    gems: gemsBySnapshot.get(row.id) ?? [],
+    enchantments: enchantsBySnapshot.get(row.id) ?? [],
   }));
 
   return { profiles, itemNames };
@@ -643,18 +694,25 @@ async function writeSegments(
           `insert into aggregate_snapshots
              (population_segment_id, variable_kind, variable_key, slot_group, item_id,
               item_name, talent_tree, talent_id, talent_name,
+              enchantment_id, enchantment_name,
               users, denominator, unavailable, adoption_rate)
-           values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+           values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
           [
             segmentRowId,
             variable.kind,
             variable.key,
             variable.slotGroup,
             variable.itemId,
-            variable.itemId === null ? null : (itemNames.get(variable.itemId) ?? null),
+            // El nombre observado manda sobre el del catálogo: la gema lo trae
+            // consigo y el item equipado no, así que ninguna de las dos vías
+            // sirve para las dos.
+            variable.itemName ??
+              (variable.itemId === null ? null : (itemNames.get(variable.itemId) ?? null)),
             variable.talentTree,
             variable.talentId,
             variable.talentName,
+            variable.enchantmentId,
+            variable.enchantmentName,
             variable.adoption.users,
             variable.adoption.denominator,
             variable.adoption.unavailable,

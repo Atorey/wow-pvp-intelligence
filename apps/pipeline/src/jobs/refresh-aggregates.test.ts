@@ -41,6 +41,8 @@ function member(overrides: Partial<Member> & { characterId: string }): Member {
     activityEvidence: "played-delta",
     profileCapturedAt: null,
     gearBySlot: new Map(),
+    gems: [],
+    enchantments: [],
     talentLoadoutCode: null,
     talents: null,
     heroTalentTree: null,
@@ -82,6 +84,8 @@ test("el rating es del snapshot más reciente y el gear del último perfil", () 
       pvpTalents: null,
       heroTalentTree: null,
       gearBySlot: new Map([["HEAD", 1]]),
+      gems: [],
+      enchantments: [],
     },
   ];
 
@@ -124,6 +128,8 @@ test("un perfil anterior al ADR 0026 tiene código pero no nodos", () => {
       pvpTalents: null,
       heroTalentTree: null,
       gearBySlot: new Map([["HEAD", 1]]),
+      gems: [],
+      enchantments: [],
     },
   ];
 
@@ -145,6 +151,8 @@ test("el perfil se pega al mismo personaje en el mismo bracket, no en otro", () 
       pvpTalents: null,
       heroTalentTree: null,
       gearBySlot: new Map([["HEAD", 9]]),
+      gems: [],
+      enchantments: [],
     },
   ];
 

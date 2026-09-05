@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  aggregateGearEnchants,
+  aggregateGearGems,
   aggregateGearItems,
   aggregateHeroTrees,
   aggregateSegment,
@@ -25,6 +27,8 @@ function build(overrides: Partial<PlayerBuild> & { rating: number }): PlayerBuil
     talents: null,
     heroTalentTree: null,
     pvpTalents: null,
+    gems: [],
+    enchantments: [],
     equippedItemLevel: null,
     averageItemLevel: null,
     ...overrides,
@@ -248,4 +252,118 @@ test("la agregación de nodos da el mismo número que adoptionRate uno a uno", (
     );
     assert.deepEqual(variable.adoption, reference, variable.key);
   }
+});
+
+// --- Gemas y encantamientos (ADR 0027) ---
+
+const LAPIS = { id: 240914, name: "Flawless Deadly Lapis" };
+const PERIDOT = { id: 240918, name: "Flawless Versatile Peridot" };
+
+test("la misma gema en tres huecos del mismo personaje es un usuario, no tres", () => {
+  const gems = aggregateGearGems([
+    build({ rating: 1900, gearBySlot: new Map([["HEAD", 1]]), gems: [LAPIS, LAPIS, LAPIS] }),
+    build({ rating: 1900, gearBySlot: new Map([["HEAD", 1]]), gems: [] }),
+  ]);
+
+  assert.equal(gems.length, 1);
+  assert.equal(gems[0]?.adoption.users, 1);
+  assert.equal(gems[0]?.adoption.denominator, 2);
+});
+
+test("un equipo sin gemas cuenta en el denominador, no fuera", () => {
+  // La diferencia con los talentos, y el motivo de que no haya un gem_sample:
+  // no engemar es un hecho observado, no un dato que falte (regla 5 al revés).
+  const gems = aggregateGearGems([
+    build({ rating: 1900, gearBySlot: new Map([["HEAD", 1]]), gems: [LAPIS] }),
+    build({ rating: 1900, gearBySlot: new Map([["HEAD", 2]]), gems: [] }),
+  ]);
+
+  assert.equal(gems[0]?.adoption.denominator, 2);
+  assert.equal(gems[0]?.adoption.value, 0.5);
+  assert.equal(gems[0]?.adoption.unavailable, 0);
+});
+
+test("quien no tiene equipo legible sale del denominador de gemas", () => {
+  const gems = aggregateGearGems([
+    build({ rating: 1900, gearBySlot: new Map([["HEAD", 1]]), gems: [LAPIS] }),
+    // Solo fila de leaderboard: no es alguien que no lleve gemas.
+    build({ rating: 1900 }),
+  ]);
+
+  assert.equal(gems[0]?.adoption.denominator, 1);
+  assert.equal(gems[0]?.adoption.unavailable, 1);
+});
+
+test("las tres variables de gear comparten denominador", () => {
+  const population = [
+    build({
+      rating: 1900,
+      gearBySlot: new Map([["HEAD", 1]]),
+      gems: [LAPIS],
+      enchantments: [{ id: 7346, name: "Enchant Boots - Farstrider's Hunt" }],
+    }),
+    build({ rating: 1900, gearBySlot: new Map([["HEAD", 1]]) }),
+    build({ rating: 1900 }),
+  ];
+
+  const summary = summarizeSegment(population);
+  for (const variables of [
+    aggregateGearItems(population),
+    aggregateGearGems(population),
+    aggregateGearEnchants(population),
+  ]) {
+    assert.equal(variables[0]?.adoption.denominator, summary.gearSample);
+  }
+});
+
+test("el nombre de la gema se recupera del primer personaje que lo traiga", () => {
+  const gems = aggregateGearGems([
+    // Un snapshot anterior a la migración 0013: id sin nombre.
+    build({ rating: 1900, gearBySlot: new Map([["HEAD", 1]]), gems: [{ id: 240914, name: null }] }),
+    build({ rating: 1900, gearBySlot: new Map([["HEAD", 1]]), gems: [LAPIS] }),
+  ]);
+
+  assert.equal(gems[0]?.itemName, "Flawless Deadly Lapis");
+  assert.equal(gems[0]?.adoption.users, 2);
+});
+
+test("la gema lleva item_id y el encantamiento no", () => {
+  // No es purismo: la lectura junta el catálogo de iconos por item_id, así que
+  // un enchantment_id ahí cruzaría con el item que compartiera ese número.
+  const population = [
+    build({
+      rating: 1900,
+      gearBySlot: new Map([["HEAD", 1]]),
+      gems: [PERIDOT],
+      enchantments: [{ id: 7364, name: "Enchant Ring - Silvermoon's Alacrity" }],
+    }),
+  ];
+
+  const gem = aggregateGearGems(population)[0];
+  assert.equal(gem?.key, "gem:240918");
+  assert.equal(gem?.itemId, 240918);
+  assert.equal(gem?.slotGroup, null);
+
+  const enchant = aggregateGearEnchants(population)[0];
+  assert.equal(enchant?.key, "enchant:7364");
+  assert.equal(enchant?.itemId, null);
+  assert.equal(enchant?.enchantmentId, 7364);
+  assert.equal(enchant?.enchantmentName, "Enchant Ring - Silvermoon's Alacrity");
+});
+
+test("aggregateSegment publica las tres familias de gear", () => {
+  const kinds = new Set(
+    aggregateSegment([
+      build({
+        rating: 1900,
+        gearBySlot: new Map([["HEAD", 1]]),
+        gems: [LAPIS],
+        enchantments: [{ id: 7346, name: null }],
+      }),
+    ]).map((variable) => variable.kind),
+  );
+
+  assert.ok(kinds.has("gear-item"));
+  assert.ok(kinds.has("gear-gem"));
+  assert.ok(kinds.has("gear-enchant"));
 });

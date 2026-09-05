@@ -116,8 +116,8 @@ export async function insertProfileSnapshot(
     await client.query(
       `insert into character_snapshot_gear
          (snapshot_id, slot, item_id, item_name, item_level, quality,
-          enchantment_ids, gem_item_ids, bonus_list)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+          enchantment_ids, enchantment_names, gem_item_ids, gem_item_names, bonus_list)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        on conflict (snapshot_id, slot) do nothing`,
       [
         snapshotId,
@@ -127,7 +127,9 @@ export async function insertProfileSnapshot(
         item.itemLevel,
         item.quality,
         item.enchantmentIds,
+        item.enchantmentNames,
         item.gemItemIds,
+        item.gemItemNames,
         item.bonusList,
       ],
     );

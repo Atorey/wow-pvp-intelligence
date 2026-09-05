@@ -222,7 +222,9 @@ export const es: Copy = {
       },
       talents: {
         label: "Talentos",
-        body: "Tenemos el código de build, sin decodificar en nodos. No se compara en esta versión.",
+        body:
+          "Los nodos de la build ya se agregan por segmento. Lo que falta es la comparación con " +
+          "el escalón de arriba, así que los talentos no se comparan en esta versión.",
       },
       stats: {
         label: "Stats secundarias y embellecimientos",
