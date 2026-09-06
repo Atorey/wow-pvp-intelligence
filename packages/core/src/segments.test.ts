@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { allSegments, formatSegment, nextSegment, segmentFor, servesIcpSubjects } from "./segments";
+import {
+  allSegments,
+  formatSegment,
+  nextSegment,
+  previousSegment,
+  segmentFor,
+  servesIcpSubjects,
+} from "./segments";
 
 test("un rating cae en el tramo semiabierto [min, max)", () => {
   assert.equal(segmentFor(1840).id, "1800-2000");
@@ -21,6 +28,22 @@ test("el tramo superior es abierto y no tiene siguiente escalón", () => {
 
 test("nextSegment es el escalón inmediatamente superior", () => {
   assert.equal(nextSegment(segmentFor(1840))?.id, "2000-2200");
+});
+
+test("previousSegment es el escalón inmediatamente inferior", () => {
+  assert.equal(previousSegment(segmentFor(1840))?.id, "1600-1800");
+  // Desde el tramo abierto se baja al último cerrado, que sí existe.
+  assert.equal(previousSegment(segmentFor(3500))?.id, "2800-3000");
+});
+
+test("el tramo de abajo no tiene escalón anterior", () => {
+  assert.equal(previousSegment(segmentFor(0)), undefined);
+});
+
+test("previousSegment respeta el suelo de la escala, no el cero", () => {
+  const scale = { size: 100, floor: 1000, ceiling: 2000 };
+  assert.equal(previousSegment(segmentFor(1050, scale), scale), undefined);
+  assert.equal(previousSegment(segmentFor(1150, scale), scale)?.id, "1000-1100");
 });
 
 test("los tramos cubren la escala sin huecos ni solapes", () => {

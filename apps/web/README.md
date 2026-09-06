@@ -23,6 +23,7 @@ La búsqueda de personaje y el perfil ya funcionan de punta a punta; el resto de
 | **Sí** | El perfil de personaje: identidad, cifras propias, caja Player Gap, posición en la spec y equipamiento observado ([§2 del brief](../../docs/design/brief.md#2-la-página-fuera-de-cobertura)).                                                               |
 | **Sí** | La medición de la North Star, emitida por la propia caja Player Gap, y la política de privacidad ([ADR 0028](../../docs/decisions/0028-medicion-de-primera-parte-y-sin-banner.md)). No hay banner de cookies porque no hay cookies.                         |
 | **Sí** | La página de metodología: de dónde salen los datos, qué es la población observada, cómo se forman los tramos y qué significa cada nivel de confianza (§24 del [plan](../../docs/product-plan.md)).                                                          |
+| **Sí** | `robots.txt`, `sitemap.xml` y la regla que decide si una página entra en el índice ([ADR 0029](../../docs/decisions/0029-que-se-indexa-y-que-no.md)).                                                                                                       |
 | **No** | Las páginas de spec y de segmento, que siguen enseñando su dirección y nada más.                                                                                                                                                                            |
 
 ## Rutas
@@ -33,6 +34,15 @@ El mapa entero, con sus reglas y sus porqués, está en el [ADR 0020](../../docs
 - **Cada página resuelve sus tramos y hace una de tres cosas**: servir, `permanentRedirect()` a la forma canónica, o `notFound()`. Lo que no está en el catálogo es 404, nunca una redirección adivinada.
 - **El copy está en `src/i18n/copy`**, dos diccionarios y ninguna librería. El inglés define la forma: una clave que falte en español rompe el `typecheck`.
 - **`/search` y `/api/search` no están en el catálogo del ADR 0020 y no se indexan.** La primera enseña lo que un envío no pudo resolver; la segunda alimenta el autocompletado y va sin prefijo de idioma, porque devuelve identidades y son las mismas en las dos lenguas.
+
+## Qué se indexa
+
+Las reglas y sus porqués están en el [ADR 0029](../../docs/decisions/0029-que-se-indexa-y-que-no.md); [`src/seo/`](src/seo/) es donde viven. Lo que hay que saber antes de tocar una página:
+
+- **Ninguna página escribe su `robots` a mano: se pide a `robotsFor()`.** Multiplica por el entorno, y esa es toda su razón de ser — el `robots` de una página pisa el del layout, así que un `index: true` suelto publicaría cada preview de Netlify en Google.
+- **Una página se indexa cuando tiene contenido propio y comparable**, con el umbral de §13.4 y a través de `canShowComparison()` / `isComparable()`. La población de un escalón no basta: mide cuánta gente hay, no de cuánta sabemos algo (#76).
+- **Las páginas de spec no se indexan todavía**, aunque el escalón tenga muestra: siguen siendo armazón. Lo declara `SPEC_PAGES_PUBLISHED` en [`src/seo/indexable.ts`](src/seo/indexable.ts), y encenderlo es parte de #99.
+- **El sitemap se recorre, no se escribe.** Sale del catálogo de `@wowpvp/core` filtrado por la muestra de cada escalón, y su `lastModified` es el `computed_at` del dato. Los perfiles no entran nunca: son miles de rutas dinámicas contra Postgres y se descubren por enlace.
 
 ## La búsqueda
 
@@ -98,6 +108,8 @@ El 302 no es un detalle: un 301 se queda pegado en la caché del navegador y en 
 | Producción            | `NEXT_PUBLIC_SITE_URL`, de `netlify.toml`  | Sí          |
 
 Lo decide [`src/site.ts`](src/site.ts) leyendo `CONTEXT`, que rellena Netlify. La lista es blanca: solo `production` indexa, así que un contexto nuevo que nadie previó entra como no indexable en vez de colarse en el índice.
+
+Fuera de producción el `robots.txt` cierra el sitio entero y no anuncia el sitemap: un rastreador que no lea las etiquetas se queda igualmente fuera.
 
 Las variables están documentadas en el [`.env.example`](../../.env.example) de la raíz — el `.env` es único y vive ahí ([ADR 0001](../../docs/decisions/0001-estructura-del-repo-y-stack.md)). Las de Netlify se configuran en el sitio, no en el repo.
 

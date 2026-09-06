@@ -23,3 +23,18 @@ export function alternatesFor(pathname: string, locale: Locale): Alternates {
 
   return { canonical: localizedPathname(pathname, locale), languages };
 }
+
+/**
+ * Los mismos `hreflang`, en URL absolutas.
+ *
+ * El sitemap no tiene `metadataBase` que resuelva una ruta relativa: un sitemap
+ * con `/es/methodology` dentro no dice de qué sitio habla. Por eso esto recibe
+ * el origen y `alternatesFor` no lo necesita — son dos consumidores con
+ * necesidades opuestas y una sola tabla de idiomas.
+ */
+export function absoluteAlternates(pathname: string, base: URL): Record<string, string> {
+  const { languages } = alternatesFor(pathname, SOURCE_LOCALE);
+  return Object.fromEntries(
+    Object.entries(languages).map(([tag, path]) => [tag, new URL(path, base).href]),
+  );
+}

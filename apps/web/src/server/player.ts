@@ -1,4 +1,4 @@
-import type { PlayerRoute } from "@wowpvp/core";
+import type { PlayerRoute, Region } from "@wowpvp/core";
 import {
   readActivity,
   readAdoptionFor,
@@ -17,6 +17,7 @@ import {
   type SegmentRead,
   type VariableKind,
 } from "@wowpvp/data";
+import { cache } from "react";
 import { getDb } from "./db";
 import "./env";
 import {
@@ -166,3 +167,26 @@ async function readAdoptions(
 
   return { gear: sides(gear), talentNodes: sides(talentNodes) };
 }
+
+/**
+ * El mismo perfil, cargado una sola vez por petición.
+ *
+ * `generateMetadata` necesita saber si la caja Player Gap tiene comparación para
+ * decidir si la página se indexa (ADR 0029, decisión 4), y eso solo lo sabe el
+ * perfil entero. Sin memoizar, cada visita a un perfil haría el doble de
+ * consultas contra el pooler.
+ *
+ * Los argumentos son primitivos y no la `PlayerRoute` a propósito: `cache`
+ * compara por identidad, y un objeto recién construido por `resolvePlayerRoute`
+ * nunca es el mismo dos veces —la memoización no fallaría ruidosamente, se
+ * limitaría a no existir—.
+ */
+export const cachedPlayerProfile = cache(
+  async (
+    region: Region,
+    realmSlug: string,
+    nameSlug: string,
+    requestedSpec: string | undefined,
+  ): Promise<PlayerProfile | null> =>
+    loadPlayerProfile({ region, realmSlug, nameSlug }, requestedSpec),
+);

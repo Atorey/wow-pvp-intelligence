@@ -36,6 +36,7 @@ export const es: Copy = {
     menuLabel: "Menú",
     bracketsLabel: "Modalidad",
     classesLabel: "Clases",
+    segmentsLabel: "Tramos de rating",
   },
 
   theme: {
@@ -308,6 +309,8 @@ export const es: Copy = {
     inBracket: (spec, bracket) => `Representación y gear observado de ${spec} en ${bracket}.`,
     inSegment: (spec, bracket, segment) =>
       `Gear observado de ${spec} en el tramo ${segment} de ${bracket}.`,
+    previousSegment: "Tramo de abajo",
+    nextSegment: "Tramo de arriba",
   },
 
   notFound: {

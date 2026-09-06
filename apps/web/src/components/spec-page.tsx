@@ -4,7 +4,9 @@ import type { Metadata } from "next";
 import { alternatesFor } from "../i18n/alternates";
 import { copyFor } from "../i18n/copy";
 import type { Locale } from "../i18n/locales";
+import { SPEC_PAGES_PUBLISHED, robotsFor } from "../seo/indexable";
 import { type Crumb, PagePlaceholder } from "./page-placeholder";
+import { SegmentNav } from "./segment-nav";
 
 /**
  * Lo que comparten los tres niveles de `/spec/…`.
@@ -50,6 +52,10 @@ export function specMetadata(route: SpecRoute, locale: Locale): Metadata {
     title: titleFor(route),
     description: leadFor(route, locale),
     alternates: alternatesFor(specPath(route.spec, route.bracket, route.segment), locale),
+    // Mientras la página sea un armazón no hay nada que indexar, y la muestra
+    // del escalón no cambia eso (ADR 0029, decisión 8). Cuando se encienda, esto
+    // pasa a preguntar por la muestra de esta ruta en concreto.
+    robots: robotsFor(SPEC_PAGES_PUBLISHED, process.env),
   };
 }
 
@@ -60,6 +66,15 @@ export function SpecPage({ route, locale }: { route: SpecRoute; locale: Locale }
       title={titleFor(route)}
       lead={leadFor(route, locale)}
       trail={trailFor(route)}
-    />
+    >
+      {route.bracket && route.segment && (
+        <SegmentNav
+          spec={route.spec}
+          bracket={route.bracket}
+          segment={route.segment}
+          locale={locale}
+        />
+      )}
+    </PagePlaceholder>
   );
 }

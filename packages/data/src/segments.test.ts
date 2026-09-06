@@ -6,6 +6,7 @@ import {
   readAdoptionFor,
   readBracketSegments,
   readSegment,
+  readSegmentSamples,
   toAggregatedVariable,
   toSegmentRead,
 } from "./segments";
@@ -549,5 +550,37 @@ describe("toAggregatedVariable", () => {
       denominator: 148,
       unavailable: 2,
     });
+  });
+});
+
+describe("readSegmentSamples", () => {
+  it("trae las tres bases de comparación y ninguna otra cifra", async () => {
+    const db = fakeDb([
+      row({ segment_id: "1800-2000", gear_sample: 0, talent_node_sample: 46 }),
+      row({ segment_id: "2000-2200", gear_sample: 120 }),
+    ]);
+
+    const reads = await readSegmentSamples(db);
+
+    assert.deepEqual(
+      reads.map((read) => [read.segmentId, read.gear.confidence, read.talentNodes.confidence]),
+      [
+        ["1800-2000", "insufficient", "medium"],
+        ["2000-2200", "high", "insufficient"],
+      ],
+    );
+    // La población no entra en la decisión, pero viaja como contexto de la cifra.
+    assert.equal(reads[0]?.gear.sampleSize, 3000);
+  });
+
+  it("se queda con la corrida más nueva de cada par y con la temporada vigente", async () => {
+    const db = fakeDb([row()]);
+    await readSegmentSamples(db);
+
+    const [call] = db.calls;
+    assert.ok(call);
+    assert.match(call.text, /distinct on \(region, bracket, segment_id\)/);
+    assert.match(call.text, /order by region, bracket, segment_id, computed_at desc/);
+    assert.match(call.text, /season_id = \(select max\(season_id\)/);
   });
 });
