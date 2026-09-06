@@ -1,8 +1,8 @@
 import { getCharacterLookupTtlMinutes } from "@wowpvp/blizzard";
 import {
   BRACKET_LABELS,
-  METHODOLOGY_PATH,
   formatSegment,
+  methodologyPath,
   playerPath,
   searchPath,
   type PlayerRoute,
@@ -232,8 +232,10 @@ export function PlayerPage({
               </SectionCard>
             )}
             <p className="text-sm">
+              {/* Al apartado de confianza, que es lo que esta columna acaba de
+                  declarar: quien llega aquí viene de leer un "n" y un nivel. */}
               <Link
-                href={localizedPathname(METHODOLOGY_PATH, locale)}
+                href={localizedPathname(methodologyPath("confidence"), locale)}
                 className="text-primary underline"
               >
                 {copy.methodology}

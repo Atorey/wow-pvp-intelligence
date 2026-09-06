@@ -6,8 +6,10 @@ import {
   bracketIdFor,
   isRegion,
   METHODOLOGY_PATH,
+  METHODOLOGY_SECTIONS,
   SEARCH_PATH,
   isSearchStatus,
+  methodologyPath,
   searchPath,
   parseSegmentSlug,
   playerPath,
@@ -198,6 +200,17 @@ test("lo que no está en el catálogo no es una ruta", () => {
 test("la ruta de metodología no depende de ningún dato", () => {
   // Es obligatoria desde el MVP (§24) y no tiene tramos dinámicos que resolver.
   assert.equal(METHODOLOGY_PATH, "/methodology");
+});
+
+test("un apartado de la metodología se enlaza por su nombre, no por un ancla escrita a mano", () => {
+  assert.equal(methodologyPath(), METHODOLOGY_PATH);
+  assert.equal(methodologyPath("confidence"), "/methodology#confidence");
+});
+
+test("el catálogo de apartados no tiene nombres repetidos", () => {
+  // Dos apartados con el mismo `id` son un enlace que aterriza en el primero de
+  // los dos y nadie se entera: el navegador no avisa, se lee otra cosa.
+  assert.equal(new Set(METHODOLOGY_SECTIONS).size, METHODOLOGY_SECTIONS.length);
 });
 
 test("la búsqueda lleva lo tecleado en la query, no en la ruta", () => {

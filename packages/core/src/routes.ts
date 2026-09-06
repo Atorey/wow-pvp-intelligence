@@ -105,6 +105,37 @@ export function parseSegmentSlug(
 
 export const HOME_PATH = "/";
 export const METHODOLOGY_PATH = "/methodology";
+
+/**
+ * Las secciones de la página de metodología, en el orden en el que se leen.
+ *
+ * Son catálogo y no texto: un `id` de sección es destino de enlace desde otras
+ * páginas —el perfil apunta al apartado de confianza— y por eso se escribe una
+ * sola vez aquí, como el resto de las rutas. Van en inglés en las dos lenguas,
+ * igual que los tramos de ruta (ADR 0012, decisión 3): lo único que distingue
+ * la versión española de la inglesa es el prefijo.
+ */
+export const METHODOLOGY_SECTIONS = [
+  "sources",
+  "observed",
+  "segments",
+  "confidence",
+  "numbers",
+  "correlation",
+] as const;
+
+export type MethodologySection = (typeof METHODOLOGY_SECTIONS)[number];
+
+/**
+ * La página entera, o uno de sus apartados.
+ *
+ * El fragmento va aquí y no concatenado en quien enlaza porque un `#` escrito a
+ * mano no lo comprueba nadie: apunta a un apartado que puede no existir y falla
+ * en silencio, dejando al lector arriba del todo sin decir que se ha perdido.
+ */
+export function methodologyPath(section?: MethodologySection): string {
+  return section === undefined ? METHODOLOGY_PATH : `${METHODOLOGY_PATH}#${section}`;
+}
 /**
  * La política de privacidad, que el ADR 0020 declaró sin código y el ADR 0028
  * abre. No es una página opcional: la 2.p de la ToU obliga a publicarla y le
