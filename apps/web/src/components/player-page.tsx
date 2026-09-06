@@ -159,6 +159,7 @@ export function PlayerPage({
                 bracket: bracketLabel,
                 rating: snapshot.rating,
               }}
+              measured={{ spec: active.slug, bracket: "solo-shuffle" }}
             />
           </div>
           {/*

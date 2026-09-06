@@ -32,3 +32,16 @@ export function siteUrl(env: Environment): URL {
 export function isPublicSite(env: Environment): boolean {
   return env["CONTEXT"] === "production";
 }
+
+/**
+ * La dirección a la que se dirigen las solicitudes de derechos de la política
+ * de privacidad (ADR 0028).
+ *
+ * Es la única línea del texto legal que sale del entorno, y por eso está aquí y
+ * no en `i18n/legal`: publicarla más adelante es rellenar una variable del
+ * sitio, no editar un documento legal en dos idiomas.
+ */
+export function privacyContact(env: Environment): string | null {
+  const value = env["PRIVACY_CONTACT"]?.trim();
+  return value ? value : null;
+}

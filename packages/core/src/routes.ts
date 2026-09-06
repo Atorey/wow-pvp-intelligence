@@ -106,6 +106,12 @@ export function parseSegmentSlug(
 export const HOME_PATH = "/";
 export const METHODOLOGY_PATH = "/methodology";
 /**
+ * La política de privacidad, que el ADR 0020 declaró sin código y el ADR 0028
+ * abre. No es una página opcional: la 2.p de la ToU obliga a publicarla y le
+ * condiciona el contenido (ADR 0015, decisión 9).
+ */
+export const PRIVACY_PATH = "/privacy";
+/**
  * Dónde aterriza un envío del buscador que no lleva a un perfil concreto
  * (ADR 0024). No se indexa y no aparece en el sitemap: su contenido es la
  * consulta de una persona, no una página del catálogo.

@@ -1,11 +1,13 @@
-import { MIN_DISCRIMINATIVE_DELTA, formatSegment } from "@wowpvp/core";
+import { MIN_DISCRIMINATIVE_DELTA, formatSegment, type BracketSlug } from "@wowpvp/core";
 
+import { gapViewEventData } from "../analytics/gap-view";
 import { copyFor } from "../i18n/copy";
 import { formatCount, formatPercent, formatRating } from "../i18n/format";
 import type { Locale } from "../i18n/locales";
 import type { GapView, ListView } from "../server/player-profile";
 import { DeclaredAbsence } from "./counted-figure";
 import { DifferenceRow } from "./difference-row";
+import { GapViewEvent } from "./gap-view-event";
 import { Alert, AlertDescription } from "./ui/alert";
 import { Badge } from "./ui/badge";
 import { Card } from "./ui/card";
@@ -30,18 +32,34 @@ export function PlayerGapBox({
   locale,
   gap,
   subject,
+  measured,
 }: {
   locale: Locale;
   gap: GapView;
   /** Quién es el sujeto de la comparación, declarado una vez y siempre visible. */
   subject: { spec: string; bracket: string; rating: number };
+  /**
+   * Los mismos datos, en su forma canónica y no en la que se pinta: `subject`
+   * lleva etiquetas para leer y esto lleva slugs para contar. Están separados
+   * porque una etiqueta se traduce y un slug no, y la métrica no puede depender
+   * del idioma en el que se miró la caja.
+   */
+  measured: { spec: string; bracket: BracketSlug };
 }) {
   const copy = copyFor(locale).player.gap;
   const line = copy.subject(subject.spec, subject.bracket, formatRating(subject.rating, locale));
+  /*
+   * El evento de la North Star se construye una vez, arriba, y se emite en las
+   * tres ramas. Ninguna se lo puede saltar: `insufficient` y `top-segment` son
+   * el denominador de la métrica y la métrica de salud del dato es literalmente
+   * la proporción de la primera (§35 del plan, ADR 0028).
+   */
+  const event = <GapViewEvent event={gapViewEventData(gap, { ...measured, locale })} />;
 
   if (gap.state === "top-segment") {
     return (
       <Card className="gap-4 p-5">
+        {event}
         <Heading title={copy.topSegment.title} subject={line} />
         <p className="text-muted-foreground text-base">{copy.topSegment.body}</p>
       </Card>
@@ -61,6 +79,7 @@ export function PlayerGapBox({
   if (gap.state === "insufficient") {
     return (
       <Card className="border-t-warning-border gap-4 border-t-2 p-5">
+        {event}
         <Heading title={copy.title(threshold)} subject={line} segments={segments} />
         <ConfidenceBadge label={copy.confidence.insufficient} tone="warning" />
         <Separator />
@@ -100,6 +119,7 @@ export function PlayerGapBox({
     <Card
       className={`gap-4 p-5 ${gap.confidence === "medium" ? "border-t-warning-border border-t-2" : ""}`}
     >
+      {event}
       <Heading title={copy.title(threshold)} subject={line} segments={segments} />
       <div className="flex flex-wrap items-center gap-3">
         {/* La muestra va dentro de la caja y siempre visible, nunca en un tooltip (§13.5). */}
