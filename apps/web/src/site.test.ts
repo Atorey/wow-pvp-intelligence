@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { isPublicSite, siteUrl } from "./site";
+import { isPublicSite, privacyContact, siteUrl } from "./site";
 
 describe("siteUrl", () => {
   it("usa la configurada cuando la hay", () => {
@@ -42,5 +42,19 @@ describe("isPublicSite", () => {
 
   it("un contexto desconocido no indexa", () => {
     assert.equal(isPublicSite({ CONTEXT: "algo-que-netlify-invente" }), false);
+  });
+});
+
+describe("privacyContact", () => {
+  it("devuelve la dirección configurada", () => {
+    assert.equal(privacyContact({ PRIVACY_CONTACT: "privacy@onerung.io" }), "privacy@onerung.io");
+  });
+
+  it("una variable vacía es no tener contacto, no tener uno en blanco", () => {
+    // El caso real hoy: la variable existe en el ejemplo y todavía no se ha
+    // rellenado. Una cadena de espacios pintaría un "Escribe a ." en la página.
+    assert.equal(privacyContact({}), null);
+    assert.equal(privacyContact({ PRIVACY_CONTACT: "" }), null);
+    assert.equal(privacyContact({ PRIVACY_CONTACT: "   " }), null);
   });
 });

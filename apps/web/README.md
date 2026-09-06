@@ -21,6 +21,7 @@ La búsqueda de personaje y el perfil ya funcionan de punta a punta; el resto de
 | **Sí** | La búsqueda de personaje: autocompletado sobre la población y llamada a Blizzard si no la tenemos ([ADR 0024](../../docs/decisions/0024-busqueda-de-personaje-en-la-web.md)).                                                                               |
 | **Sí** | Postgres, por el pooler y una conexión por invocación ([ADR 0013](../../docs/decisions/0013-web-serverless-y-cuota-en-postgres.md), decisión 10). Lo usan el buscador y el perfil.                                                                          |
 | **Sí** | El perfil de personaje: identidad, cifras propias, caja Player Gap, posición en la spec y equipamiento observado ([§2 del brief](../../docs/design/brief.md#2-la-página-fuera-de-cobertura)).                                                               |
+| **Sí** | La medición de la North Star, emitida por la propia caja Player Gap, y la política de privacidad ([ADR 0028](../../docs/decisions/0028-medicion-de-primera-parte-y-sin-banner.md)). No hay banner de cookies porque no hay cookies.                         |
 | **No** | Las páginas de spec y de segmento, que siguen enseñando su dirección y nada más.                                                                                                                                                                            |
 
 ## Rutas
@@ -51,6 +52,16 @@ Es lo que **escribe** y lo que llama a Blizzard, junto con el botón "Actualizar
 - **El estado de la caja Player Gap lo decide `canShowComparison()` sobre el `gear_sample` del segmento objetivo**, nunca sobre su población (decisión 3 del [ADR 0010](../../docs/decisions/0010-cobertura-por-segmento.md)). Y hay una tercera causa de "sin comparación" que la §1.5 del brief no contempla: que el perfil que falte sea el del propio personaje.
 - **El item level sale de la observación que trajo el equipo**, no del snapshot más reciente. El leaderboard inserta filas sin gear cada vez que cambia el rating, así que el último snapshot casi siempre trae un null que se leería como "no lleva nada".
 - **"Actualizar" respeta el TTL** de la búsqueda y no lo fuerza: es la misma cuota compartida con el pipeline, y un botón que ignore la caché es un botón de gastar. Si el perfil está fresco, la página lo dice en vez de fingir que ha refrescado algo.
+
+## La medición y la privacidad
+
+La North Star de §35 —_"Player Gap views con confianza High o Medium por usuario único activo semanal"_— la emite la propia caja, no la ruta. El porqué de cada pieza está en el [ADR 0028](../../docs/decisions/0028-medicion-de-primera-parte-y-sin-banner.md); lo que hay que saber para tocarlo:
+
+- **No hay analítica de tercero, y no es una tarea pendiente.** El evento va a `POST /api/gap-view` y de ahí a `player_gap_views`. La 2.i de la ToU prohíbe transferir Data —"including anonymous, aggregate or derived data"— a terceros, y la confianza de un Player Gap es dato derivado. Añadir PostHog o Plausible es un ADR, no un `npm install`.
+- **Se emite en los cuatro desenlaces**, `insufficient` y `top-segment` incluidos: son el denominador de la métrica, y la de salud del dato es la proporción del primero. Una rama de la caja que se olvide de `<GapViewEvent>` hace subir las dos cifras sola.
+- **El identificador del visitante es de primera parte, anónimo y caduca a los 90 días.** No es una cookie. Sin `localStorage` disponible no se emite nada, y eso es correcto: un evento incontable engordaría el denominador sin poder entrar nunca en el numerador.
+- **`/privacy` no es opcional**: la 2.p obliga a publicarla y le condiciona el contenido ([ADR 0015](../../docs/decisions/0015-uso-de-la-api-de-blizzard-y-de-su-propiedad-intelectual.md), decisión 9). Su texto vive en [`src/i18n/legal`](src/i18n/legal/) y **no** en el diccionario de copy, porque el guardián causal de `copy.test.ts` vigila el copy de datos y un texto legal no lo es.
+- **La dirección de contacto sale de `PRIVACY_CONTACT`.** En local y en preview puede faltar y la página se sirve sin esa línea; en producción, sin ella, la página lanza.
 
 ## Componentes
 

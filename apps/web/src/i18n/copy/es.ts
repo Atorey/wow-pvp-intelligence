@@ -29,6 +29,7 @@ export const es: Copy = {
 
   nav: {
     methodology: "Metodología",
+    privacy: "Privacidad",
     siteLabel: "Sitio",
     footerLabel: "Información del sitio",
     trailLabel: "Ruta de navegación",

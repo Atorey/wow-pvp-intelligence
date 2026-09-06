@@ -5,6 +5,7 @@ import {
   CLASS_SLUGS,
   HOME_PATH,
   METHODOLOGY_PATH,
+  PRIVACY_PATH,
 } from "@wowpvp/core";
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -16,7 +17,7 @@ import { LanguageSwitch } from "./language-switch";
 import { MobileMenu } from "./mobile-menu";
 import { QuickSearch } from "./quick-search";
 import { ThemeSwitch } from "./theme-switch";
-import { BookOpen } from "lucide-react";
+import { BookOpen, ShieldCheck } from "lucide-react";
 
 /**
  * El armazón que rodea a todas las páginas: barra lateral y pie.
@@ -157,6 +158,18 @@ export function SiteFooter({ locale }: { locale: Locale }) {
           >
             <BookOpen className="size-4" aria-hidden="true" />
             <span>{copy.nav.methodology}</span>
+          </Link>
+          {/*
+           * La política de privacidad no es un enlace de cortesía: la 2.p de la
+           * ToU obliga a publicarla (ADR 0015, decisión 9) y el ADR 0020 dejó
+           * dicho que no se enlazaría mientras no existiera. Ya existe.
+           */}
+          <Link
+            href={localizedPathname(PRIVACY_PATH, locale)}
+            className="inline-flex items-center gap-1.5 text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <ShieldCheck className="size-4" aria-hidden="true" />
+            <span>{copy.nav.privacy}</span>
           </Link>
           <LanguageSwitch locale={locale} />
           <ThemeSwitch locale={locale} />

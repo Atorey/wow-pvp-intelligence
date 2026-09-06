@@ -39,6 +39,7 @@ export const en = {
 
   nav: {
     methodology: "Methodology",
+    privacy: "Privacy",
     /**
      * Etiquetas para lector de pantalla. La página tiene varios `nav` y dos de
      * ellos son visibles a la vez: sin nombres distintos, un lector los anuncia
