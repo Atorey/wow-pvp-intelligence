@@ -284,13 +284,70 @@ export const en = {
         reading: (player: string, segment: string, median: string) =>
           `You ${player} · ${segment} median ${median}`,
       },
-      notCompared: "Not compared yet: talents, secondary stats, embellishments.",
+      /**
+       * La cifra de contexto de §1.3, con su lectura literal al lado. Se dice
+       * "an average of" y no un porcentaje pelado porque es una media de
+       * adopciones, no la fracción de nada: sin esas dos palabras se lee como
+       * "el 37% de 2000-2200 lleva tu equipo", que es otra cosa.
+       */
+      overlap: {
+        label: "Gear overlap",
+        reading: (percent: string, segment: string, items: string) =>
+          `Your items are worn by an average of ${percent} of ${segment} (${items} items compared)`,
+      },
+      /**
+       * Las dos listas de mayores diferencias. Cada una nombra a quién describe
+       * —el escalón de arriba— y ninguna dice qué hacer con ello: por eso son
+       * "what X wears" y "what X runs", y no "what to change" (§1.7).
+       */
+      list: {
+        gear: (segment: string) => `What ${segment} wears more`,
+        talents: (segment: string) => `Talent nodes more common in ${segment}`,
+        /** Cada fila lleva su fracción cruda, nunca el porcentaje solo (§13.5). */
+        targetShare: (percent: string, users: string, denominator: string) =>
+          `${percent} (${users}/${denominator}) up there`,
+        ownShare: (percent: string, users: string, denominator: string) =>
+          `${percent} (${users}/${denominator}) in your segment`,
+        youHaveIt: "You have this",
+        /**
+         * La lista vacía es un resultado y se dice como tal: por debajo del
+         * umbral discriminante la diferencia es indistinguible del ruido de
+         * muestreo, y §13.5 dice que eso se oculta, no que se rellene.
+         */
+        empty: (threshold: string) =>
+          `Nothing differs by more than ${threshold} between the two segments.`,
+        /** La exclusión por dato no disponible se declara, no se esconde (regla 5). */
+        unavailable: (count: string, segment: string) =>
+          `${count} profiles in ${segment} are outside these percentages: the data wasn't available for them.`,
+      },
+      /** Lo que una lista dice cuando le falta base, en el lado que le falte. */
+      absence: {
+        gear: "Gear differences",
+        talents: "Talent nodes",
+        target: (sample: string, segment: string, needed: string) =>
+          `Not compared yet: ${sample} profiles read in ${segment}, and ${needed} are needed.`,
+        own: (sample: string, segment: string, needed: string) =>
+          `Not compared yet: your own segment (${segment}) has ${sample} profiles read and ${needed} are needed. Every row states both percentages.`,
+      },
+      /** Las variables que no son un item equipado se nombran por lo que son. */
+      kinds: {
+        gem: "Gem",
+        enchant: "Enchant",
+      },
+      /** El árbol del que sale un nodo. Sin él, dos nodos homónimos son el mismo. */
+      trees: {
+        class: "Class",
+        spec: "Spec",
+        hero: "Hero",
+        pvp: "PvP",
+      },
+      notCompared: "Not compared yet: secondary stats, embellishments.",
       /**
        * La nota de causalidad, fija siempre que haya comparación. Dice qué es el
        * dato, no qué hacer con él (regla 3 del proyecto).
        */
       causality:
-        "This describes a correlation between gear and rating segment. A correlation is not a cause.",
+        "This describes a correlation between what players use and their rating segment. A correlation is not a cause.",
     },
 
     /** El bloque descriptivo: dónde cae el jugador en la población observada. */

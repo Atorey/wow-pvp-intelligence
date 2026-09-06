@@ -1,4 +1,4 @@
-import type { ActivityWindowDays, RatingSegment, Region } from "@wowpvp/core";
+import type { ActivityWindowDays, AggregatedVariable, RatingSegment, Region } from "@wowpvp/core";
 import { toNumber, toNumberOrNull } from "./columns";
 import { provenanceFor, type Provenance } from "./provenance";
 import type { Queryable } from "./queryable";
@@ -385,11 +385,17 @@ export async function readAdoption(
  * sin filas de esa variable **aparece igual, con la lista vacía**: eso es
  * "todavía no se ha calculado ahí", que es distinto de un `undefined` que el
  * llamante interpretaría como quiera.
+ *
+ * Admite varias variables de una vez, y eso solo vale para las que comparten
+ * denominador: las tres de gear salen de la misma fila observada y por eso se
+ * ordenan juntas en un mismo ranking (ADR 0027). Pedir en la misma llamada gear
+ * y talentos mezclaría en una lista dos porcentajes calculados sobre gente
+ * distinta.
  */
 export async function readAdoptionFor(
   db: Queryable,
   segments: readonly SegmentRead[],
-  kind: VariableKind,
+  kind: VariableKind | readonly VariableKind[],
 ): Promise<Map<string, AdoptionRead[]>> {
   const byRowId = new Map(segments.map((segment) => [segment.rowId, segment]));
   const grouped = new Map<string, AdoptionRead[]>(segments.map((segment) => [segment.rowId, []]));
@@ -399,9 +405,10 @@ export async function readAdoptionFor(
     `select a.population_segment_id, ${ADOPTION_COLUMNS}
        from aggregate_snapshots a
        left join item_media m on m.item_id = a.item_id
-      where a.population_segment_id = any($1::bigint[]) and a.variable_kind = $2
+      where a.population_segment_id = any($1::bigint[])
+        and a.variable_kind = any($2::text[])
       order by a.population_segment_id, a.adoption_rate desc, a.variable_key`,
-    [[...byRowId.keys()], kind],
+    [[...byRowId.keys()], typeof kind === "string" ? [kind] : [...kind]],
   );
 
   for (const row of rows) {
@@ -436,5 +443,40 @@ function toAdoptionRead(row: AdoptionRow, segment: SegmentRead): AdoptionRead {
       sampleSize: segment.population.sampleSize,
       denominator: row.denominator,
     }),
+  };
+}
+
+/**
+ * Una adopción leída, en la forma que compara `packages/core`.
+ *
+ * El puente vive aquí y no en quien pinta porque es el mismo en todas las
+ * páginas que comparen dos escalones, y porque lo que traduce es delicado: el
+ * denominador del porcentaje sale de **la fila de la variable**, que es sobre
+ * quien de verdad se calculó, y no del `gear_sample` del escalón. Recomponerlo
+ * en cada consumidor es como se acaba comparando un porcentaje contra una base
+ * que no es la suya.
+ *
+ * Lo que se pierde en el viaje —el icono, la procedencia— no se pierde: sigue en
+ * el `AdoptionRead` de origen, que el consumidor conserva para pintar la fila.
+ * `core` no sabe de iconos y no tiene por qué.
+ */
+export function toAggregatedVariable(read: AdoptionRead): AggregatedVariable {
+  return {
+    kind: read.kind,
+    key: read.variableKey,
+    slotGroup: read.slotGroup,
+    itemId: read.itemId,
+    itemName: read.itemName,
+    talentTree: read.talentTree,
+    talentId: read.talentId,
+    talentName: read.talentName,
+    enchantmentId: read.enchantmentId,
+    enchantmentName: read.enchantmentName,
+    adoption: {
+      value: read.rate,
+      users: read.users,
+      denominator: read.provenance.denominator,
+      unavailable: read.unavailable,
+    },
   };
 }

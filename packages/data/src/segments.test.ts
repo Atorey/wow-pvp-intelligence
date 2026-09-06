@@ -6,6 +6,7 @@ import {
   readAdoptionFor,
   readBracketSegments,
   readSegment,
+  toAggregatedVariable,
   toSegmentRead,
 } from "./segments";
 import type { SegmentRow } from "./segments";
@@ -508,5 +509,45 @@ describe("readAdoptionFor", () => {
     const db = fakeDb([]);
     assert.equal((await readAdoptionFor(db, [], "gear-item")).size, 0);
     assert.equal(db.calls.length, 0);
+  });
+});
+
+describe("toAggregatedVariable", () => {
+  const segment = toSegmentRead(row({ sample_size: 400, gear_sample: 150 }));
+
+  it("le da a core el denominador de la fila, no el del escalón", async () => {
+    // Es lo único delicado del puente: comparar un porcentaje contra una base
+    // que no es la suya no da un error, da una cifra creíble y falsa.
+    const db = fakeDb([
+      {
+        variable_kind: "gear-item",
+        variable_key: "TRINKET:228858",
+        slot_group: "TRINKET",
+        item_id: "228858",
+        item_name: "Signet of the Priory",
+        talent_tree: null,
+        talent_id: null,
+        talent_name: null,
+        enchantment_id: null,
+        enchantment_name: null,
+        icon_url: null,
+        users: 111,
+        denominator: 148,
+        unavailable: 2,
+        adoption_rate: "0.75000000",
+      },
+    ]);
+
+    const [adoption] = await readAdoption(db, segment, "gear-item");
+    assert.ok(adoption);
+    const variable = toAggregatedVariable(adoption);
+
+    assert.equal(variable.key, "TRINKET:228858");
+    assert.deepEqual(variable.adoption, {
+      value: 0.75,
+      users: 111,
+      denominator: 148,
+      unavailable: 2,
+    });
   });
 });

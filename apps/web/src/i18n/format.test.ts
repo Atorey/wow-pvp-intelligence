@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { formatCount, formatDate, formatPercentile, formatRating } from "./format";
+import { formatCount, formatDate, formatPercent, formatPercentile, formatRating } from "./format";
 
 test("el separador de miles es el de la lengua de la página", () => {
   assert.equal(formatCount(2282, "es"), "2282");
@@ -29,4 +29,21 @@ test("la fecha de una observación va sin hora", () => {
 
   assert.doesNotMatch(formatDate(observed, "es"), /\d+:\d+/);
   assert.match(formatDate(observed, "en"), /2026/);
+});
+
+test("el porcentaje de adopción se escribe en la lengua de la página", () => {
+  // El español separa el signo del número y el inglés no. Es lo mismo que pasa
+  // con el separador de miles: si se deja a `toLocaleString()` sin idioma, se
+  // cuela el del servidor.
+  assert.equal(formatPercent(0.41, "en"), "41%");
+  // El espacio es duro: `Intl` no deja que el signo caiga solo a la línea
+  // siguiente, y escribirlo aquí como uno normal haría fallar el test sin que
+  // se vea la diferencia.
+  assert.equal(formatPercent(0.41, "es"), "41 %");
+});
+
+test("no se inventan decimales que la muestra no sostiene", () => {
+  // La fracción cruda va siempre al lado, así que el porcentaje es la lectura
+  // rápida y no la cifra que manda.
+  assert.equal(formatPercent(128 / 312, "en"), "41%");
 });

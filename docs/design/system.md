@@ -266,16 +266,16 @@ Lo que shadcn **no** trae, y sigue siendo trabajo nuestro, es justo la pieza cen
 
 Están **especificados aquí y construidos en [#17](https://github.com/Atorey/wow-pvp-intelligence/issues/17) y [#18](https://github.com/Atorey/wow-pvp-intelligence/issues/18)**. Cada uno viene de una decisión del brief; la columna "de dónde sale" es lo que impide que se rediseñen por gusto.
 
-| Componente          | Qué es                                                                     | De dónde sale                                                                                                               |
-| ------------------- | -------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `PlayerGapBox`      | La caja, con **tres layouts** según `canShowComparison()`                  | [§1.3](brief.md#13-decisión--la-caja-es-una-lista-no-un-panel-de-barras), [§1.5](brief.md#15-los-tres-estados-de-confianza) |
-| `DifferenceRow`     | Una diferencia de gear: nombre, slot, las dos adopciones con su fracción   | [§1.3](brief.md#13-decisión--la-caja-es-una-lista-no-un-panel-de-barras) punto 4                                            |
-| `SmallSampleNotice` | El bloque de aviso de `medium`, que ocupa espacio y desplaza               | [§1.5](brief.md#15-los-tres-estados-de-confianza)                                                                           |
-| `NoComparisonBlock` | Lo que **sustituye** al contenido en `insufficient`, con sus dos causas    | [§1.5](brief.md#15-los-tres-estados-de-confianza)                                                                           |
-| `CountedFigure`     | Una cifra con su denominador: la fracción manda, el porcentaje acompaña    | [§2.5](brief.md#25-reglas-de-copy-del-bloque-descriptivo)                                                                   |
-| `DeclaredAbsence`   | Una línea por ausencia, con su causa y su denominador. Sin fechas          | [§2.3](brief.md#23-los-bloques-en-orden) bloque 4                                                                           |
-| `GearRow`           | Item con hueco de icono **reservado**: sin icono, la fila no se recoloca   | [§4.5](brief.md#45-los-iconos-de-item-qué-se-ve-cuando-no-hay-icono)                                                        |
-| `AttributionFooter` | La línea de atribución y no afiliación, en el layout, en todas las páginas | [§4.2](brief.md#42-la-línea-en-las-dos-lenguas), [§4.3](brief.md#43-dónde-va-y-qué-hace-que-sea-conspicua)                  |
+| Componente          | Qué es                                                                        | De dónde sale                                                                                                               |
+| ------------------- | ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `PlayerGapBox`      | La caja, con **tres layouts** según `canShowComparison()`                     | [§1.3](brief.md#13-decisión--la-caja-es-una-lista-no-un-panel-de-barras), [§1.5](brief.md#15-los-tres-estados-de-confianza) |
+| `DifferenceRow`     | Una diferencia: nombre, de qué familia es, las dos adopciones con su fracción | [§1.3](brief.md#13-decisión--la-caja-es-una-lista-no-un-panel-de-barras) punto 4                                            |
+| `SmallSampleNotice` | El bloque de aviso de `medium`, que ocupa espacio y desplaza                  | [§1.5](brief.md#15-los-tres-estados-de-confianza)                                                                           |
+| `NoComparisonBlock` | Lo que **sustituye** al contenido en `insufficient`, con sus dos causas       | [§1.5](brief.md#15-los-tres-estados-de-confianza)                                                                           |
+| `CountedFigure`     | Una cifra con su denominador: la fracción manda, el porcentaje acompaña       | [§2.5](brief.md#25-reglas-de-copy-del-bloque-descriptivo)                                                                   |
+| `DeclaredAbsence`   | Una línea por ausencia, con su causa y su denominador. Sin fechas             | [§2.3](brief.md#23-los-bloques-en-orden) bloque 4                                                                           |
+| `GearRow`           | Item con hueco de icono **reservado**: sin icono, la fila no se recoloca      | [§4.5](brief.md#45-los-iconos-de-item-qué-se-ve-cuando-no-hay-icono)                                                        |
+| `AttributionFooter` | La línea de atribución y no afiliación, en el layout, en todas las páginas    | [§4.2](brief.md#42-la-línea-en-las-dos-lenguas), [§4.3](brief.md#43-dónde-va-y-qué-hace-que-sea-conspicua)                  |
 
 ### 5.2 Los tres estados no son tres variantes de estilo
 
