@@ -310,11 +310,6 @@ export const es: Copy = {
       `Gear observado de ${spec} en el tramo ${segment} de ${bracket}.`,
   },
 
-  methodology: {
-    title: "Metodología",
-    lead: "De dónde salen los datos, cómo se calculan los segmentos y los percentiles, y qué significa cada nivel de confianza.",
-  },
-
   notFound: {
     title: "En esta dirección no hay nada",
     body: "Puede estar mal escrita, o nombrar una spec, un bracket o un segmento de rating que este sitio no publica.",

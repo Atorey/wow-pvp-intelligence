@@ -31,8 +31,8 @@ export const en = {
    * mejor.
    *
    * La otra mitad de la cláusula —de dónde salen los datos— **ya no está
-   * aquí**: se retiró de esta línea y su sitio previsto es la página de
-   * metodología, que todavía no está escrita.
+   * aquí**: se retiró de esta línea y vive en la página de metodología, que la
+   * explica en prosa (`i18n/methodology`).
    */
   attribution:
     "One Rung is not affiliated with, endorsed by, or sponsored by Blizzard Entertainment, Inc. World of Warcraft® and Blizzard® are trademarks of Blizzard Entertainment, Inc.",
@@ -471,11 +471,6 @@ export const en = {
       `Representation and observed gear for ${spec} in ${bracket}.`,
     inSegment: (spec: string, bracket: string, segment: string) =>
       `Observed gear for ${spec} at ${segment} in ${bracket}.`,
-  },
-
-  methodology: {
-    title: "Methodology",
-    lead: "Where the data comes from, how the segments and percentiles are calculated, and what each confidence level means.",
   },
 
   notFound: {

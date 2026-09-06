@@ -2,24 +2,15 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { LOCALES } from "../locales";
+import { allPhrases } from "../voice";
 import { legalFor } from "./index";
 
-/** Todas las frases del documento, con su clave, ejecutando las plantillas. */
-function allPhrases(value: unknown, key = ""): { key: string; text: string }[] {
-  if (typeof value === "string") return [{ key, text: value }];
-  if (typeof value === "function") {
-    return allPhrases((value as (...args: string[]) => string)("A"), key);
-  }
-  if (Array.isArray(value)) {
-    return value.flatMap((item, index) => allPhrases(item, `${key}[${index}]`));
-  }
-  if (typeof value === "object" && value !== null) {
-    return Object.entries(value).flatMap(([name, nested]) =>
-      allPhrases(nested, key ? `${key}.${name}` : name),
-    );
-  }
-  return [];
-}
+/*
+ * Lo que este documento **no** hereda de `voice.ts` es el guardián causal, y no
+ * es un olvido: una política de privacidad no es copy de datos y no cuelga de
+ * ninguna cifra (ver la cabecera de `legal/index.ts`). Lo que sí comparte es el
+ * recorrido, que era idéntico escrito dos veces.
+ */
 
 describe("la política de privacidad", () => {
   it("no deja ninguna frase vacía en ninguna de las dos lenguas", () => {

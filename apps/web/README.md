@@ -22,6 +22,7 @@ La búsqueda de personaje y el perfil ya funcionan de punta a punta; el resto de
 | **Sí** | Postgres, por el pooler y una conexión por invocación ([ADR 0013](../../docs/decisions/0013-web-serverless-y-cuota-en-postgres.md), decisión 10). Lo usan el buscador y el perfil.                                                                          |
 | **Sí** | El perfil de personaje: identidad, cifras propias, caja Player Gap, posición en la spec y equipamiento observado ([§2 del brief](../../docs/design/brief.md#2-la-página-fuera-de-cobertura)).                                                               |
 | **Sí** | La medición de la North Star, emitida por la propia caja Player Gap, y la política de privacidad ([ADR 0028](../../docs/decisions/0028-medicion-de-primera-parte-y-sin-banner.md)). No hay banner de cookies porque no hay cookies.                         |
+| **Sí** | La página de metodología: de dónde salen los datos, qué es la población observada, cómo se forman los tramos y qué significa cada nivel de confianza (§24 del [plan](../../docs/product-plan.md)).                                                          |
 | **No** | Las páginas de spec y de segmento, que siguen enseñando su dirección y nada más.                                                                                                                                                                            |
 
 ## Rutas
@@ -62,6 +63,14 @@ La North Star de §35 —_"Player Gap views con confianza High o Medium por usua
 - **El identificador del visitante es de primera parte, anónimo y caduca a los 90 días.** No es una cookie. Sin `localStorage` disponible no se emite nada, y eso es correcto: un evento incontable engordaría el denominador sin poder entrar nunca en el numerador.
 - **`/privacy` no es opcional**: la 2.p obliga a publicarla y le condiciona el contenido ([ADR 0015](../../docs/decisions/0015-uso-de-la-api-de-blizzard-y-de-su-propiedad-intelectual.md), decisión 9). Su texto vive en [`src/i18n/legal`](src/i18n/legal/) y **no** en el diccionario de copy, porque el guardián causal de `copy.test.ts` vigila el copy de datos y un texto legal no lo es.
 - **La dirección de contacto sale de `PRIVACY_CONTACT`.** En local y en preview puede faltar y la página se sirve sin esa línea; en producción, sin ella, la página lanza.
+
+## La metodología
+
+`/{locale}/methodology` es obligatoria desde el MVP (§24 del plan): es la que sostiene "correlación, nunca causalidad" y la que identifica a Blizzard como fuente del dato, que es la mitad de la 2.m que el pie ya no dice ([§4.2 del brief](../../docs/design/brief.md#42-la-línea-en-las-dos-lenguas)). Tres cosas que no se adivinan leyendo la página:
+
+- **Su texto vive en [`src/i18n/methodology`](src/i18n/methodology/) y no en el diccionario de copy**, igual que el legal, pero por un motivo distinto: son párrafos en arrays, que el diccionario no tiene en ninguna clave. Lo que **no** comparte con el legal es la exención — este texto sí es copy de datos y pasa por el guardián causal, sin ninguna clave exenta. La lista de patrones la comparten los tres documentos desde [`src/i18n/voice.ts`](src/i18n/voice.ts).
+- **Ningún umbral se teclea en un párrafo.** El documento es una función de sus cifras: `methodologyThresholds()` las saca de `@wowpvp/core` y las formatea en la lengua de la página. Un "30" escrito a mano sobrevive a que alguien mueva `MIN_SAMPLE_MEDIUM`, y deja la página explicando una aritmética que el sitio ya no hace.
+- **Los apartados se enlazan por su nombre**, no con un `#` escrito a mano: el catálogo y `methodologyPath()` están en `@wowpvp/core`, como el resto de las rutas. El enlace del perfil apunta al apartado de confianza; el del pie, a la página entera.
 
 ## Componentes
 
