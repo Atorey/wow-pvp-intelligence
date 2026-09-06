@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { aggregateGearItems } from "./aggregates";
-import { biggestDifferences } from "./differences";
-import { biggestGearDifferences, type PlayerBuild } from "./player-gap";
+import { biggestDifferences, gearOverlap } from "./differences";
+import { biggestGearDifferences, gearAlignment, type PlayerBuild } from "./player-gap";
 
 function build(id: string, slots: Record<string, number>): PlayerBuild {
   return {
@@ -104,4 +104,37 @@ test("un segmento propio sin agregados no rompe: la adopción de abajo es 0 sobr
   assert.ok(differences.length > 0);
   assert.equal(differences[0]?.own.denominator, 0);
   assert.equal(differences[0]?.own.value, 0);
+});
+
+test("el solapamiento sobre agregados da lo mismo que el que recorre la población", () => {
+  // Misma paridad que la de arriba y por el mismo motivo: la cifra que enseña la
+  // web y la que calcula el pipeline tienen que ser el mismo número, o la caja
+  // estaría describiendo una población distinta de la que publica el segmento.
+  const { target } = populations();
+  const player = build("p", { HEAD: 2, TRINKET_1: 51, TRINKET_2: 51, TABARD: 999 });
+
+  const fromPopulations = gearAlignment(player, target);
+  const fromAggregates = gearOverlap(
+    [...player.gearBySlot].map(([slot, itemId]) => ({ slot, itemId })),
+    aggregateGearItems(target),
+  );
+
+  assert.deepEqual(fromAggregates, fromPopulations);
+  // Los dos abalorios iguales cuentan una vez y el tabardo no cuenta: quedan
+  // HEAD y TRINKET.
+  assert.equal(fromAggregates.comparedItems, 2);
+});
+
+test("un item que arriba no lleva nadie cuenta cero, y un hueco no observado no cuenta", () => {
+  // La distinción entre "nadie lo lleva" y "de ese hueco no sabemos nada" es la
+  // regla 5 aplicada a una media: contar la ausencia de dato como un cero
+  // hundiría el porcentaje con algo que no hemos medido.
+  const { target } = populations();
+  const aggregated = aggregateGearItems(target);
+
+  const nobodyWearsIt = gearOverlap([{ slot: "HEAD", itemId: 999 }], aggregated);
+  assert.deepEqual(nobodyWearsIt, { score: 0, comparedItems: 1 });
+
+  const unobservedSlot = gearOverlap([{ slot: "FEET", itemId: 7 }], aggregated);
+  assert.deepEqual(unobservedSlot, { score: null, comparedItems: 0 });
 });

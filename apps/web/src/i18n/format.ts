@@ -41,6 +41,23 @@ export function formatPercentile(value: number, locale: Locale): string {
 }
 
 /**
+ * Un porcentaje de adopción, en tanto por uno a la entrada.
+ *
+ * Redondea, y por eso **nunca va solo**: al lado se escribe siempre la fracción
+ * cruda (§13.5), que es la que manda. Un "100% (311/312)" no es una
+ * contradicción, es un redondeo con su base a la vista; un "100%" a secas sí
+ * sería una afirmación que el dato no sostiene.
+ *
+ * El signo lo pone `Intl` en el sitio de cada lengua: en español va separado del
+ * número y en inglés no.
+ */
+export function formatPercent(value: number, locale: Locale): string {
+  return new Intl.NumberFormat(locale, { style: "percent", maximumFractionDigits: 0 }).format(
+    value,
+  );
+}
+
+/**
  * La fecha de una observación. Sin hora: lo que importa es de qué día es el
  * dato, y una hora en UTC invita a restarla mentalmente contra la del lector.
  */

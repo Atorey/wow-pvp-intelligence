@@ -1,9 +1,11 @@
-import { formatSegment } from "@wowpvp/core";
+import { MIN_DISCRIMINATIVE_DELTA, formatSegment } from "@wowpvp/core";
 
 import { copyFor } from "../i18n/copy";
-import { formatCount, formatRating } from "../i18n/format";
+import { formatCount, formatPercent, formatRating } from "../i18n/format";
 import type { Locale } from "../i18n/locales";
-import type { GapView } from "../server/player-profile";
+import type { GapView, ListView } from "../server/player-profile";
+import { DeclaredAbsence } from "./counted-figure";
+import { DifferenceRow } from "./difference-row";
 import { Alert, AlertDescription } from "./ui/alert";
 import { Badge } from "./ui/badge";
 import { Card } from "./ui/card";
@@ -111,22 +113,161 @@ export function PlayerGapBox({
       </div>
       {gap.confidence === "medium" && <SmallSampleNotice text={copy.smallSample} />}
       <Separator />
+      {/*
+       * Las dos cifras de contexto de §1.3, cada una con su lectura literal al
+       * lado. Son cifras, no barras: la de solapamiento sube cuando llevas lo
+       * que lleva mucha gente, así que dibujada como medidor se leería como un
+       * marcador de progreso hacia el rating, que es justo lo que no es (§1.4).
+       */}
       {gap.itemLevel && (
-        <div className="flex flex-col gap-1">
-          <p className="text-subtle-foreground text-sm">{copy.itemLevel.label}</p>
-          <p className="text-foreground text-lg">
-            {copy.itemLevel.reading(
-              formatRating(gap.itemLevel.player, locale),
-              target,
-              formatRating(gap.itemLevel.median, locale),
-            )}
-          </p>
-        </div>
+        <Figure
+          label={copy.itemLevel.label}
+          reading={copy.itemLevel.reading(
+            formatRating(gap.itemLevel.player, locale),
+            target,
+            formatRating(gap.itemLevel.median, locale),
+          )}
+        />
       )}
+      {gap.overlap !== null && gap.overlap.score !== null && (
+        <Figure
+          label={copy.overlap.label}
+          reading={copy.overlap.reading(
+            formatPercent(gap.overlap.score, locale),
+            target,
+            formatCount(gap.overlap.comparedItems, locale),
+          )}
+        />
+      )}
+      <Separator />
+      <DifferenceList
+        locale={locale}
+        list={gap.gear}
+        title={copy.list.gear(target)}
+        label={copy.absence.gear}
+        target={target}
+        own={formatSegment(gap.ownSegment)}
+        // La lista de gear se calcula sobre la misma base que la cabecera, así
+        // que solo declara la suya si alguna vez difieren: escribir dos veces el
+        // mismo número a tres líneas de distancia se lee como dos cifras.
+        declaresSample={gap.gear.state !== "listed" || gap.gear.sample !== gap.gearSample}
+      />
+      <DifferenceList
+        locale={locale}
+        list={gap.talents}
+        title={copy.list.talents(target)}
+        label={copy.absence.talents}
+        target={target}
+        own={formatSegment(gap.ownSegment)}
+        // La de nodos siempre declara la suya: su denominador es otro, y hoy
+        // suele ser mucho menor (ADR 0026).
+        declaresSample
+      />
       {/* Lo que no se compara se nombra; omitirlo en silencio lo daría por comparado. */}
       <p className="text-muted-foreground text-sm">{copy.notCompared}</p>
       <p className="text-muted-foreground max-w-measure text-sm">{copy.causality}</p>
     </Card>
+  );
+}
+
+/** Una cifra de contexto: qué se mide arriba y su lectura literal debajo. */
+function Figure({ label, reading }: { label: string; reading: string }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <p className="text-subtle-foreground text-sm">{label}</p>
+      <p className="text-foreground text-lg">{reading}</p>
+    </div>
+  );
+}
+
+/**
+ * Una de las dos listas de diferencias, con sus dos salidas.
+ *
+ * **Una lista vacía y una lista sin base no se dicen igual.** La primera es un
+ * resultado —ninguna variable supera el umbral discriminante, §13.5— y la
+ * segunda es una ausencia de dato con su denominador delante. Fundirlas en un
+ * "no hay datos" convertiría un hallazgo en un fallo.
+ */
+function DifferenceList({
+  locale,
+  list,
+  title,
+  label,
+  target,
+  own,
+  declaresSample,
+}: {
+  locale: Locale;
+  list: ListView;
+  title: string;
+  /** Cómo se nombra esta familia cuando lo que hay que escribir es su ausencia. */
+  label: string;
+  target: string;
+  own: string;
+  /** Si esta lista declara su propia muestra además de la de la cabecera. */
+  declaresSample: boolean;
+}) {
+  const copy = copyFor(locale).player.gap;
+
+  if (list.state === "insufficient") {
+    return (
+      <DeclaredAbsence
+        label={label}
+        body={
+          list.missing === "target"
+            ? copy.absence.target(
+                formatCount(list.sample, locale),
+                target,
+                formatCount(list.needed, locale),
+              )
+            : copy.absence.own(
+                formatCount(list.sample, locale),
+                own,
+                formatCount(list.needed, locale),
+              )
+        }
+      />
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <h3 className="text-subtle-foreground tracking-caps text-xs uppercase">{title}</h3>
+      {declaresSample && (
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-subtle-foreground text-sm">
+            {copy.sampled(formatCount(list.sample, locale), target)}
+          </span>
+          <ConfidenceBadge
+            label={copy.confidence[list.confidence]}
+            tone={list.confidence === "medium" ? "warning" : "neutral"}
+          />
+        </div>
+      )}
+      {list.differences.length === 0 ? (
+        <p className="text-muted-foreground max-w-measure text-sm">
+          {copy.list.empty(formatPercent(MIN_DISCRIMINATIVE_DELTA, locale))}
+        </p>
+      ) : (
+        <ol className="flex flex-col">
+          {list.differences.map((difference, index) => (
+            <DifferenceRow
+              key={difference.variable.key}
+              locale={locale}
+              position={index + 1}
+              difference={difference}
+            />
+          ))}
+        </ol>
+      )}
+      {list.unavailable > 0 && (
+        // La exclusión por dato no disponible se declara: contarlos como
+        // no-adopción falsearía el porcentaje, y callarlos lo daría por completo.
+        <p className="text-muted-foreground max-w-measure text-sm">
+          {copy.list.unavailable(formatCount(list.unavailable, locale), target)}
+        </p>
+      )}
+    </div>
   );
 }
 

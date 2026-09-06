@@ -30,6 +30,21 @@ export interface GearItemRead {
    * level son la información.
    */
   iconUrl: string | null;
+  /**
+   * Ids de las gemas engarzadas en **esta** pieza, en el orden que los devolvió
+   * la API.
+   *
+   * Van con la pieza y no en una lista aparte del personaje porque así es como
+   * se observan, pero lo que compara la caja Player Gap es el conjunto: la
+   * adopción de una gema no se agrupa por hueco, porque la misma gema se
+   * engarza en piezas distintas (ADR 0027).
+   *
+   * Una lista vacía es "esta pieza no lleva gemas", que es un hecho observado;
+   * la ausencia de dato es que no haya fila de equipo, y entonces no hay pieza.
+   */
+  gemItemIds: number[];
+  /** Ids de los encantamientos de esta pieza. Misma regla que las gemas. */
+  enchantmentIds: number[];
 }
 
 export interface CharacterGearRead {
@@ -55,6 +70,8 @@ interface GearRow {
   item_level: number | null;
   quality: string | null;
   icon_url: string | null;
+  gem_item_ids: number[];
+  enchantment_ids: number[];
   captured_at: Date;
   source: ObservationProvenance["source"];
 }
@@ -89,6 +106,7 @@ export async function readLatestGear(
         limit 1
      )
      select g.slot, g.item_id, g.item_name, g.item_level, g.quality,
+            g.gem_item_ids, g.enchantment_ids,
             m.icon_url, l.captured_at, l.source, l.equipped_item_level
        from latest_with_gear l
        join character_snapshot_gear g on g.snapshot_id = l.id
@@ -119,5 +137,10 @@ function toGearItem(row: GearRow): GearItemRead {
     itemLevel: row.item_level,
     quality: parseItemQuality(row.quality),
     iconUrl: row.icon_url,
+    // `not null default '{}'` desde la migración 0013, pero los snapshots
+    // anteriores se leen igual: el `?? []` es para ellos, no para un null que el
+    // schema permita.
+    gemItemIds: row.gem_item_ids ?? [],
+    enchantmentIds: row.enchantment_ids ?? [],
   };
 }

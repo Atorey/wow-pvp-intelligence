@@ -17,9 +17,9 @@
  * segmentos. Dónde cae una persona dentro de esa comparación lo decide quien la
  * pinta, con el equipo que ya tiene leído.
  */
-import type { AdoptionRate } from "./player-gap";
+import type { AdoptionRate, GearAlignment } from "./player-gap";
 import type { AggregatedVariable } from "./aggregates";
-import { DEFAULT_TOP_DIFFERENCES, isDiscriminative } from "./player-gap";
+import { COSMETIC_SLOTS, DEFAULT_TOP_DIFFERENCES, isDiscriminative, slotGroup } from "./player-gap";
 
 /**
  * Una variable que se lleva distinto arriba y abajo.
@@ -105,4 +105,50 @@ export function biggestDifferences(
   );
 
   return differences.slice(0, Math.max(options.top ?? DEFAULT_TOP_DIFFERENCES, 0));
+}
+
+/**
+ * El solapamiento de gear calculado sobre **agregados**, no sobre poblaciones.
+ *
+ * Es la misma cifra que `gearAlignment()` —la media de la adopción que tienen
+ * los items del jugador en el segmento de arriba— por la vía que la web sí
+ * puede recorrer: allí no hay `PlayerBuild[]` de nadie, hay filas de
+ * `aggregate_snapshots` (ADR 0014). Hay un test de paridad entre las dos, por
+ * la misma razón que lo hay para `biggestDifferences()`.
+ *
+ * Se conservan las tres reglas de la versión de población, y ninguna es
+ * cosmética:
+ *
+ * - **Los slots cosméticos no cuentan.** Un tabardo no es una elección de
+ *   rendimiento y su adopción sería ruido con forma de insight.
+ * - **Solo cuentan los grupos de slot que el objetivo tiene observados.** De un
+ *   hueco del que no sabemos nada arriba no se puede medir ninguna adopción, y
+ *   contarlo como 0 hundiría la media con una ausencia de dato (regla 5).
+ * - **Un item que arriba no lleva nadie sí cuenta, y cuenta 0.** Eso no es dato
+ *   ausente: es dato que dice que nadie lo lleva.
+ */
+export function gearOverlap(
+  playerItems: readonly { slot: string; itemId: number }[],
+  target: readonly AggregatedVariable[],
+): GearAlignment {
+  const adoptionByKey = new Map(target.map((variable) => [variable.key, variable.adoption.value]));
+  const groups = new Set(
+    target.flatMap((variable) => (variable.slotGroup === null ? [] : [variable.slotGroup])),
+  );
+
+  // Dos anillos iguales cuentan una vez, igual que en `comparableItemsByGroup()`:
+  // la pregunta es "¿lleva este item en alguno de sus huecos?", y responderla dos
+  // veces le daría a ese item doble peso en la media.
+  const keys = new Set<string>();
+  for (const item of playerItems) {
+    if (COSMETIC_SLOTS.includes(item.slot)) continue;
+    const group = slotGroup(item.slot);
+    if (!groups.has(group)) continue;
+    keys.add(`${group}:${item.itemId}`);
+  }
+
+  let total = 0;
+  for (const key of keys) total += adoptionByKey.get(key) ?? 0;
+
+  return { score: keys.size === 0 ? null : total / keys.size, comparedItems: keys.size };
 }

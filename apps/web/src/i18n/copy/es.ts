@@ -177,9 +177,44 @@ export const es: Copy = {
         label: "Item level equipado",
         reading: (player, segment, median) => `Tú ${player} · mediana de ${segment} ${median}`,
       },
-      notCompared: "Sin comparar todavía: talentos, stats secundarias y embellecimientos.",
+      overlap: {
+        label: "Solapamiento de equipo",
+        reading: (percent, segment, items) =>
+          `Tus objetos los lleva de media el ${percent} de ${segment} (${items} objetos comparados)`,
+      },
+      list: {
+        gear: (segment) => `Lo que más se lleva en ${segment}`,
+        talents: (segment) => `Los nodos más frecuentes en ${segment}`,
+        targetShare: (percent, users, denominator) =>
+          `${percent} (${users} de ${denominator}) ahí arriba`,
+        ownShare: (percent, users, denominator) =>
+          `${percent} (${users} de ${denominator}) en tu tramo`,
+        youHaveIt: "Lo llevas",
+        empty: (threshold) => `Nada difiere más de ${threshold} entre los dos segmentos.`,
+        unavailable: (count, segment) =>
+          `${count} perfiles de ${segment} quedan fuera de estos porcentajes: de ellos no había dato.`,
+      },
+      absence: {
+        gear: "Diferencias de equipo",
+        talents: "Nodos de talento",
+        target: (sample, segment, needed) =>
+          `Todavía no se compara: ${sample} perfiles leídos en ${segment}, y hacen falta ${needed}.`,
+        own: (sample, segment, needed) =>
+          `Todavía no se compara: en tu propio tramo (${segment}) hay ${sample} perfiles leídos y hacen falta ${needed}. Cada fila dice los dos porcentajes.`,
+      },
+      kinds: {
+        gem: "Gema",
+        enchant: "Encantamiento",
+      },
+      trees: {
+        class: "Clase",
+        spec: "Especialización",
+        hero: "Héroe",
+        pvp: "PvP",
+      },
+      notCompared: "Sin comparar todavía: stats secundarias y embellecimientos.",
       causality:
-        "Esto describe una correlación entre el gear y el segmento de rating. Una correlación no es una causa.",
+        "Esto describe una correlación entre lo que se lleva y el segmento de rating. Una correlación no es una causa.",
     },
 
     standing: {

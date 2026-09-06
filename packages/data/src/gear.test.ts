@@ -21,6 +21,8 @@ function gearRow(overrides: Record<string, unknown> = {}) {
     item_level: 252,
     quality: "EPIC",
     icon_url: "https://render.worldofwarcraft.com/eu/icons/56/inv_hood.jpg",
+    gem_item_ids: [213743],
+    enchantment_ids: [7936],
     captured_at: CAPTURED_AT,
     source: "profile",
     equipped_item_level: 263,
@@ -89,5 +91,26 @@ describe("readLatestGear", () => {
     const read = await readLatestGear(db, KEY);
 
     assert.equal(read?.items[0]?.itemId, 228812);
+  });
+
+  it("trae las gemas y los encantamientos de cada pieza", async () => {
+    // Son lo que deja marcar en la caja Player Gap qué de la lista lleva ya
+    // quien mira: sin ellos, una fila de gema no marcada diría "no la llevas"
+    // cuando lo que pasa es que no la hemos mirado (regla 5).
+    const db = fakeDb([gearRow()]);
+    const read = await readLatestGear(db, KEY);
+
+    assert.deepEqual(read?.items[0]?.gemItemIds, [213743]);
+    assert.deepEqual(read?.items[0]?.enchantmentIds, [7936]);
+  });
+
+  it("una pieza sin gemas trae una lista vacía, no un null", async () => {
+    // La lista vacía es un hecho observado —esa pieza no lleva gemas— y por eso
+    // no se dice igual que un dato que falta.
+    const db = fakeDb([gearRow({ gem_item_ids: [], enchantment_ids: [] })]);
+    const read = await readLatestGear(db, KEY);
+
+    assert.deepEqual(read?.items[0]?.gemItemIds, []);
+    assert.deepEqual(read?.items[0]?.enchantmentIds, []);
   });
 });

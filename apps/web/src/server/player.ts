@@ -1,15 +1,21 @@
 import type { PlayerRoute } from "@wowpvp/core";
 import {
   readActivity,
+  readAdoptionFor,
   readBracketSegments,
   readLatestGear,
   readLatestObservedSeason,
   readLatestSnapshotsByBracket,
+  readLatestTalents,
   readPeakRating,
   readStanding,
   type ActivityRead,
+  type AdoptionRead,
   type CharacterGearRead,
   type CharacterSnapshotRead,
+  type Queryable,
+  type SegmentRead,
+  type VariableKind,
 } from "@wowpvp/data";
 import { getDb } from "./db";
 import "./env";
@@ -18,6 +24,7 @@ import {
   observedSpecs,
   pickSpec,
   standingFor,
+  type AdoptionSides,
   type GapView,
   type ObservedSpec,
   type StandingView,
@@ -87,10 +94,11 @@ export async function loadPlayerProfile(
   const bracket = active.bracket;
   const own = { region: route.region, seasonId, bracket };
 
-  const [peakRating, activity, gear, standing, segments] = await Promise.all([
+  const [peakRating, activity, gear, talents, standing, segments] = await Promise.all([
     readPeakRating(db, { characterId: snapshot.characterId, bracket, seasonId }),
     readActivity(db, { characterId: snapshot.characterId, bracket, seasonId }),
     readLatestGear(db, { ...key, bracket, seasonId }),
+    readLatestTalents(db, { ...key, bracket, seasonId }),
     readStanding(db, { ...own, rating: snapshot.rating }),
     readBracketSegments(db, own),
   ]);
@@ -103,6 +111,8 @@ export async function loadPlayerProfile(
   const target = segments.find((row) => row.segment.id === view.targetSegment?.id) ?? null;
 
   const equippedItemLevel = snapshot.equippedItemLevel ?? gear?.equippedItemLevel ?? null;
+  const ownRow = segments.find((row) => row.segment.id === view.ownSegment.id) ?? null;
+  const adoptions = await readAdoptions(db, ownRow, target);
 
   return {
     seasonId,
@@ -114,10 +124,45 @@ export async function loadPlayerProfile(
     activity,
     gap: gapFor({
       rating: snapshot.rating,
-      playerItemLevel: equippedItemLevel,
+      player: { itemLevel: equippedItemLevel, gear, talents },
       target,
+      adoptions,
     }),
     standing: view,
     gear,
   };
+}
+
+/** Las tres variables de gear van juntas: comparten denominador (ADR 0027). */
+const GEAR_KINDS: readonly VariableKind[] = ["gear-item", "gear-gem", "gear-enchant"];
+
+/**
+ * Las adopciones de los dos escalones, en dos consultas.
+ *
+ * Se piden siempre que existan las dos filas y no solo cuando la caja va a
+ * comparar, y es a propósito: decidir aquí si hace falta obligaría a repetir
+ * fuera de `gapFor()` el umbral que solo `canShowComparison()` puede aplicar, y
+ * ese es exactamente el `if (n > 30)` suelto que prohíbe la regla 2. Cuando no
+ * hay base tampoco hay filas que traer, así que lo que se ahorraría es una
+ * consulta que devuelve cero.
+ */
+async function readAdoptions(
+  db: Queryable,
+  own: SegmentRead | null,
+  target: SegmentRead | null,
+): Promise<{ gear: AdoptionSides; talentNodes: AdoptionSides }> {
+  const empty = { own: [], target: [] } as const;
+  if (!own || !target) return { gear: empty, talentNodes: empty };
+
+  const [gear, talentNodes] = await Promise.all([
+    readAdoptionFor(db, [own, target], GEAR_KINDS),
+    readAdoptionFor(db, [own, target], "talent-node"),
+  ]);
+
+  const sides = (byRowId: Map<string, AdoptionRead[]>): AdoptionSides => ({
+    own: byRowId.get(own.rowId) ?? [],
+    target: byRowId.get(target.rowId) ?? [],
+  });
+
+  return { gear: sides(gear), talentNodes: sides(talentNodes) };
 }

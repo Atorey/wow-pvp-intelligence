@@ -4,3 +4,4 @@ export * from "./segments";
 export * from "./characters";
 export * from "./gear";
 export * from "./search";
+export * from "./talents";
