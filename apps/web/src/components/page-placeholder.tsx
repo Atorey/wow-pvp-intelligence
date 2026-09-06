@@ -18,6 +18,11 @@ export interface Crumb {
  * personaje— y nada más. Rellenarla con cifras de ejemplo mientras se maqueta
  * sería inventar el dato que este producto vende, así que aquí no hay ni
  * marcadores numéricos ni barras de relleno.
+ *
+ * Y por eso mismo no se indexa: una dirección sin contenido es thin content
+ * aunque el escalón tenga muestra de sobra. Lo declara `SPEC_PAGES_PUBLISHED`
+ * en `src/seo/indexable.ts` (ADR 0029, decisión 10), que es lo que hay que
+ * encender el día que esto deje de pintarse.
  */
 export function PagePlaceholder({
   locale,

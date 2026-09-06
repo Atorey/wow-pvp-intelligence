@@ -59,6 +59,23 @@ export function nextSegment(
 }
 
 /**
+ * El segmento inmediatamente inferior. Devuelve undefined en el tramo de abajo,
+ * que no tiene ninguno debajo por definición de la escala.
+ *
+ * Existe por el enlazado interno entre escalones que pide §22 del plan: la
+ * página de segmento enlaza al anterior y al siguiente, y calcularlo restando
+ * `size` en la web reinventaría la escala en un sitio que no la conoce —el
+ * primer tramo dejaría de ser un borde y pasaría a ser un número negativo.
+ */
+export function previousSegment(
+  segment: RatingSegment,
+  scale: SegmentScale = DEFAULT_SEGMENT_SCALE,
+): RatingSegment | undefined {
+  if (segment.min <= scale.floor) return undefined;
+  return segmentFor(segment.min - 1, scale);
+}
+
+/**
  * Rating de los jugadores a los que sirve el producto: 1400-2200 (§4 del plan).
  *
  * Vive aquí y no en el job que lo consulta porque decide dónde se gasta la cuota

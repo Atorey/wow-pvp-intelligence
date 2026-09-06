@@ -53,6 +53,8 @@ export const en = {
     menuLabel: "Menu",
     bracketsLabel: "Bracket",
     classesLabel: "Classes",
+    /** La navegación entre escalones contiguos de una misma spec y modalidad. */
+    segmentsLabel: "Rating segments",
   },
 
   /**
@@ -471,6 +473,12 @@ export const en = {
       `Representation and observed gear for ${spec} in ${bracket}.`,
     inSegment: (spec: string, bracket: string, segment: string) =>
       `Observed gear for ${spec} at ${segment} in ${bracket}.`,
+    /**
+     * Los dos escalones contiguos. Van con el nombre del tramo al lado, que lo
+     * pone `formatSegment` y no se traduce: "2000-2200" es el dato.
+     */
+    previousSegment: "Segment below",
+    nextSegment: "Segment above",
   },
 
   notFound: {

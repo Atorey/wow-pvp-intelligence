@@ -227,6 +227,71 @@ export async function readBracketSegments(
 }
 
 /**
+ * Lo justo para decidir si una URL de segmento es indexable (ADR 0029): las
+ * tres bases de comparación que puede tener un escalón, y de cuándo son.
+ *
+ * No lleva rating, ni medianas, ni población: nada de eso decide la
+ * indexabilidad, y traerlo invitaría a pintar una página con esta lectura.
+ */
+export interface SegmentSampleRead {
+  bracket: string;
+  segmentId: string;
+  gear: Provenance;
+  talentNodes: Provenance;
+  pvpTalents: Provenance;
+}
+
+interface SegmentSampleRow {
+  bracket: string;
+  segment_id: string;
+  computed_at: Date;
+  sample_size: number;
+  gear_sample: number;
+  talent_node_sample: number;
+  pvp_talent_sample: number;
+}
+
+/**
+ * Las bases de comparación de **todos** los escalones de la temporada vigente,
+ * en una sola consulta.
+ *
+ * Existe para el sitemap (#26): decidir qué URL se publican recorriendo
+ * `readBracketSegments` spec a spec serían cuarenta consultas por regeneración,
+ * y el presupuesto de Netlify no da para eso (ADR 0013).
+ *
+ * A diferencia de `readBracketSegments`, aquí **sí** se mezclan corridas de
+ * brackets distintos: cada par se resuelve con su propio `computed_at` más
+ * alto. Es admisible porque lo que sale de aquí no se pinta junto en ninguna
+ * página —no hay dos poblaciones comparándose— sino que decide, una URL cada
+ * vez, si esa dirección tiene algo que enseñar. Para pintar un escalón sigue
+ * sirviendo `readBracketSegments` y solo ese.
+ *
+ * También se mezclan regiones, y por la misma razón: la ruta de spec no lleva
+ * región (ADR 0020), así que la URL existe si algún sitio tiene muestra.
+ */
+export async function readSegmentSamples(db: Queryable): Promise<SegmentSampleRead[]> {
+  const { rows } = await db.query<SegmentSampleRow>(
+    `select distinct on (region, bracket, segment_id)
+            bracket, segment_id, computed_at, sample_size,
+            gear_sample, talent_node_sample, pvp_talent_sample
+       from population_segments
+      where season_id = (select max(season_id) from population_segments)
+      order by region, bracket, segment_id, computed_at desc`,
+  );
+
+  return rows.map((row) => {
+    const base = { computedAt: row.computed_at, sampleSize: row.sample_size };
+    return {
+      bracket: row.bracket,
+      segmentId: row.segment_id,
+      gear: provenanceFor({ ...base, denominator: row.gear_sample }),
+      talentNodes: provenanceFor({ ...base, denominator: row.talent_node_sample }),
+      pvpTalents: provenanceFor({ ...base, denominator: row.pvp_talent_sample }),
+    };
+  });
+}
+
+/**
  * Qué variable se agregó. Las que escribe `refresh-aggregates` (ADR 0026, 0027).
  *
  * `talent-code` sigue existiendo y casi nunca agrupa: entre 75 y 97 códigos
