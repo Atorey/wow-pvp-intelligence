@@ -93,7 +93,12 @@ describe("límite por IP contra Postgres", { skip }, () => {
     const { rows } = await pool.query<{ short_tokens: string }>(
       "select short_tokens from rate_limit_buckets where scope = 'suggest' and key_hash = 'carrera'",
     );
-    assert.equal(Number(rows[0]?.short_tokens), 58, "las dos han gastado, no solo una");
+    // Con margen y no un 58 exacto: el bucket se rellena de forma continua, así
+    // que entre las dos peticiones entran fracciones de ficha. Lo que importa es
+    // que queden dos por debajo de la capacidad y no una, que sería la carrera
+    // perdida.
+    const left = Number(rows[0]?.short_tokens);
+    assert.ok(left >= 58 && left < 58.5, `las dos han gastado, no solo una (quedan ${left})`);
   });
 
   it("dos peticiones a la vez sobre la última ficha solo conceden una", async () => {
