@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { parseGapViewEvent } from "../../../analytics/gap-view";
 import { recordGapView } from "../../../server/gap-views";
+import { checkLimit, retryAfterSeconds } from "../../../server/rate-limit";
 
 /**
  * Donde aterriza el evento de la North Star (§35 del plan, ADR 0028).
@@ -14,6 +15,15 @@ import { recordGapView } from "../../../server/gap-views";
  * precargas y de cualquier caché intermedia que convertiría una vista en varias.
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
+  // Antes de leer el cuerpo: rechazar sin parsear es lo que hace barato aguantar
+  // una avalancha, y esta tabla es la North Star del producto.
+  const limited = await checkLimit("gap-view", request.headers);
+  if (limited)
+    return new NextResponse(null, {
+      status: 429,
+      headers: { ...NO_TRACE, "Retry-After": retryAfterSeconds(limited.retryAfterMs) },
+    });
+
   let body: unknown;
   try {
     body = await request.json();
@@ -24,7 +34,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const event = parseGapViewEvent(body);
   // Lo que no encaja no se escribe y no se explica: este endpoint está abierto
   // y una respuesta que detalle qué campo falló es un manual para llenar la
-  // tabla de filas creíbles. El límite por peticiones e IP es de #71.
+  // tabla de filas creíbles.
   if (event === null)
     return NextResponse.json({ error: "invalid" }, { status: 400, headers: NO_TRACE });
 

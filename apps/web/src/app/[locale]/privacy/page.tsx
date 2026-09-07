@@ -59,7 +59,13 @@ export default async function PrivacyPage({ params }: { params: Promise<{ locale
     );
   }
 
-  const sections = [legal.site, legal.character, legal.measurement, legal.storage] as const;
+  const sections = [
+    legal.site,
+    legal.character,
+    legal.measurement,
+    legal.abuse,
+    legal.storage,
+  ] as const;
 
   return (
     <main className="mx-auto flex max-w-measure flex-col gap-8 px-5 py-8">

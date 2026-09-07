@@ -24,6 +24,7 @@ export {
   getCharacterLookupTtlMinutes,
   getGlobalPerSecond,
   getLookupTimeBudgetMs,
+  getNotFoundCacheTtlMinutes,
   getOnDemandReserve,
   getRegion,
   getRequestsPerHour,

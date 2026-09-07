@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+import { checkLimit, retryAfterSeconds } from "../../../server/rate-limit";
 import { suggest } from "../../../server/search";
 
 /**
@@ -14,10 +15,30 @@ import { suggest } from "../../../server/search";
  * único que puede tocar la API es el envío del formulario, que es un POST y una
  * decisión de quien busca.
  *
- * El límite por IP entra aquí y en la Server Action cuando se haga #71; hoy lo
- * que acota el daño es el colchón reservado del bucket (ADR 0013, decisión 5).
+ * Aun sin tocar la API, lleva límite por IP (ADR 0030): una consulta por
+ * pulsación es una consulta a Postgres por pulsación, y no hace falta un bot
+ * para eso, basta con mantener una tecla pulsada.
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
+  const limited = await checkLimit("suggest", request.headers);
+  if (limited) {
+    // Sin sugerencias es una respuesta que el cliente ya sabe pintar, así que el
+    // buscador se degrada a lo que es sin JavaScript en vez de romperse.
+    return NextResponse.json(
+      { suggestions: [] },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": retryAfterSeconds(limited.retryAfterMs),
+          // Sin esto heredaría el `max-age` de la respuesta buena y una caché
+          // intermedia serviría el límite de una persona a todo el mundo.
+          "Cache-Control": "no-store",
+          "X-Robots-Tag": "noindex",
+        },
+      },
+    );
+  }
+
   const query = request.nextUrl.searchParams.get("q") ?? "";
   const realm = request.nextUrl.searchParams.get("realm");
 

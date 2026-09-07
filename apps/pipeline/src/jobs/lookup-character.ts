@@ -6,7 +6,12 @@ import {
   type LookupResult,
 } from "@wowpvp/blizzard";
 import { formatCharacterRef, parseCharacterRef, type CharacterRef } from "@wowpvp/core";
-import { getCharacterLookupTtlMinutes, getDatabaseUrl, getRegion } from "../config";
+import {
+  getCharacterLookupTtlMinutes,
+  getDatabaseUrl,
+  getNotFoundCacheTtlMinutes,
+  getRegion,
+} from "../config";
 import { createPool } from "../db/pool";
 
 /**
@@ -62,6 +67,8 @@ function describe(result: LookupResult): string {
       return "ya lo teníamos fresco, no se ha llamado a Blizzard";
     case "not-found":
       return "Blizzard no conoce ese personaje (revisa reino y nombre)";
+    case "not-found-cached":
+      return "ya nos dijeron hace poco que no existe, no se ha llamado a Blizzard";
     case "no-brackets":
       return "existe, pero no juega ningún Solo Shuffle";
     case "error":
@@ -82,6 +89,7 @@ export async function lookupCharacters(args: string[] = []): Promise<void> {
   const options = parseOptions(args);
   const region = getRegion();
   const ttlMinutes = getCharacterLookupTtlMinutes();
+  const notFoundTtlMinutes = getNotFoundCacheTtlMinutes();
 
   getDatabaseUrl();
 
@@ -102,7 +110,7 @@ export async function lookupCharacters(args: string[] = []): Promise<void> {
   try {
     for (const ref of options.refs) {
       const result = await lookupCharacter(
-        { pool, client, region, ttlMinutes, force: options.force },
+        { pool, client, region, ttlMinutes, notFoundTtlMinutes, force: options.force },
         ref,
       );
       results.push(result);
