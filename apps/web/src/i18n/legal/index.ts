@@ -38,4 +38,4 @@ export function legalFor(locale: Locale): Legal {
  * Es también la fecha en la que se leyeron las condiciones de las que depende
  * (ADR 0015, decisión 11): cuando se relean, se cambia aquí.
  */
-export const LEGAL_UPDATED_AT = new Date("2026-09-06T00:00:00Z");
+export const LEGAL_UPDATED_AT = new Date("2026-09-07T00:00:00Z");

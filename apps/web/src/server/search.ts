@@ -1,6 +1,7 @@
 import {
   BlizzardClient,
   getCharacterLookupTtlMinutes,
+  getNotFoundCacheTtlMinutes,
   getLookupTimeBudgetMs,
   getRegion,
   lookupCharacter,
@@ -140,12 +141,23 @@ export async function resolveSearch(query: SearchQuery): Promise<SearchResolutio
   });
 
   const result = await lookupCharacter(
-    { pool: db, client, region, ttlMinutes: getCharacterLookupTtlMinutes(), force: false },
+    {
+      pool: db,
+      client,
+      region,
+      ttlMinutes: getCharacterLookupTtlMinutes(),
+      notFoundTtlMinutes: getNotFoundCacheTtlMinutes(),
+      force: false,
+    },
     { realmSlug: realm, nameSlug: name },
   );
 
   if (result.unavailable) return { status: "unavailable" };
-  if (result.outcome === "not-found" || !result.stored) return { status: "not-found" };
+  // También el acierto de la caché de negativos, que llega sin `stored` y por
+  // tanto ya caería aquí: nombrarlo evita depender de ese efecto lateral.
+  if (result.outcome === "not-found" || result.outcome === "not-found-cached" || !result.stored) {
+    return { status: "not-found" };
+  }
 
   // Se redirige a la identidad **guardada**, no a la tecleada: es la de
   // Blizzard, y es la única que la página de perfil sabe leer (ADR 0017).

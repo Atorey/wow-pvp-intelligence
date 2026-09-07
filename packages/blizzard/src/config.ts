@@ -144,6 +144,28 @@ export function getCharacterLookupTtlMinutes(): number {
   return parsed;
 }
 
+/**
+ * Minutos que se recuerda que Blizzard no conoce a un personaje.
+ *
+ * Es más largo que el TTL del perfil, y la asimetría tiene motivo: un perfil
+ * describe un estado que cambia después de cada partida, y una ausencia describe
+ * que alguien no existe, que es mucho más estable. Lo que compra es que
+ * enumerar un diccionario de nombres pase de costar una petición por nombre y
+ * por intento a una por nombre y por hora.
+ *
+ * Lo que cuesta hay que saberlo: durante esa hora, un personaje recién creado o
+ * recién renombrado es invisible, y a quien lo busque se le dice que Blizzard no
+ * lo conoce, que en ese momento es falso. Cero desactiva la caché.
+ */
+export function getNotFoundCacheTtlMinutes(): number {
+  const raw = process.env["CHARACTER_NOT_FOUND_TTL_MINUTES"];
+  const parsed = raw ? Number(raw) : 60;
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    throw new Error(`CHARACTER_NOT_FOUND_TTL_MINUTES="${raw}" no es un número de minutos válido.`);
+  }
+  return parsed;
+}
+
 export function getBlizzardCredentials(): { clientId: string; clientSecret: string } {
   const hint = "Crea un client en https://develop.battle.net/access (ver apps/pipeline/README.md).";
   return {

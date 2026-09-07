@@ -509,9 +509,11 @@ function RefreshNotice({ locale, status }: { locale: Locale; status: RefreshStat
         ttl.fresh(String(getCharacterLookupTtlMinutes()))
       : status === "unavailable"
         ? ttl.unavailable
-        : status === "not-found"
-          ? copy.search.notFound.body
-          : null;
+        : status === "rate-limited"
+          ? ttl.rateLimited
+          : status === "not-found"
+            ? copy.search.notFound.body
+            : null;
 
   if (text === null) return null;
   return <p className="text-muted-foreground text-sm">{text}</p>;
