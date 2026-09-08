@@ -1,8 +1,6 @@
 import type { PlayerRoute, Region } from "@wowpvp/core";
 import {
   readActivity,
-  readAdoptionFor,
-  readBracketSegments,
   readLatestGear,
   readLatestObservedSeason,
   readLatestSnapshotsByBracket,
@@ -18,6 +16,7 @@ import {
   type VariableKind,
 } from "@wowpvp/data";
 import { cache } from "react";
+import { cachedAdoptionFor, cachedBracketSegments } from "./aggregate-cache";
 import { getDb } from "./db";
 import "./env";
 import {
@@ -101,7 +100,9 @@ export async function loadPlayerProfile(
     readLatestGear(db, { ...key, bracket, seasonId }),
     readLatestTalents(db, { ...key, bracket, seasonId }),
     readStanding(db, { ...own, rating: snapshot.rating }),
-    readBracketSegments(db, own),
+    // Las tres lecturas de agregado van por la caché de proceso: son las mismas
+    // para todo el que mire esta spec y cambian una vez al día (ADR 0030).
+    cachedBracketSegments(db, own),
   ]);
 
   const view = standingFor({ rating: snapshot.rating, standing, segments });
@@ -156,8 +157,8 @@ async function readAdoptions(
   if (!own || !target) return { gear: empty, talentNodes: empty };
 
   const [gear, talentNodes] = await Promise.all([
-    readAdoptionFor(db, [own, target], GEAR_KINDS),
-    readAdoptionFor(db, [own, target], "talent-node"),
+    cachedAdoptionFor(db, [own, target], GEAR_KINDS),
+    cachedAdoptionFor(db, [own, target], "talent-node"),
   ]);
 
   const sides = (byRowId: Map<string, AdoptionRead[]>): AdoptionSides => ({

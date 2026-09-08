@@ -21,6 +21,7 @@ import {
 } from "@wowpvp/data";
 import { getDb } from "./db";
 import "./env";
+import { logServerEvent } from "./log";
 
 /**
  * Qué hace la web cuando alguien envía el buscador (ADR 0024).
@@ -144,7 +145,12 @@ export async function resolveSearch(query: SearchQuery): Promise<SearchResolutio
     { realmSlug: realm, nameSlug: name },
   );
 
-  if (result.unavailable) return { status: "unavailable" };
+  if (result.unavailable) {
+    // Lo mismo que en el botón de actualizar: al jugador la causa le da igual,
+    // a quien opera le dice si se está tocando el techo de cuota (ADR 0030).
+    logServerEvent("blizzard-unavailable", { reason: result.unavailable, source: "search" });
+    return { status: "unavailable" };
+  }
   if (result.outcome === "not-found" || !result.stored) return { status: "not-found" };
 
   // Se redirige a la identidad **guardada**, no a la tecleada: es la de

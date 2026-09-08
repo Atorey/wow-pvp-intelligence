@@ -8,6 +8,7 @@ import {
 import type { PlayerRoute } from "@wowpvp/core";
 import { getDb } from "./db";
 import "./env";
+import { logServerEvent } from "./log";
 
 /**
  * Volver a preguntarle a Blizzard por un personaje que ya está en la población.
@@ -58,7 +59,14 @@ export async function refreshCharacter(route: PlayerRoute): Promise<RefreshStatu
   // "No se pudo mirar" nunca se enseña como "no existe" (ADR 0013, decisión 7):
   // son cosas distintas y el jugador que tiene delante su propio personaje
   // sabría que la segunda es mentira.
-  if (result.unavailable) return "unavailable";
+  // Que la cola esté saturada lo ve el jugador como "ahora no puedo mirarlo",
+  // y hasta aquí no lo veía nadie más. La causa —sin cuota o sin tiempo— no le
+  // sirve a él y sí a quien opera: es la diferencia entre haber tocado el techo
+  // horario y estar simplemente lento (ADR 0030).
+  if (result.unavailable) {
+    logServerEvent("blizzard-unavailable", { reason: result.unavailable, source: "refresh" });
+    return "unavailable";
+  }
   if (result.outcome === "not-found") return "not-found";
   if (result.outcome === "cached") return "cached";
   return "updated";

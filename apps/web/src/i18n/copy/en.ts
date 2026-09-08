@@ -254,6 +254,20 @@ export const en = {
        */
       smallSample:
         "Small sample (30-99 profiles). These figures will move as more of this segment is sampled.",
+      /**
+       * De qué corrida salen las cifras. Lo pide §28 del plan de toda cifra
+       * agregada —"de dónde sale y cuándo se calculó"— y hasta ahora la caja
+       * enseñaba porcentajes sin decirlo.
+       */
+      computedAt: (when: string) => `Segment figures computed ${when}`,
+      /**
+       * La corrida vigente ya no es la que debería haber (ADR 0030). No es un
+       * error de la página: el dato de ayer sigue siendo cierto sobre ayer, y
+       * lo que hace falta es que se sepa de cuándo es. Sin fecha de vuelta,
+       * como toda ausencia declarada (§2.5 del brief).
+       */
+      staleRun: (when: string) =>
+        `The most recent aggregate run on record is from ${when}. The one due since then hasn't landed, so these figures are more than a day old.`,
       none: {
         title: "No comparison yet.",
         /**
@@ -479,6 +493,18 @@ export const en = {
      */
     previousSegment: "Segment below",
     nextSegment: "Segment above",
+  },
+
+  /**
+   * Lo que se lee cuando el render falla: la base de datos no responde, o una
+   * variable de entorno no está. Dice qué ha pasado y no lo disfraza de dato
+   * ausente — un `insufficient` habla de muestra y esto habla de una lectura que
+   * no llegó a hacerse.
+   */
+  error: {
+    title: "This page couldn't be loaded",
+    body: "Something failed while reading the data. It isn't a gap in the character or in the segment: the reading itself didn't complete.",
+    retry: "Reload",
   },
 
   notFound: {

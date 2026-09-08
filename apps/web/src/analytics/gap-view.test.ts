@@ -13,11 +13,15 @@ const SUBJECT = { spec: "frost-mage", bracket: "solo-shuffle", locale: "es" } as
 
 const VISITOR = "3f1c2b4a-5d6e-4f80-91a2-b3c4d5e6f708";
 
+/** La corrida de la que salen las cifras. Al desenlace no le afecta; al tipo sí. */
+const COMPUTED_AT = new Date("2026-09-08T05:30:00.000Z");
+
 function comparable(confidence: "high" | "medium"): GapView {
   return {
     state: "comparable",
     ownSegment: OWN,
     targetSegment: TARGET,
+    computedAt: COMPUTED_AT,
     confidence,
     gearSample: confidence === "high" ? 120 : 40,
     itemLevel: null,
@@ -40,6 +44,7 @@ describe("el desenlace de la caja", () => {
       state: "insufficient",
       ownSegment: OWN,
       targetSegment: TARGET,
+      computedAt: COMPUTED_AT,
       cause: "population",
       population: 4,
       gearSample: 0,
@@ -70,6 +75,7 @@ describe("los datos del evento", () => {
       state: "insufficient",
       ownSegment: segmentFor(2900),
       targetSegment: TOP,
+      computedAt: COMPUTED_AT,
       cause: "population",
       population: 2,
       gearSample: 0,

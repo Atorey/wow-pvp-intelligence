@@ -160,6 +160,9 @@ export const es: Copy = {
       },
       smallSample:
         "Muestra reducida (30-99 perfiles). Estas cifras se moverán según se muestree más este segmento.",
+      computedAt: (when) => `Cifras del segmento calculadas el ${when}`,
+      staleRun: (when) =>
+        `La corrida de agregados más reciente que consta es del ${when}. La siguiente no ha llegado, así que estas cifras tienen más de un día.`,
       none: {
         title: "Todavía no hay comparación.",
         noneObserved: (spec, segment, needed) =>
@@ -311,6 +314,12 @@ export const es: Copy = {
       `Gear observado de ${spec} en el tramo ${segment} de ${bracket}.`,
     previousSegment: "Tramo de abajo",
     nextSegment: "Tramo de arriba",
+  },
+
+  error: {
+    title: "Esta página no se ha podido cargar",
+    body: "Algo ha fallado al leer los datos. No es un hueco del personaje ni del segmento: la lectura no llegó a completarse.",
+    retry: "Volver a cargar",
   },
 
   notFound: {

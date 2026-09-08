@@ -60,6 +60,13 @@ export type GapView =
       ownSegment: RatingSegment;
       targetSegment: RatingSegment;
       /**
+       * De qué corrida salen las cifras de abajo, o `null` si ese escalón no se
+       * ha calculado nunca. El §28 del plan lo exige de toda cifra agregada —"de
+       * dónde sale y cuándo se calculó"—, y aquí también hay dos: la población y
+       * la muestra con las que se explica por qué no hay comparación.
+       */
+      computedAt: Date | null;
+      /**
        * `population` es cuánta gente hay arriba; `gearSample`, de cuántos
        * tenemos el equipo. La causa se decide con las dos: echarle al juego la
        * culpa de nuestro muestreo es la mentira fácil de esta caja (§1.5).
@@ -80,6 +87,8 @@ export type GapView =
       state: "comparable";
       ownSegment: RatingSegment;
       targetSegment: RatingSegment;
+      /** La corrida que produjo estos porcentajes (ADR 0007, decisión 3). */
+      computedAt: Date;
       confidence: Extract<ConfidenceLevel, "high" | "medium">;
       gearSample: number;
       /** null cuando la mediana del objetivo no tiene base suficiente. */
@@ -211,19 +220,27 @@ export function gapFor(input: {
   const targetSegment = nextSegment(ownSegment);
   if (!targetSegment) return { state: "top-segment", ownSegment };
 
-  const population = input.target?.population.sampleSize ?? 0;
-  const gearSample = input.target?.gear.denominator ?? 0;
+  const target = input.target;
+  const population = target?.population.sampleSize ?? 0;
+  const gearSample = target?.gear.denominator ?? 0;
+  // Cualquiera de las procedencias de la fila sirve: las seis salen de la misma
+  // corrida, y es esa fecha la que la caja tiene que poder enseñar.
+  const computedAt = target?.gear.computedAt ?? null;
   // Sin nada observado de quien mira no hay comparación posible por muy
   // muestreado que esté el segmento de arriba, así que esta causa se mira antes
   // que las otras dos: es la única que señala a un lado de la comparación que
   // sí se puede arreglar consultando el perfil.
   const hasSubjectData = input.player.itemLevel !== null;
 
-  if (!hasSubjectData || !canShowComparison(gearSample)) {
+  // `!target` es redundante con el umbral —sin fila, `gearSample` es 0 y no lo
+  // supera— y va delante igualmente: es lo que deja `target` estrechado abajo,
+  // donde la fecha de la corrida no puede faltar.
+  if (!target || !hasSubjectData || !canShowComparison(gearSample)) {
     return {
       state: "insufficient",
       ownSegment,
       targetSegment,
+      computedAt,
       // Hay gente arriba y lo que falta es su equipo: eso es muestreo nuestro.
       // Sin gente arriba, no hay nada que muestrear todavía.
       cause: !hasSubjectData
@@ -243,11 +260,12 @@ export function gapFor(input: {
     state: "comparable",
     ownSegment,
     targetSegment,
+    computedAt: target.gear.computedAt,
     // El `insufficient` ya salió arriba; el tipo lo estrecha aquí para que la
     // caja no tenga que volver a preguntarse por un estado imposible.
     confidence: confidence === "high" ? "high" : "medium",
     gearSample,
-    itemLevel: itemLevelComparison(input.player.itemLevel, input.target),
+    itemLevel: itemLevelComparison(input.player.itemLevel, target),
     overlap:
       input.player.gear === null
         ? null

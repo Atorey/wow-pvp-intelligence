@@ -121,6 +121,28 @@ Queda pendiente conectar el repositorio a un sitio de Netlify; el `netlify.toml`
 
 **El plan gratuito se agota deployando, no solo sirviendo**: 300 créditos al mes, 15 por deploy a producción, y al agotarlos el sitio se pausa hasta el mes siguiente. En desarrollo activo eso muerde antes que el tráfico.
 
+## Rendimiento y errores
+
+El presupuesto, las cifras medidas y el porqué de todo lo de abajo están en el [ADR 0030](../../docs/decisions/0030-presupuesto-de-rendimiento-y-observabilidad.md). **TTFB p75 ≤ 800 ms y LCP p75 ≤ 2,5 s en el perfil**, con el techo duro de los 10 s de función de Netlify.
+
+Para volver a medir, contra el mismo build que corre Netlify:
+
+```bash
+npm run web:build
+npm run start --workspace @wowpvp/web
+npx tsx apps/web/scripts/measure-ttfb.ts --runs 25 --path /en/player/eu/<reino>/<nombre>
+```
+
+El personaje se pasa a mano y se anota junto a la cifra: el que hoy tiene comparación puede no tenerla la semana que viene, y una constante con un nombre dentro mediría otra cosa sin avisar.
+
+**La caché no tiene TTL.** Las lecturas de agregado —los escalones del bracket y las dos adopciones, que son iguales para todo el que mire esa spec— se recuerdan en memoria del proceso hasta que puede existir la corrida siguiente, y esa fecha sale del `computed_at` de la fila. Con la corrida retrasada entra un suelo de cinco minutos, porque una caducidad ya vencida haría fallar todas las visitas justo el día que el recálculo está caído. La página de perfil **no** lleva cabecera de caché y no debe llevarla: después de pulsar Actualizar su URL trae `?refresh=`, y esa respuesta no puede acabar en un CDN sirviéndosela a otra persona.
+
+**La caja Player Gap dice siempre de qué corrida son sus cifras**, y si esa corrida ya debería haber sido sustituida, lo dice también. Sin fecha de vuelta.
+
+**Quién se entera**: `src/instrumentation.ts` escribe una línea JSON por fallo de render, que Netlify recoge en los registros de función. No hay ningún tercero, y en esa línea no entra ni la IP, ni el user-agent, ni la ruta resuelta — solo su forma (`/[locale]/player/[region]/[realm]/[name]`), porque la ruta de un perfil lleva dentro el nombre del personaje. De que los agregados se queden atrás avisa `npm run pipeline -- check-freshness`, que corre a diario en el workflow `Freshness` y falla si el dato que sirve la web es de una corrida perdida.
+
+`error.tsx` y `global-error.tsx` **pintan en cliente**: ante un fallo del render inicial Next sirve su cáscara con un 500 y nuestro texto aparece al hidratar. Es del framework y se aceptó a sabiendas; devolver un 200 con una explicación le mentiría a los rastreadores sobre una página que no ha podido leerse.
+
 ## Tests
 
 `node:test` con `tsx`, los mismos que el resto del monorepo — **no hay vitest ni testing-library**, y es deliberado.

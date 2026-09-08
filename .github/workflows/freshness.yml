@@ -1,0 +1,40 @@
+name: Freshness
+
+# Vigila que la web esté sirviendo agregados de hoy (ADR 0030, #72).
+#
+# Va en un workflow propio y no como último paso de `aggregates.yml` a
+# propósito: vigila **el efecto** —que el dato que sirve la web sea el que debe
+# ser— y no que un job concreto haya terminado. Un `aggregates.yml` que ni
+# siquiera llegue a arrancar, que es lo que pasa cuando GitHub deshabilita los
+# crons de un repositorio inactivo, también se detecta desde aquí.
+#
+# El aviso es el propio fallo: el job sale con código distinto de cero y GitHub
+# manda el correo. Sin servicio de terceros, que es lo que decidió el ADR 0028.
+on:
+  schedule:
+    # 08:00 UTC: dos horas y media después de la corrida de agregados de las
+    # 05:30, que es margen de sobra para un cron que no es puntual. El umbral de
+    # 36 h de `packages/core` es el que decide de verdad; esta hora solo elige
+    # cuándo se mira.
+    - cron: "0 8 * * *"
+  workflow_dispatch:
+
+jobs:
+  freshness:
+    runs-on: ubuntu-latest
+    # Solo Postgres: no llama a la API de Blizzard y no gasta cuota. Es una
+    # consulta de agregación sobre `population_segments`, así que sobra tiempo.
+    timeout-minutes: 10
+    env:
+      BLIZZARD_REGION: ${{ vars.BLIZZARD_REGION || 'eu' }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Sin `db:migrate`: esto no escribe nada y no tiene por qué poder hacerlo.
+      # Un vigilante que migra es un vigilante que puede romper lo que vigila.
+      - run: npm run pipeline -- check-freshness

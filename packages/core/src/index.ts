@@ -3,6 +3,7 @@ export * from "./specs";
 export * from "./characters";
 export * from "./segments";
 export * from "./confidence";
+export * from "./freshness";
 export * from "./activity";
 export * from "./stats";
 export * from "./standing";
