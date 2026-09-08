@@ -1,10 +1,20 @@
 "use server";
 
 import { playerPath, resolvePlayerRoute, searchPath } from "@wowpvp/core";
+import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { SOURCE_LOCALE, isLocale, localizedPathname } from "../i18n/locales";
-import { refreshCharacter } from "./refresh";
+import { checkLimit } from "./rate-limit";
+import { type RefreshStatus, refreshCharacter } from "./refresh";
 import { resolveSearch } from "./search";
+
+/*
+ * `headers()` aparece aquí y en ningún sitio más, y es compatible con el motivo
+ * por el que `not-found.tsx` lo evita: allí marcaría dinámica la rama entera que
+ * cuelga del layout y sacaría la portada de la generación en build. Una Server
+ * Action es un manejador de POST — no se genera estáticamente nunca y no
+ * participa del render de ningún layout.
+ */
 
 /**
  * Lo que ocurre al enviar el buscador (ADR 0024, decisión 2).
@@ -33,8 +43,14 @@ export async function submitSearch(formData: FormData): Promise<never> {
     localizedPathname(searchPath({ realm, name, ...(status ? { status } : {}) }), locale);
 
   // Un envío a medias no gasta una llamada: sin reino no hay a quién preguntar,
-  // porque la API de Blizzard no sabe buscar por nombre suelto.
+  // porque la API de Blizzard no sabe buscar por nombre suelto. Va antes del
+  // límite porque tampoco tiene por qué gastar ficha.
   if (!realm || !name) redirect(landing());
+
+  // El límite no puede envolverse en un `try`: `redirect()` funciona lanzando, y
+  // un `catch` alrededor se lo tragaría. Lo que se rinde ante un fallo es
+  // `checkLimit` por dentro.
+  if (await checkLimit("submit", await headers())) redirect(landing("rate-limited"));
 
   const resolution = await resolveSearch({ realm, name });
 
@@ -42,7 +58,7 @@ export async function submitSearch(formData: FormData): Promise<never> {
     redirect(localizedPathname(playerPath(resolution.route), locale));
   }
 
-  // Los otros tres estados se enseñan en /search, con el resultado en la URL: la
+  // Los otros estados se enseñan en /search, con el resultado en la URL: la
   // página los pinta sin volver a preguntar, así que refrescarla no cuesta otra
   // llamada ni convierte un "no se pudo mirar" en un "no existe".
   redirect(landing(resolution.status));
@@ -78,7 +94,8 @@ export async function refreshPlayer(formData: FormData): Promise<never> {
   // actualizar y tampoco a dónde volver.
   if (resolution.status !== "canonical") notFound();
 
-  const status = await refreshCharacter(resolution.route);
+  const limited = await checkLimit("submit", await headers());
+  const status: RefreshStatus = limited ? "rate-limited" : await refreshCharacter(resolution.route);
 
   const query = new URLSearchParams({ refresh: status });
   const spec = field("spec");

@@ -101,7 +101,7 @@ export async function loadPlayerProfile(
     readLatestTalents(db, { ...key, bracket, seasonId }),
     readStanding(db, { ...own, rating: snapshot.rating }),
     // Las tres lecturas de agregado van por la caché de proceso: son las mismas
-    // para todo el que mire esta spec y cambian una vez al día (ADR 0030).
+    // para todo el que mire esta spec y cambian una vez al día (ADR 0031).
     cachedBracketSegments(db, own),
   ]);
 

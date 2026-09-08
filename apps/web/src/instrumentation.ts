@@ -3,7 +3,7 @@ import type { Instrumentation } from "next";
 import { logServerEvent } from "./server/log";
 
 /**
- * Quién se entera de que una página ha reventado (ADR 0030).
+ * Quién se entera de que una página ha reventado (ADR 0031).
  *
  * `onRequestError` es el hook de servidor de Next para los fallos de render, y
  * es el sitio correcto: el `error.tsx` se ejecuta en el navegador de quien se lo

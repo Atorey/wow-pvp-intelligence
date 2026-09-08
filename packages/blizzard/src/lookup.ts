@@ -1,3 +1,4 @@
+import type { Queryable } from "@wowpvp/data";
 import type pg from "pg";
 import {
   formatCharacterRef,
@@ -46,7 +47,8 @@ import { resolveCurrentSeasonId } from "./season";
  * Cómo acabó una búsqueda. Se guarda en la bitácora tal cual, así que estos son
  * también los valores que admite el check de character_lookups.
  */
-export type LookupOutcome = "ok" | "cached" | "not-found" | "no-brackets" | "error";
+export type LookupOutcome =
+  "ok" | "cached" | "not-found" | "not-found-cached" | "no-brackets" | "error";
 
 export interface LookupResult {
   /** Lo que se pidió buscar, tal como venía. */
@@ -81,6 +83,11 @@ export interface LookupDeps {
   client: BlizzardClient;
   region: string;
   ttlMinutes: number;
+  /**
+   * Minutos que se recuerda un 404 (ADR 0030). Llega como número y no se lee del
+   * entorno aquí por lo mismo que `ttlMinutes`: el motor no elige su política.
+   */
+  notFoundTtlMinutes: number;
   /** Ignora la caché. Para depurar, no para uso normal: se salta el ahorro de cuota. */
   force: boolean;
   /** Inyectable para poder probar la caducidad de la caché sin esperar 30 minutos. */
@@ -115,6 +122,33 @@ async function findExisting(
 
   const row = rows[0];
   return row ? { id: row.id, lastProfileAt: row.last_profile_at } : null;
+}
+
+/**
+ * ¿Nos dijeron hace poco que este personaje no existe?
+ *
+ * Mira solo las filas que costaron una petición: contar también los aciertos de
+ * caché haría que preguntar una vez por minuto mantuviese vigente la ventana
+ * indefinidamente.
+ */
+export async function recentlyNotFound(
+  pool: Queryable,
+  region: string,
+  ref: CharacterRef,
+  since: Date,
+): Promise<boolean> {
+  const { rows } = await pool.query(
+    `select 1
+       from character_lookups
+      where region = $1 and realm_slug = $2 and name_slug = $3
+        and outcome = 'not-found'
+        and requested_at > $4
+      order by requested_at desc
+      limit 1`,
+    [region, ref.realmSlug, ref.nameSlug, since.toISOString()],
+  );
+
+  return rows.length > 0;
 }
 
 async function recordLookup(
@@ -306,6 +340,24 @@ export async function lookupCharacter(deps: LookupDeps, ref: CharacterRef): Prom
     // Dentro del TTL no se ha preguntado, así que lo guardado es lo que ya
     // estaba: la identidad que se buscó, que es la que casó en `findExisting`.
     result.stored = ref;
+    await recordLookup(deps.pool, deps.region, requestedAt, result);
+    return result;
+  }
+
+  // Solo para quien no está en la población: si ya lo conocemos, un 404 significa
+  // borrado o renombrado y de eso decide el TTL del perfil, no esta caché.
+  if (
+    !deps.force &&
+    existing === null &&
+    deps.notFoundTtlMinutes > 0 &&
+    (await recentlyNotFound(
+      deps.pool,
+      deps.region,
+      ref,
+      new Date(now.getTime() - deps.notFoundTtlMinutes * 60_000),
+    ))
+  ) {
+    result.outcome = "not-found-cached";
     await recordLookup(deps.pool, deps.region, requestedAt, result);
     return result;
   }

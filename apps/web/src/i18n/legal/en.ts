@@ -37,6 +37,16 @@ export const en = {
     ],
   },
 
+  abuse: {
+    heading: "Keeping the site up",
+    paragraphs: [
+      "Every character we look up for you is a request to Blizzard, against a budget that is shared with everything else the site does. So we count how many requests come from each connection, and when one goes far beyond what a person searching could need, we ask it to wait.",
+      "To count them we need to tell connections apart, not to know who they belong to. What is stored is a short fingerprint derived from your IP address with a secret key that only our server holds. The address itself is never written down, not in this table and not in a log, and it cannot be recovered from the fingerprint.",
+      "The fingerprint is not linked to anything else: not to the measurement above, not to a character page, not to a search. It is a counter and nothing more.",
+      "The legal basis is legitimate interest — keeping the service available is the example the GDPR itself gives. The counter refills continuously, so a fingerprint stops counting for anything within minutes of your last request.",
+    ],
+  },
+
   storage: {
     heading: "What is kept in your browser",
     paragraphs: [

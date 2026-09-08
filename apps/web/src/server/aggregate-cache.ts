@@ -12,7 +12,7 @@ import {
 
 /**
  * Las lecturas de agregado, recordadas mientras la corrida que las produjo siga
- * siendo la última (ADR 0030).
+ * siendo la última (ADR 0031).
  *
  * De las diez consultas que cuesta un perfil, tres no son del personaje sino del
  * escalón: los segmentos del bracket y las dos adopciones. Son idénticas para
@@ -90,7 +90,7 @@ class AggregateCache<T> {
       }
       // `aggregateCacheUntil` y no la caducidad a secas: una corrida retrasada
       // ya nace vencida, y sin el suelo esta caché desaparecería justo el día
-      // que el recálculo está caído (ADR 0030).
+      // que el recálculo está caído (ADR 0031).
       entry.expiresAt = aggregateCacheUntil(computedAt, new Date()).getTime();
       return resolved;
     } catch (err) {

@@ -1,5 +1,5 @@
 /**
- * El arnés que convierte el principio 9 en un número (ADR 0030).
+ * El arnés que convierte el principio 9 en un número (ADR 0031).
  *
  * "Rápido primero" no es un principio hasta que alguien puede incumplirlo, y
  * para eso hace falta medir siempre igual. Esto no es un test: no falla, no
@@ -111,7 +111,7 @@ function parseArgs(argv: string[]): Options {
 }
 
 /**
- * Las rutas de referencia del ADR 0030.
+ * Las rutas de referencia del ADR 0031.
  *
  * Los dos perfiles van sin rellenar porque **dependen del dataset**: el que hoy
  * tiene comparación puede no tenerla la semana que viene, y una constante con un
@@ -160,7 +160,7 @@ async function main(): Promise<void> {
     console.log("");
   }
 
-  console.log("El presupuesto y la lectura de estas cifras están en el ADR 0030.");
+  console.log("El presupuesto y la lectura de estas cifras están en el ADR 0031.");
 }
 
 main().catch((err: unknown) => {

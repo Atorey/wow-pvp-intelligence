@@ -101,6 +101,10 @@ export const es: Copy = {
       title: "Ahora mismo no se ha podido consultar",
       body: "La consulta agotó su presupuesto de tiempo y de cuota. No consta si el personaje existe.",
     },
+    rateLimited: {
+      title: "Demasiadas búsquedas desde esta conexión",
+      body: "Esta conexión ha gastado sus búsquedas por ahora. Cada una le pregunta a Blizzard, y ese presupuesto se comparte con todo lo demás del sitio. Dentro de un minuto hay más.",
+    },
   },
 
   placeholder: {
@@ -122,6 +126,8 @@ export const es: Copy = {
       fresh: (minutes) => `Consultado hace menos de ${minutes} minutos.`,
       unavailable:
         "Ahora mismo no se ha podido preguntar a Blizzard. Lo de abajo es la última observación registrada.",
+      rateLimited:
+        "Esta conexión ha gastado sus actualizaciones por ahora. Lo de abajo es la última observación registrada.",
     },
 
     observedAt: (when) => `Observado ${when}`,

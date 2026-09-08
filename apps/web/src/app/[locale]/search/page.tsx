@@ -113,7 +113,9 @@ export default async function SearchPage({
         : "ambiguous";
 
   // Solo el caso de varios candidatos necesita releer, y se relee de la
-  // población: los otros dos ya vienen resueltos en la URL.
+  // población: los demás ya vienen resueltos en la URL. Es lo que hace que
+  // refrescar esta página no vuelva a costar ni una llamada ni una ficha, que
+  // importa especialmente cuando lo que se enseña es que ya no quedan.
   const candidates = status === "ambiguous" ? await suggestExact(name, realm) : [];
 
   // El copy no puede llevar la clave "not-found" con guion: es el valor que
@@ -123,6 +125,7 @@ export default async function SearchPage({
     ambiguous: copy.ambiguous,
     "not-found": copy.notFound,
     unavailable: copy.unavailable,
+    "rate-limited": copy.rateLimited,
   } as const;
   const message = MESSAGES[status];
 

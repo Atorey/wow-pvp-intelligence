@@ -4,7 +4,7 @@ import { copyFor } from "../i18n/copy";
 import { SOURCE_LOCALE } from "../i18n/locales";
 
 /**
- * La última red: un fallo en el propio layout raíz (ADR 0030).
+ * La última red: un fallo en el propio layout raíz (ADR 0031).
  *
  * Sustituye al documento entero, así que trae su propio `<html>` y no puede
  * apoyarse en nada del layout — ni en las fuentes, ni en los tokens, ni en el

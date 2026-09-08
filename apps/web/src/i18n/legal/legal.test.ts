@@ -69,6 +69,17 @@ describe("la política de privacidad", () => {
     }
   });
 
+  it("declara el tratamiento de la dirección IP y su base legal", () => {
+    // La medición promete no guardar la IP y sigue siendo cierto, pero el límite
+    // por peticiones sí la trata (ADR 0030). Un tratamiento que existe en el
+    // código y no en la política es la política la que está mal.
+    for (const locale of LOCALES) {
+      const text = legalFor(locale).abuse.paragraphs.join(" ");
+      assert.match(text, /IP address|dirección IP/);
+      assert.match(text, /legitimate interest|interés legítimo/);
+    }
+  });
+
   it("nombra la única petición a un tercero que hace el navegador", () => {
     // Los iconos se sirven desde el CDN de Blizzard y no se re-alojan (ADR 0015,
     // decisión 7). Es la excepción a "cero terceros" y callarla la convertiría

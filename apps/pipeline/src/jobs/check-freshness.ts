@@ -3,7 +3,7 @@ import { getRegion } from "../config";
 import { createPool } from "../db/pool";
 
 /**
- * El vigilante de la frescura de los agregados (ADR 0030).
+ * El vigilante de la frescura de los agregados (ADR 0031).
  *
  * Antes de esto, un `refresh-aggregates` caído se manifestaba de una sola
  * manera: la web servía el agregado de ayer **en silencio**. La fecha estaba

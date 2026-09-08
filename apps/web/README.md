@@ -52,7 +52,8 @@ Es lo que **escribe** y lo que llama a Blizzard, junto con el botón "Actualizar
 - **El fallback va en un `POST`, nunca en un `GET`.** Una página que gastara cuota al renderizar la gastaría en cada precarga de Next y en cada enlace compartido.
 - **El buscador funciona sin JavaScript.** Es un `<form>` con una acción detrás; las sugerencias son la mejora progresiva. Probarlo con el script desactivado es parte de darlo por bueno, porque aquí no hay tests de renderizado. Es también la razón de que el desplegable **no** sea el `Command` de shadcn: su motor hace `preventDefault()` en todos los Enter y este formulario necesita que ese Enter llegue ([ADR 0025](../../docs/decisions/0025-componentes-con-shadcn-ui.md), decisión 6).
 - **"No existe" y "no se pudo mirar" son dos mensajes distintos** y no se pueden fundir: sin cuota o sin tiempo se responde lo segundo.
-- **El límite por IP todavía no existe** (#71). Lo que hoy acota el daño es el colchón reservado del bucket de cuota.
+- **El límite por IP** es un token bucket por conexión en Postgres ([ADR 0030](../../docs/decisions/0030-limite-por-ip-y-cache-de-negativos.md)): cinco envíos por minuto y sesenta por hora, sesenta sugerencias por minuto. Lo que se guarda es un HMAC de la dirección con `RATE_LIMIT_SALT`, nunca la dirección. Cuando falla la comprobación se deja pasar, porque el presupuesto de Blizzard vive en la misma base y es la segunda puerta; cuando falta la sal, en cambio, la web no arranca.
+- **Un 404 reciente no se vuelve a preguntar** durante `CHARACTER_NOT_FOUND_TTL_MINUTES`. El precio es que un personaje recién creado tarda hasta una hora en verse.
 
 ## El perfil
 
@@ -123,7 +124,7 @@ Queda pendiente conectar el repositorio a un sitio de Netlify; el `netlify.toml`
 
 ## Rendimiento y errores
 
-El presupuesto, las cifras medidas y el porqué de todo lo de abajo están en el [ADR 0030](../../docs/decisions/0030-presupuesto-de-rendimiento-y-observabilidad.md). **TTFB p75 ≤ 800 ms y LCP p75 ≤ 2,5 s en el perfil**, con el techo duro de los 10 s de función de Netlify.
+El presupuesto, las cifras medidas y el porqué de todo lo de abajo están en el [ADR 0031](../../docs/decisions/0031-presupuesto-de-rendimiento-y-observabilidad.md). **TTFB p75 ≤ 800 ms y LCP p75 ≤ 2,5 s en el perfil**, con el techo duro de los 10 s de función de Netlify.
 
 Para volver a medir, contra el mismo build que corre Netlify:
 

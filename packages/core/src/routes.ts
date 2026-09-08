@@ -156,8 +156,11 @@ export const SEARCH_PATH = "/search";
  * averiguarlo**: preguntárselo otra vez a Blizzard costaría cuota en cada
  * refresco y en cada precarga, y es lo que la decisión 2 del ADR 0024 saca de
  * los `GET`. Con `ambiguous` basta releer la población, que es gratis.
+ *
+ * `rate-limited` lo aprovecha por partida doble: quien acaba de tocar el límite
+ * es justo a quien no se le puede cobrar otra petición por refrescar la página.
  */
-export type SearchStatus = "ambiguous" | "not-found" | "unavailable";
+export type SearchStatus = "ambiguous" | "not-found" | "unavailable" | "rate-limited";
 
 /**
  * `/search?realm=sanguino&name=%C3%A1natorey`.
@@ -173,7 +176,12 @@ export function searchPath(query: { realm: string; name: string; status?: Search
 }
 
 export function isSearchStatus(value: string): value is SearchStatus {
-  return value === "ambiguous" || value === "not-found" || value === "unavailable";
+  return (
+    value === "ambiguous" ||
+    value === "not-found" ||
+    value === "unavailable" ||
+    value === "rate-limited"
+  );
 }
 
 /** Un personaje tal como lo nombra su ruta: la referencia canónica más la región. */

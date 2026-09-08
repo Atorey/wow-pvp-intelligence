@@ -229,5 +229,6 @@ test("el resultado de un envío viaja en la URL, no se vuelve a averiguar", () =
     `${SEARCH_PATH}?realm=sanguino&name=anatorey&status=not-found`,
   );
   assert.ok(isSearchStatus("unavailable"));
+  assert.ok(isSearchStatus("rate-limited"));
   assert.ok(!isSearchStatus("not_found"));
 });

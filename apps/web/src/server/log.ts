@@ -1,5 +1,5 @@
 /**
- * El registro de servidor de la web (ADR 0030).
+ * El registro de servidor de la web (ADR 0031).
  *
  * Una línea JSON por suceso, a stderr. Netlify las recoge en los registros de
  * función, y eso es todo el destino que tienen: **ningún tercero**. No es una

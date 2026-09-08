@@ -6,7 +6,7 @@ import { copyFor } from "../../i18n/copy";
 import { SOURCE_LOCALE, localeFromPathname } from "../../i18n/locales";
 
 /**
- * Lo que se lee cuando el render de una página falla (ADR 0030).
+ * Lo que se lee cuando el render de una página falla (ADR 0031).
  *
  * Hasta ahora no existía, y eso significaba que un pooler que no responde o una
  * variable de entorno que falta acababan en la pantalla genérica de Next: sin

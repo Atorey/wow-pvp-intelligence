@@ -1,4 +1,4 @@
-# ADR 0030 — El presupuesto de rendimiento es un número medido, y la caché caduca con la corrida
+# ADR 0031 — El presupuesto de rendimiento es un número medido, y la caché caduca con la corrida
 
 **Fecha**: 8 de septiembre de 2026 · **Estado**: aceptada (issue [#72](https://github.com/Atorey/wow-pvp-intelligence/issues/72)) · **Cierra la consecuencia "queda sin decidir, y a propósito, la caché" del [ADR 0014](0014-capa-de-lectura-compartida.md)** · **Se apoya en las decisiones 7 y 10 del [ADR 0013](0013-web-serverless-y-cuota-en-postgres.md)** y **respeta la decisión 1 del [ADR 0028](0028-medicion-de-primera-parte-y-sin-banner.md)**: sigue sin haber terceros
 

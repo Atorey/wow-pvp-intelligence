@@ -33,6 +33,16 @@ export const es: Legal = {
     ],
   },
 
+  abuse: {
+    heading: "Mantener el sitio en pie",
+    paragraphs: [
+      "Cada personaje que consultamos por ti es una petición a Blizzard, contra un presupuesto que se comparte con todo lo demás que hace el sitio. Así que contamos cuántas peticiones llegan desde cada conexión, y cuando una se va muy por encima de lo que necesitaría una persona buscando, le pedimos que espere.",
+      "Para contarlas hace falta distinguir conexiones, no saber de quién son. Lo que se guarda es una huella corta derivada de tu dirección IP con una clave secreta que solo tiene nuestro servidor. La dirección no se escribe nunca, ni en esa tabla ni en un registro, y de la huella no se puede recuperar.",
+      "La huella no se cruza con nada: ni con la medición de arriba, ni con una página de personaje, ni con una búsqueda. Es un contador y nada más.",
+      "La base legal es el interés legítimo — mantener el servicio disponible es el ejemplo que da el propio RGPD. El contador se rellena de forma continua, así que una huella deja de contar para nada a los pocos minutos de tu última petición.",
+    ],
+  },
+
   storage: {
     heading: "Qué se queda en tu navegador",
     paragraphs: [

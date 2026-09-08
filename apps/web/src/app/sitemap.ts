@@ -17,7 +17,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // Postgres para compilar.
   await connection();
 
-  // Por la caché de proceso (ADR 0030): la lista de lo indexable cambia con la
+  // Por la caché de proceso (ADR 0031): la lista de lo indexable cambia con la
   // corrida diaria, no con cada visita de un rastreador, y un sitemap es
   // precisamente la página que más veces se pide sin que haya cambiado nada.
   const samples = await cachedSegmentSamples(getDb());

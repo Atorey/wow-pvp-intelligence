@@ -162,6 +162,11 @@ export const en = {
       title: "That character couldn't be looked up right now",
       body: "The lookup ran out of its time and quota budget. Whether the character exists is not on record.",
     },
+    /** El techo por conexión, que no es un fallo: es un límite y se dice cuál. */
+    rateLimited: {
+      title: "Too many searches from this connection",
+      body: "This connection has spent its searches for the moment. Each one asks Blizzard, and that budget is shared with everything else the site does. In a minute there are more.",
+    },
   },
 
   /** Lo que dice una página que ya tiene dirección y todavía no tiene contenido. */
@@ -194,6 +199,8 @@ export const en = {
       fresh: (minutes: string) => `Looked up less than ${minutes} minutes ago.`,
       unavailable:
         "Blizzard couldn't be asked just now. What's below is the last observation on record.",
+      rateLimited:
+        "This connection has spent its refreshes for the moment. What's below is the last observation on record.",
     },
 
     /** La observación de la que sale la ficha, fechada. */
@@ -261,7 +268,7 @@ export const en = {
        */
       computedAt: (when: string) => `Segment figures computed ${when}`,
       /**
-       * La corrida vigente ya no es la que debería haber (ADR 0030). No es un
+       * La corrida vigente ya no es la que debería haber (ADR 0031). No es un
        * error de la página: el dato de ayer sigue siendo cierto sobre ayer, y
        * lo que hace falta es que se sepa de cuándo es. Sin fecha de vuelta,
        * como toda ausencia declarada (§2.5 del brief).
