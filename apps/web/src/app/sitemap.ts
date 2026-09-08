@@ -1,8 +1,8 @@
-import { readSegmentSamples } from "@wowpvp/data";
 import type { MetadataRoute } from "next";
 import { connection } from "next/server";
 
 import { indexableSpecRoutes } from "../seo/indexable";
+import { cachedSegmentSamples } from "../server/aggregate-cache";
 import { getDb } from "../server/db";
 import "../server/env";
 import { sitemapEntries } from "../seo/sitemap";
@@ -17,7 +17,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // Postgres para compilar.
   await connection();
 
-  const samples = await readSegmentSamples(getDb());
+  // Por la caché de proceso (ADR 0031): la lista de lo indexable cambia con la
+  // corrida diaria, no con cada visita de un rastreador, y un sitemap es
+  // precisamente la página que más veces se pide sin que haya cambiado nada.
+  const samples = await cachedSegmentSamples(getDb());
 
   return sitemapEntries({
     base: siteUrl(process.env),

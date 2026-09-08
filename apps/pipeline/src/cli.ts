@@ -1,5 +1,6 @@
 import { migrate } from "./db/migrate";
 import { backfillNameFold } from "./jobs/backfill-name-fold";
+import { checkFreshness } from "./jobs/check-freshness";
 import { fetchLeaderboards } from "./jobs/fetch-leaderboard";
 import { ingestLeaderboards } from "./jobs/ingest-leaderboard";
 import { lookupCharacters } from "./jobs/lookup-character";
@@ -54,6 +55,10 @@ const COMMANDS: Record<string, { run: (args: string[]) => Promise<void>; help: s
   "refresh-aggregates": {
     run: refreshAggregates,
     help: "Job diario: recalcula la distribución y el adoption_rate por segmento [--window --dry-run]",
+  },
+  "check-freshness": {
+    run: checkFreshness,
+    help: "Falla si los agregados que sirve la web son de una corrida perdida [--all-regions]",
   },
   "player-gap": {
     run: playerGap,

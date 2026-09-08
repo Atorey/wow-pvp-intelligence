@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { parseGapViewEvent } from "../../../analytics/gap-view";
 import { recordGapView } from "../../../server/gap-views";
+import { logServerEvent } from "../../../server/log";
 import { checkLimit, retryAfterSeconds } from "../../../server/rate-limit";
 
 /**
@@ -40,10 +41,19 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   try {
     await recordGapView(event);
-  } catch {
+  } catch (err) {
     // Un fallo de escritura cuesta una fila de métrica. Devolver un error se lo
     // contaría al navegador de quien está leyendo su Player Gap, que no puede
     // hacer nada con esa información y no ha pedido nada.
+    //
+    // Callarlo del todo sí tenía precio: la North Star se mide sobre esta tabla,
+    // y un cociente calculado sobre filas que se perdieron en silencio parece
+    // sano justo cuando no lo está. Del evento solo sale el desenlace, que es
+    // lo que dice si lo que falla es una rama concreta; nada de quien lo emitió.
+    logServerEvent("gap-view-write-failed", {
+      outcome: event.outcome,
+      message: err instanceof Error ? err.message : String(err),
+    });
   }
 
   return new NextResponse(null, { status: 204, headers: NO_TRACE });

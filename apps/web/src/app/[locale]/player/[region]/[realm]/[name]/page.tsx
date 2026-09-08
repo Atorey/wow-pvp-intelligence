@@ -51,7 +51,26 @@ export async function generateMetadata({
   // La misma spec que pintará la página: sin ella, la carga memoizada sería otra
   // y el perfil se leería dos veces por visita.
   const spec = first(((await searchParams) as PlayerQuery).spec);
-  const profile = await cachedPlayerProfile(route.region, route.realmSlug, route.nameSlug, spec);
+
+  /*
+   * Una lectura que falla aquí no puede tumbar la página, y sin este `catch` lo
+   * hacía: `generateMetadata` corre **fuera** de todo boundary, así que una
+   * excepción suya se salta el `error.tsx` y Next sirve su cáscara vacía. Medido
+   * con la base caída: el visitante recibía una página en blanco con un 500,
+   * mientras que el mismo fallo dentro del render enseña nuestra explicación.
+   *
+   * Así que aquí se traga y se devuelve lo mínimo. El render de abajo vuelve a
+   * pedir el mismo perfil —memoizado, no cuesta otra consulta—, falla igual, y
+   * ese fallo sí lo recoge el boundary.
+   */
+  let profile: Awaited<ReturnType<typeof cachedPlayerProfile>> = null;
+  try {
+    profile = await cachedPlayerProfile(route.region, route.realmSlug, route.nameSlug, spec);
+  } catch {
+    // Sin perfil no se puede afirmar que haya comparación, así que no se indexa:
+    // es la misma respuesta que para un perfil sin ella, y por el mismo motivo.
+    return { robots: robotsFor(false, process.env) };
+  }
 
   return {
     title: `${route.nameSlug} · ${route.realmSlug}`,

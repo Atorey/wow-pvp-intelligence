@@ -22,6 +22,7 @@ import {
 } from "@wowpvp/data";
 import { getDb } from "./db";
 import "./env";
+import { logServerEvent } from "./log";
 
 /**
  * Qué hace la web cuando alguien envía el buscador (ADR 0024).
@@ -152,7 +153,12 @@ export async function resolveSearch(query: SearchQuery): Promise<SearchResolutio
     { realmSlug: realm, nameSlug: name },
   );
 
-  if (result.unavailable) return { status: "unavailable" };
+  if (result.unavailable) {
+    // Lo mismo que en el botón de actualizar: al jugador la causa le da igual,
+    // a quien opera le dice si se está tocando el techo de cuota (ADR 0031).
+    logServerEvent("blizzard-unavailable", { reason: result.unavailable, source: "search" });
+    return { status: "unavailable" };
+  }
   // También el acierto de la caché de negativos, que llega sin `stored` y por
   // tanto ya caería aquí: nombrarlo evita depender de ese efecto lateral.
   if (result.outcome === "not-found" || result.outcome === "not-found-cached" || !result.stored) {
