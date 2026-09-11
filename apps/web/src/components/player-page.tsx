@@ -19,6 +19,7 @@ import type { PlayerProfile } from "../server/player";
 import type { StandingView } from "../server/player-profile";
 import type { RefreshStatus } from "../server/refresh";
 import { CountRow, CountedFigure, DeclaredAbsence } from "./counted-figure";
+import { FigureCard } from "./figure-card";
 import { GearList } from "./gear-list";
 import { PlayerGapBox } from "./player-gap-box";
 import { SectionCard } from "./section-card";
@@ -313,7 +314,7 @@ function Figures({ locale, profile }: { locale: Locale; profile: PlayerProfile }
 
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      <Figure
+      <FigureCard
         value={formatRating(snapshot.rating, locale)}
         label={copy.rating}
         note={
@@ -322,7 +323,7 @@ function Figures({ locale, profile }: { locale: Locale; profile: PlayerProfile }
             : undefined
         }
       />
-      <Figure
+      <FigureCard
         value={snapshot.matchesPlayed === null ? "—" : formatCount(snapshot.matchesPlayed, locale)}
         label={copy.matches}
         note={
@@ -334,7 +335,7 @@ function Figures({ locale, profile }: { locale: Locale; profile: PlayerProfile }
             : undefined
         }
       />
-      <Figure
+      <FigureCard
         value={
           profile.equippedItemLevel === null ? "—" : formatRating(profile.equippedItemLevel, locale)
         }
@@ -352,7 +353,7 @@ function Figures({ locale, profile }: { locale: Locale; profile: PlayerProfile }
        * dice algo.
        */}
       {percentile !== null && (
-        <Figure
+        <FigureCard
           value={formatPercentile(percentile, locale)}
           label={copy.percentile}
           note={copy.below(
@@ -362,29 +363,6 @@ function Figures({ locale, profile }: { locale: Locale; profile: PlayerProfile }
         />
       )}
     </div>
-  );
-}
-
-function Figure({
-  value,
-  label,
-  note,
-}: {
-  value: string;
-  label: string;
-  /**
-   * `| undefined` explícito y no solo `?`: con `exactOptionalPropertyTypes`, una
-   * prop opcional no admite que le pasen `undefined` a propósito, que es justo
-   * lo que hace el llamante cuando esa nota no existe.
-   */
-  note?: string | undefined;
-}) {
-  return (
-    <Card className="gap-0.5 p-4">
-      <span className="text-foreground font-display text-2xl">{value}</span>
-      <span className="text-subtle-foreground text-sm">{label}</span>
-      {note !== undefined && <span className="text-muted-foreground pt-1 text-sm">{note}</span>}
-    </Card>
   );
 }
 

@@ -107,8 +107,10 @@ export const es: Copy = {
     },
   },
 
-  placeholder: {
-    note: "Esta página ya tiene su dirección. Su contenido todavía no está construido.",
+  aggregates: {
+    computedAt: (when) => `Cifras del segmento calculadas el ${when}`,
+    staleRun: (when) =>
+      `La corrida de agregados más reciente que consta es del ${when}. La siguiente no ha llegado, así que estas cifras tienen más de un día.`,
   },
 
   player: {
@@ -166,9 +168,6 @@ export const es: Copy = {
       },
       smallSample:
         "Muestra reducida (30-99 perfiles). Estas cifras se moverán según se muestree más este segmento.",
-      computedAt: (when) => `Cifras del segmento calculadas el ${when}`,
-      staleRun: (when) =>
-        `La corrida de agregados más reciente que consta es del ${when}. La siguiente no ha llegado, así que estas cifras tienen más de un día.`,
       none: {
         title: "Todavía no hay comparación.",
         noneObserved: (spec, segment, needed) =>
@@ -314,12 +313,119 @@ export const es: Copy = {
   },
 
   spec: {
-    lead: (spec) => `Representación y gear observado de ${spec}.`,
-    inBracket: (spec, bracket) => `Representación y gear observado de ${spec} en ${bracket}.`,
+    lead: (spec) =>
+      `Representación de ${spec} por tramo de rating, y cuántos perfiles se han leído en cada uno.`,
+    inBracket: (spec, bracket) =>
+      `Representación de ${spec} en ${bracket} por tramo de rating, y cuántos perfiles se han leído en cada uno.`,
     inSegment: (spec, bracket, segment) =>
-      `Gear observado de ${spec} en el tramo ${segment} de ${bracket}.`,
+      `Gear y talentos observados de ${spec} en el tramo ${segment} de ${bracket}.`,
+    season: (id) => `Temporada ${id}`,
     previousSegment: "Tramo de abajo",
     nextSegment: "Tramo de arriba",
+
+    figures: {
+      observed: "personajes observados",
+      medianSegment: "tramo mediano",
+      medianNote: "donde cae el personaje del medio",
+      highest: "rating más alto observado",
+      share: (bracket) => `de lo observado en ${bracket}`,
+      rank: (observed, total, rank, of) =>
+        `${observed} de ${total} · puesto ${rank} de ${of} specs`,
+    },
+
+    table: {
+      title: "Por tramo de rating",
+      segment: "Tramo",
+      share: "Peso dentro de la spec",
+      observed: "Observados",
+      gear: "Con gear",
+      confidence: "Confianza",
+      window: (days) => `ventana de ${days} días`,
+      confidenceNote: (needed) =>
+        `La confianza sale del número de perfiles cuyo equipamiento hemos podido leer, no de la población del tramo. Por debajo de ${needed} no publicamos ningún porcentaje. Los tramos donde no hemos observado a nadie no se listan.`,
+      windowNote: (short, long, needed) =>
+        `Cada tramo cuenta a quien ha estado activo en su ventana: ${short} días, o ${long} si en ${short} no llega a ${needed} personajes. El total suma tramos contados con ventanas distintas.`,
+    },
+    confidence: {
+      high: "alta",
+      medium: "media",
+      insufficient: "sin comparación",
+    },
+    observedNote: "Observado = visto en la ladder o consultado aquí. No son todos los jugadores.",
+    ladderCap:
+      "El leaderboard de Blizzard publica los 5.000 primeros de cada spec y modalidad. Por debajo de ese corte, un personaje entra en estos datos solo cuando alguien lo busca aquí.",
+    empty: {
+      spec: (spec, bracket) =>
+        `En la corrida de agregados más reciente no consta ningún ${spec} observado en ${bracket}.`,
+      segment: (spec, segment) =>
+        `En la corrida de agregados más reciente no consta ningún ${spec} observado en ${segment}. El tramo existe; todavía no hay nadie en él que describir.`,
+    },
+
+    segment: {
+      figures: {
+        observed: "personajes observados",
+        window: (days) => `activos en los últimos ${days} días`,
+        gear: "perfiles con gear leído",
+        gearNote: "es la base de todo el equipamiento de abajo",
+        confidence: "confianza",
+        confidenceHigh: (min) => `${min} perfiles o más`,
+        confidenceMedium: (min, max) => `de ${min} a ${max} perfiles`,
+        confidenceNone: (needed) => `menos de ${needed} perfiles`,
+        itemLevel: "item level mediano",
+        itemLevelNote: (sample) => `sobre ${sample} perfiles`,
+      },
+      smallSample: (min, max) =>
+        `Muestra reducida (${min}-${max} perfiles). Estas cifras se moverán según se muestree más este tramo.`,
+      gear: {
+        title: "Equipamiento por slot",
+        note: (sample, population) =>
+          `Los porcentajes son sobre los ${sample} perfiles cuyo equipamiento hemos podido leer, no sobre los ${population} personajes observados. Un perfil que no hemos podido leer sale del denominador; no cuenta como que no lleva el item.`,
+        paired: "los dos huecos juntos",
+        groups: {
+          FINGER: "Anillos",
+          TRINKET: "Abalorios",
+        },
+        pairedNote:
+          "Anillos y abalorios se cuentan como un solo grupo de dos huecos: en el juego da igual en cuál de los dos va cada pieza, y separarlos partiría la adopción del mismo item entre dos slots.",
+        gems: "Gemas",
+        enchants: "Encantamientos",
+        bySampling: (sample, population, segment, needed) =>
+          `Hay ${population} personajes en ${segment}, pero solo hemos leído el equipamiento de ${sample}. Hacen falta ${needed} antes de que un porcentaje signifique algo. Lo que falta es nuestro muestreo, no la población.`,
+        byPopulation: (population, segment, needed) =>
+          `Solo hemos observado ${population} personajes en ${segment}. Hacen falta ${needed} antes de que un porcentaje signifique algo.`,
+      },
+      talents: {
+        title: "Talentos",
+        heroTrees: "Árbol de héroe",
+        trees: {
+          class: "Árbol de clase",
+          spec: "Árbol de especialización",
+          hero: "Talentos de héroe",
+        },
+        pvp: "Talentos PvP",
+        nodesLabel: "Nodos de talento",
+        note: (sample) =>
+          `Los porcentajes son sobre los ${sample} perfiles cuyo loadout de talentos hemos podido leer, contados nodo a nodo y no por el código de build entero.`,
+        pvpNote: (sample) =>
+          `Sobre ${sample} perfiles: la API deja los talentos PvP fuera de algunos loadouts, así que su base es la suya.`,
+        none: (sample, needed) =>
+          `Todavía sin publicar: ${sample} perfiles leídos en este tramo, y hacen falta ${needed}.`,
+      },
+      more: (count) => `${count} más`,
+      unavailable: (count) =>
+        `${count} personajes observados quedan fuera de estos porcentajes: de ellos no había dato.`,
+      notPublished: {
+        title: "Sin publicar",
+        stats: {
+          label: "Stats secundarias y embellecimientos",
+          body: "Los endpoints que leemos no los devuelven. Deducirlos por heurística sería inventar el dato.",
+        },
+      },
+      causality:
+        "Esto describe lo que se lleva en este tramo. Una correlación entre lo que se lleva y el tramo de rating no es una causa.",
+    },
+
+    methodology: "Cómo se calcula esto → Metodología",
   },
 
   error: {

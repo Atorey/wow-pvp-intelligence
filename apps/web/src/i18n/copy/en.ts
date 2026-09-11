@@ -169,9 +169,21 @@ export const en = {
     },
   },
 
-  /** Lo que dice una página que ya tiene dirección y todavía no tiene contenido. */
-  placeholder: {
-    note: "This page has its address. Its content isn't built yet.",
+  /**
+   * De qué corrida salen las cifras agregadas de una página. Lo pide §28 del
+   * plan de toda cifra agregada —"de dónde sale y cuándo se calculó"—, y lo
+   * dicen igual la caja Player Gap y las páginas de spec.
+   */
+  aggregates: {
+    computedAt: (when: string) => `Segment figures computed ${when}`,
+    /**
+     * La corrida vigente ya no es la que debería haber (ADR 0031). No es un
+     * error de la página: el dato de ayer sigue siendo cierto sobre ayer, y lo
+     * que hace falta es que se sepa de cuándo es. Sin fecha de vuelta, como
+     * toda ausencia declarada (§2.5 del brief).
+     */
+    staleRun: (when: string) =>
+      `The most recent aggregate run on record is from ${when}. The one due since then hasn't landed, so these figures are more than a day old.`,
   },
 
   player: {
@@ -261,20 +273,6 @@ export const en = {
        */
       smallSample:
         "Small sample (30-99 profiles). These figures will move as more of this segment is sampled.",
-      /**
-       * De qué corrida salen las cifras. Lo pide §28 del plan de toda cifra
-       * agregada —"de dónde sale y cuándo se calculó"— y hasta ahora la caja
-       * enseñaba porcentajes sin decirlo.
-       */
-      computedAt: (when: string) => `Segment figures computed ${when}`,
-      /**
-       * La corrida vigente ya no es la que debería haber (ADR 0031). No es un
-       * error de la página: el dato de ayer sigue siendo cierto sobre ayer, y
-       * lo que hace falta es que se sepa de cuándo es. Sin fecha de vuelta,
-       * como toda ausencia declarada (§2.5 del brief).
-       */
-      staleRun: (when: string) =>
-        `The most recent aggregate run on record is from ${when}. The one due since then hasn't landed, so these figures are more than a day old.`,
       none: {
         title: "No comparison yet.",
         /**
@@ -489,17 +487,158 @@ export const en = {
   },
 
   spec: {
-    lead: (spec: string) => `Representation and observed gear for ${spec}.`,
+    lead: (spec: string) =>
+      `Representation of ${spec} by rating segment, and how many profiles have been read in each one.`,
     inBracket: (spec: string, bracket: string) =>
-      `Representation and observed gear for ${spec} in ${bracket}.`,
+      `Representation of ${spec} in ${bracket} by rating segment, and how many profiles have been read in each one.`,
     inSegment: (spec: string, bracket: string, segment: string) =>
-      `Observed gear for ${spec} at ${segment} in ${bracket}.`,
+      `Observed gear and talents for ${spec} at ${segment} in ${bracket}.`,
+    season: (id: string) => `Season ${id}`,
     /**
      * Los dos escalones contiguos. Van con el nombre del tramo al lado, que lo
      * pone `formatSegment` y no se traduce: "2000-2200" es el dato.
      */
     previousSegment: "Segment below",
     nextSegment: "Segment above",
+
+    /** Las cifras de cabecera. Todas salen de la misma corrida que la tabla. */
+    figures: {
+      observed: "characters observed",
+      /**
+       * El tramo y no un rating: la mediana de la spec entera no se deduce de
+       * las de cada tramo, y el tramo que la contiene sí.
+       */
+      medianSegment: "median segment",
+      medianNote: "where the middle character observed falls",
+      highest: "highest rating observed",
+      share: (bracket: string) => `of those observed in ${bracket}`,
+      /** La fracción va con el porcentaje, nunca detrás de él (§2.5 del brief). */
+      rank: (observed: string, total: string, rank: string, of: string) =>
+        `${observed} of ${total} · rank ${rank} of ${of} specs`,
+    },
+
+    table: {
+      title: "By rating segment",
+      segment: "Segment",
+      share: "Share of the spec",
+      observed: "Observed",
+      gear: "With gear",
+      confidence: "Confidence",
+      window: (days: string) => `${days}-day window`,
+      /** Por qué hay dos columnas de recuento, y cuál de las dos manda. */
+      confidenceNote: (needed: string) =>
+        `Confidence comes from the number of profiles whose equipment has been read, not from the segment's population. Below ${needed}, no percentage is published. Segments with nobody observed aren't listed.`,
+      /**
+       * Cada tramo se cuenta con su ventana y el total las suma (ADR 0007). Sin
+       * decirlo, el total se leería como un recuento hecho de una sola vez.
+       */
+      windowNote: (short: string, long: string, needed: string) =>
+        `Each segment counts who has been active within its window: ${short} days, or ${long} when ${short} don't reach ${needed} characters. The total adds up segments counted with different windows.`,
+    },
+    /** La confianza de una fila, en minúscula porque va dentro de una frase o de una celda. */
+    confidence: {
+      high: "high",
+      medium: "medium",
+      insufficient: "no comparison",
+    },
+    observedNote: "Observed = seen on the ladder or looked up here. Not every player.",
+    /**
+     * El techo de origen, dicho junto a la distribución que recorta: en una
+     * temporada madura es lo que vacía los tramos de abajo (§14 del plan).
+     */
+    ladderCap:
+      "Blizzard's leaderboard publishes the top 5,000 per spec and bracket. Below that cut, a character enters this dataset only when someone looks it up here.",
+    /** Una spec o un tramo sin nadie. La ausencia es de una corrida concreta, y se dice. */
+    empty: {
+      spec: (spec: string, bracket: string) =>
+        `No ${spec} has been observed in ${bracket} in the most recent aggregate run.`,
+      segment: (spec: string, segment: string) =>
+        `No ${spec} has been observed in ${segment} in the most recent aggregate run. The segment exists; there is nobody in it to describe yet.`,
+    },
+
+    /** La página de un tramo: qué se lleva en él y sobre cuántos perfiles. */
+    segment: {
+      figures: {
+        observed: "characters observed",
+        window: (days: string) => `active in the last ${days} days`,
+        gear: "profiles with gear read",
+        gearNote: "the base of every equipment percentage below",
+        confidence: "confidence",
+        confidenceHigh: (min: string) => `${min} profiles or more`,
+        confidenceMedium: (min: string, max: string) => `${min} to ${max} profiles`,
+        confidenceNone: (needed: string) => `fewer than ${needed} profiles`,
+        itemLevel: "median item level",
+        itemLevelNote: (sample: string) => `over ${sample} profiles`,
+      },
+      /**
+       * El aviso de muestra reducida. Las dos cifras llegan de `packages/core`:
+       * un "30-99" tecleado aquí sobreviviría a que se moviera el umbral.
+       */
+      smallSample: (min: string, max: string) =>
+        `Small sample (${min}-${max} profiles). These figures will move as more of this segment is sampled.`,
+      gear: {
+        title: "Equipment by slot",
+        note: (sample: string, population: string) =>
+          `Percentages are over the ${sample} profiles whose equipment has been read, not over the ${population} characters observed. A profile that couldn't be read is outside the denominator; it doesn't count as not wearing the item.`,
+        paired: "both slots together",
+        /** Los grupos de dos huecos, que se nombran en plural porque son dos. */
+        groups: {
+          FINGER: "Rings",
+          TRINKET: "Trinkets",
+        },
+        pairedNote:
+          "Rings and trinkets count as one group of two slots: in the game it doesn't matter which of the two carries each piece, and splitting them would divide one item's adoption between two slots.",
+        gems: "Gems",
+        enchants: "Enchants",
+        /** Las dos causas se dicen distinto, como en la caja Player Gap (§1.5 del brief). */
+        bySampling: (sample: string, population: string, segment: string, needed: string) =>
+          `${population} characters are in ${segment}, but the equipment of only ${sample} of them has been read. ${needed} are needed before a percentage means anything. That's our sampling, not the population.`,
+        byPopulation: (population: string, segment: string, needed: string) =>
+          `Only ${population} characters have been observed in ${segment}. ${needed} are needed before a percentage means anything.`,
+      },
+      /**
+       * Los talentos, por nodo y no por código de build (ADR 0026). Cada familia
+       * dice su propia base, porque no es la del gear ni la de las otras.
+       */
+      talents: {
+        title: "Talents",
+        heroTrees: "Hero talent tree",
+        trees: {
+          class: "Class tree",
+          spec: "Spec tree",
+          hero: "Hero talents",
+        },
+        pvp: "PvP talents",
+        nodesLabel: "Talent nodes",
+        note: (sample: string) =>
+          `Percentages are over the ${sample} profiles whose talent loadout has been read, counted node by node and not by the full build code.`,
+        pvpNote: (sample: string) =>
+          `Over ${sample} profiles: the API leaves PvP talents out of some loadouts, so their base is their own.`,
+        none: (sample: string, needed: string) =>
+          `Not published yet: ${sample} profiles read in this segment, and ${needed} are needed.`,
+      },
+      /** Lo que queda plegado de una lista. Se pliega, no se corta. */
+      more: (count: string) => `${count} more`,
+      /**
+       * La exclusión por dato no disponible se declara, no se esconde (regla 5).
+       * "Characters" y no "profiles": la mayoría de los que quedan fuera son
+       * personajes de los que no se ha leído ningún perfil.
+       */
+      unavailable: (count: string) =>
+        `${count} characters observed are outside these percentages: the data wasn't available for them.`,
+      notPublished: {
+        title: "Not published",
+        stats: {
+          label: "Secondary stats and embellishments",
+          body: "The endpoints we read don't return them. Deducing them by heuristic would invent the data.",
+        },
+      },
+      /** La nota de causalidad, fija: dice qué es el dato y no qué hacer con él. */
+      causality:
+        "This describes what is carried in this segment. A correlation between what players use and their rating segment is not a cause.",
+    },
+
+    methodology: "How we count this → Methodology",
   },
 
   /**

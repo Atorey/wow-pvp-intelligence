@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import { fakeDb } from "@wowpvp/data/fake-db";
 import type { QueryRow } from "@wowpvp/data";
 
-import { cachedBracketSegments } from "./aggregate-cache";
+import { cachedBracketSegments, cachedRunPopulation } from "./aggregate-cache";
 
 /**
  * Lo que se comprueba aquí es **cuántas veces se va a la base**, que es la única
@@ -58,6 +58,22 @@ describe("la caché de agregados por proceso", () => {
 
     assert.equal(db.calls.length, 1);
     assert.equal(second, first);
+  });
+
+  it("la población de la corrida se pide una vez por región, no una por spec", async () => {
+    const fresh = new Date();
+    const run = {
+      season_id: 42,
+      computed_at: fresh,
+      bracket: "shuffle-mage-frost",
+      population: 300,
+    };
+    const db = fakeDb([run], [run]);
+
+    await cachedRunPopulation(db, "eu");
+    await cachedRunPopulation(db, "eu");
+
+    assert.equal(db.calls.length, 1);
   });
 
   it("una corrida retrasada se recuerda igual, por el suelo de vigencia", async () => {

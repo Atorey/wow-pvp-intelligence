@@ -258,7 +258,7 @@ Desde el [ADR 0025](../decisions/0025-componentes-con-shadcn-ui.md) hay dos clas
 
 Lo que shadcn **no** trae, y sigue siendo trabajo nuestro, es justo la pieza central: la caja Player Gap con sus tres layouts no es un componente de librería, es cumplimiento del principio de correlación. Y tener el catálogo delante no es permiso para usarlo: la [§4.6 del brief](brief.md#46-lo-que-no-va-a-existir-en-la-interfaz) sigue prohibiendo _upsell_, _gating_, tablas densas en el componente central y la muestra en un tooltip, aunque ahora exista un `Tooltip` a un comando de distancia.
 
-`Input` y `Skeleton` están traídos y todavía no los usa nadie: son para las páginas de datos que faltan. `Alert` ya lo usa el aviso de muestra reducida del perfil, y es para los tres estados de confianza y **no** para envolver prosa estática — lleva `role="alert"`, que es una región viva, y "esta lectura todavía no está publicada" no es algo que acabe de ocurrir; esas cajas son `Card` con el borde discontinuo.
+`Input` y `Skeleton` están traídos y todavía no los usa nadie: son para las páginas de datos que faltan. `Table` y `Breadcrumb` los usan las páginas de spec: la tabla por tramo es una tabla de verdad porque se lee por columnas, y en pantalla estrecha retira columnas en vez de desbordar (§4). `Alert` ya lo usa el aviso de muestra reducida del perfil, y es para los tres estados de confianza y **no** para envolver prosa estática — lleva `role="alert"`, que es una región viva, y "esta lectura todavía no está publicada" no es algo que acabe de ocurrir; esas cajas son `Card` con el borde discontinuo.
 
 `Command` se generó y se borró: es lo que el plan quería para los buscadores y es justo donde no cabe (ver §5.4). Volver a traerlo cuesta un comando.
 
@@ -289,7 +289,7 @@ Quien decide es `canShowComparison()` de `packages/core`, y el `n` que manda es 
 
 ### 5.3 Lo que ningún componente hace
 
-- **Barras de progreso o medidores**, de cualquier tipo, incluida una sola ([§1.4 del brief](brief.md#14-por-qué-no-barras)). Vale también para el percentil: es una posición, no un avance.
+- **Una barra sin su cifra escrita al lado.** Las barras se pueden usar cuando ayudan a leer una proporción —el peso de cada tramo dentro de una spec, por ejemplo—, siempre con el número en texto junto a ella: la barra ordena la lectura y la cifra es el dato, igual que el color de calidad acompaña al nombre del item. Lo que no se dibuja es una barra cuya forma diga otra cosa que su dato, y ese es el caso de la caja Player Gap: el solapamiento de gear pintado como barra se lee como progreso hacia el rating, y por eso la caja sigue siendo una lista ([§1.4 del brief](brief.md#14-por-qué-no-barras)).
 - **Tooltips con la muestra dentro.** El `n` va pegado al porcentaje y siempre visible (§13.5 del plan).
 - **Truncar texto.** Ver §4.
 - **Comunicar un estado solo con color.** Vale para la confianza, para la calidad de item y para los enlaces, que conservan el subrayado.
@@ -304,6 +304,7 @@ Estos no salen del brief —que decide las tres pantallas del MVP y no el chrome
 | ----------------- | ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | `SiteSidebar`     | Columna en ancho, franja con menú en estrecho. Un solo marcado   | El panel se escribe una vez y se pinta en dos sitios; nunca están los dos a la vez en el documento               |
 | `MobileMenu`      | El menú de pantalla estrecha, sobre `Sheet`                      | **Ya no funciona sin JavaScript.** Era un `checkbox`; se cambió por foco, Escape y bloqueo de desplazamiento     |
+| `ClassNav`        | Las clases de la barra lateral, sobre `Collapsible`              | La clase no enlaza porque no tiene página; despliega sus specs, que sí. Los enlaces plegados siguen en el HTML   |
 | `CharacterSearch` | La barra segmentada de la portada: región, reino, nombre y botón | Región y reino no son `select`. Ver abajo                                                                        |
 | `QuickSearch`     | El buscador de un campo de la barra lateral                      | Solo resuelve lo que ya está en la población; sin sugerencia elegida cae en `/search`                            |
 | `SuggestionPanel` | La caja del desplegable y una opción, sobre `Popover`            | La lista y su teclado son nuestros y no de `Command`. Ver abajo                                                  |
@@ -317,7 +318,9 @@ Estos no salen del brief —que decide las tres pantallas del MVP y no el chrome
 
 **Ningún desplegable del buscador es un `select`.** La región se enseña y no se elige, porque el MVP publica una sola y un desplegable de una opción promete las otras tres (regla 6 del proyecto). El reino se autocompleta pero admite texto libre, porque la lista sale de **nuestra población** y no del catálogo de Blizzard: cerrarla a esos valores dejaría fuera justo al visitante cuyo reino todavía no conocemos, que es de quien hace falta preguntar.
 
-**Una entrada que se nombra y todavía no lleva a ninguna parte no se pinta apagada.** La barra lateral lista las cinco modalidades y las trece clases, y hoy solo una de las dieciocho tiene página. La §2.1 no deja un nivel "deshabilitado" con el que insinuarlo, así que **todas se pintan en un nivel de texto real** y la publicada se marca con `aria-current`. La diferencia la lleva el estado de "actual", no un gris.
+**Las clases de la barra lateral se despliegan, no enlazan.** La clase no tiene página —el mapa de rutas empieza en la spec ([ADR 0020](../decisions/0020-mapa-de-rutas-del-sitio.md))—, así que cada una es un `Collapsible` que abre sus specs, y son las specs las que llevan a `/spec/…`. Se abre sola la clase de la página en la que se está, y su spec se marca con `aria-current`. Los enlaces de las clases plegadas siguen en el HTML (`forceMount`, ocultos con `hidden`): la barra es el único camino interno a la mayoría de specs y un rastreador no despliega nada.
+
+**Una entrada que se nombra y todavía no lleva a ninguna parte no se pinta apagada.** La barra lateral lista las cinco modalidades, y hoy solo una tiene página. La §2.1 no deja un nivel "deshabilitado" con el que insinuarlo, así que **todas se pintan en un nivel de texto real** y la publicada se marca con `aria-current`. La diferencia la lleva el estado de "actual", no un gris.
 
 Conviene saber que esto es **una garantía más débil que la de la [§1.5 del brief](brief.md#15-los-tres-estados-de-confianza)**: allí lo que falta se declara con una frase, y aquí no hay frase. Se aceptó a propósito —una nota bajo cada bloque de la barra lateral era ruido permanente por una carencia temporal—, pero es un desvío consciente y no la regla general. Donde falta **un dato** se sigue escribiendo por qué falta; esto es un mapa de navegación incompleto, que es otra cosa.
 

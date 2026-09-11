@@ -5,6 +5,7 @@ import {
   readAdoption,
   readAdoptionFor,
   readBracketSegments,
+  readRunPopulation,
   readSegment,
   readSegmentSamples,
   toAggregatedVariable,
@@ -196,6 +197,46 @@ describe("readBracketSegments", () => {
     const [call] = db.calls;
     assert.ok(call);
     assert.match(call.text, /computed_at = \(\s*select max\(computed_at\)/);
+  });
+});
+
+describe("readRunPopulation", () => {
+  it("devuelve la población de cada bracket, de una sola corrida y con su temporada", async () => {
+    const db = fakeDb([
+      { season_id: 42, computed_at: COMPUTED_AT, bracket: "shuffle-priest-holy", population: 1817 },
+      { season_id: 42, computed_at: COMPUTED_AT, bracket: "shuffle-mage-frost", population: 662 },
+    ]);
+
+    const run = await readRunPopulation(db, { region: "eu" });
+
+    assert.equal(run?.seasonId, 42);
+    assert.equal(run?.computedAt, COMPUTED_AT);
+    assert.deepEqual(run?.brackets, [
+      { bracket: "shuffle-priest-holy", population: 1817 },
+      { bracket: "shuffle-mage-frost", population: 662 },
+    ]);
+
+    // Comparar specs es pintarlas juntas: la corrida es una sola para todas,
+    // no la más nueva de cada una como en el sitemap.
+    const [call] = db.calls;
+    assert.ok(call);
+    assert.match(
+      call.text,
+      /computed_at = \(\s*select max\(computed_at\) from population_segments where region = \$1/,
+    );
+    assert.ok(!/distinct on/.test(call.text));
+    assert.deepEqual(call.values, ["eu"]);
+  });
+
+  it("no lee la columna confidence", async () => {
+    const db = fakeDb([]);
+    await readRunPopulation(db, { region: "eu" });
+
+    assert.ok(!/\bconfidence\b/.test(db.calls[0]?.text ?? ""));
+  });
+
+  it("sin ninguna corrida en la región devuelve null", async () => {
+    assert.equal(await readRunPopulation(fakeDb([]), { region: "eu" }), null);
   });
 });
 
