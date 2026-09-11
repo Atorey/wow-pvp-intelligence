@@ -2,9 +2,11 @@ import { aggregateCacheUntil, type Region } from "@wowpvp/core";
 import {
   readAdoptionFor,
   readBracketSegments,
+  readRunPopulation,
   readSegmentSamples,
   type AdoptionRead,
   type Queryable,
+  type RunPopulationRead,
   type SegmentRead,
   type SegmentSampleRead,
   type VariableKind,
@@ -152,6 +154,22 @@ export function cachedAdoptionFor(
   // resultado dejaría fuera de la caché justo esos.
   const computedAt = segments[0]?.gear.computedAt;
   return adoptionCache.read(key, () => readAdoptionFor(db, segments, kind), computedAt);
+}
+
+const runCache = new AggregateCache<RunPopulationRead | null>((run) => run?.computedAt ?? null);
+
+/**
+ * La población de todos los brackets de la última corrida de una región.
+ *
+ * La piden todas las páginas de spec —de ella salen la temporada y el puesto de
+ * la spec en la modalidad— y es la misma para las cuarenta, así que es una sola
+ * entrada por región que vive lo que viva su corrida.
+ */
+export function cachedRunPopulation(
+  db: Queryable,
+  region: Region,
+): Promise<RunPopulationRead | null> {
+  return runCache.read(region, () => readRunPopulation(db, { region }));
 }
 
 const samplesCache = new AggregateCache<SegmentSampleRead[]>(

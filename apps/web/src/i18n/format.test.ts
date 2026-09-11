@@ -1,7 +1,14 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { formatCount, formatDate, formatPercent, formatPercentile, formatRating } from "./format";
+import {
+  formatCount,
+  formatDate,
+  formatPercent,
+  formatPercentile,
+  formatRating,
+  formatShare,
+} from "./format";
 
 test("el separador de miles es el de la lengua de la página", () => {
   assert.equal(formatCount(2282, "es"), "2282");
@@ -40,6 +47,15 @@ test("el porcentaje de adopción se escribe en la lengua de la página", () => {
   // siguiente, y escribirlo aquí como uno normal haría fallar el test sin que
   // se vea la diferencia.
   assert.equal(formatPercent(0.41, "es"), "41 %");
+});
+
+test("una proporción de población lleva un decimal, y un tramo pequeño no sale a cero", () => {
+  // El espacio es duro, igual que en el porcentaje de adopción.
+  assert.equal(formatShare(0.046, "es"), "4,6 %");
+  assert.equal(formatShare(0.046, "en"), "4.6%");
+  // 18 de 4.412: con el formato de la adopción se leería "0 %" de un tramo que
+  // tiene gente.
+  assert.equal(formatShare(18 / 4412, "en"), "0.4%");
 });
 
 test("no se inventan decimales que la muestra no sostiene", () => {

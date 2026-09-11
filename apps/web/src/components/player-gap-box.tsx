@@ -1,19 +1,15 @@
-import {
-  MIN_DISCRIMINATIVE_DELTA,
-  formatSegment,
-  isAggregateStale,
-  type BracketSlug,
-} from "@wowpvp/core";
+import { MIN_DISCRIMINATIVE_DELTA, formatSegment, type BracketSlug } from "@wowpvp/core";
 
 import { gapViewEventData } from "../analytics/gap-view";
 import { copyFor } from "../i18n/copy";
-import { formatCount, formatDate, formatPercent, formatRating } from "../i18n/format";
+import { formatCount, formatPercent, formatRating } from "../i18n/format";
 import type { Locale } from "../i18n/locales";
 import type { GapView, ListView } from "../server/player-profile";
 import { DeclaredAbsence } from "./counted-figure";
 import { DifferenceRow } from "./difference-row";
 import { GapViewEvent } from "./gap-view-event";
-import { Alert, AlertDescription } from "./ui/alert";
+import { RunProvenance } from "./run-provenance";
+import { SmallSampleNotice } from "./small-sample-notice";
 import { Badge } from "./ui/badge";
 import { Card } from "./ui/card";
 import { Separator } from "./ui/separator";
@@ -203,40 +199,6 @@ export function PlayerGapBox({
   );
 }
 
-/**
- * De qué corrida salen las cifras de la caja, y si esa corrida ya se quedó
- * atrás.
- *
- * La fecha va **siempre**, no solo cuando algo va mal: el §28 del plan pide que
- * ninguna cifra agregada se enseñe sin poder trazar de dónde sale y cuándo se
- * calculó, y el principio 8 es el mismo compromiso dicho de otra manera.
- *
- * El aviso de corrida vieja no es un `Alert`. Sigue la distinción de la §5.0 del
- * sistema visual: `role="alert"` es una región viva, para algo que cambia
- * mientras miras, y esto ya estaba así antes de entrar en la página. Es texto,
- * como el resto de ausencias declaradas, y se lee igual sin distinguir colores.
- */
-function RunProvenance({ locale, computedAt }: { locale: Locale; computedAt: Date | null }) {
-  const copy = copyFor(locale).player.gap;
-  // Sin fecha no hay corrida de la que hablar: ese escalón no se ha calculado
-  // nunca, y la caja ya lo está diciendo con sus propias palabras.
-  if (computedAt === null) return null;
-
-  const when = formatDate(computedAt, locale);
-  // El reloj se lee aquí, en el servidor, y no se guarda en el estado: la
-  // vejez de un dato depende de cuándo se mira, no de cuándo se calculó.
-  const stale = isAggregateStale(computedAt, new Date());
-
-  return (
-    <div className="flex flex-col gap-1">
-      <p className="text-subtle-foreground text-sm">{copy.computedAt(when)}</p>
-      {stale && (
-        <p className="text-muted-foreground max-w-measure text-sm">{copy.staleRun(when)}</p>
-      )}
-    </div>
-  );
-}
-
 /** Una cifra de contexto: qué se mide arriba y su lectura literal debajo. */
 function Figure({ label, reading }: { label: string; reading: string }) {
   return (
@@ -353,28 +315,6 @@ function Heading({
       <p className="text-subtle-foreground text-sm">{subject}</p>
       {segments !== undefined && <p className="text-muted-foreground text-sm">{segments}</p>}
     </div>
-  );
-}
-
-/**
- * El aviso de muestra reducida del estado `medium`.
- *
- * **Ocupa espacio y desplaza al resto**, que es su función entera: si se pudiera
- * pasar por alto haciendo scroll rápido no cumpliría el "aviso visible" de la
- * §13.4. No es un borde de color ni un icono, y lo que comunica lo comunica el
- * texto — sin distinguir colores se recibe la misma información.
- *
- * Es un `Alert` y no una `Card` con borde discontinuo, que es la distinción que
- * hace la §5.0 del sistema: `role="alert"` es una región viva y esto sí es algo
- * que cambia con el dato —la comparación se está enseñando **con reservas**—, a
- * diferencia de "esta lectura todavía no está publicada", que estaba igual antes
- * de entrar en la página.
- */
-function SmallSampleNotice({ text }: { text: string }) {
-  return (
-    <Alert className="bg-warning border-warning-border text-warning-foreground">
-      <AlertDescription className="text-warning-foreground">{text}</AlertDescription>
-    </Alert>
   );
 }
 

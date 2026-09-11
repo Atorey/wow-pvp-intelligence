@@ -13,17 +13,20 @@ import type { Metadata } from "next";
 import { type Environment, isPublicSite } from "../site";
 
 /**
- * Si las páginas de `/spec/…` ya enseñan algo.
+ * Si las páginas de `/spec/…` enseñan contenido.
  *
- * Hoy los tres niveles renderizan `PagePlaceholder`: tienen dirección y no
- * tienen contenido. La regla de muestra del ADR 0029 es condición necesaria y
- * no suficiente, así que mientras esto sea `false` ninguna ruta de spec entra
- * en el índice ni en el sitemap, por muy poblado que esté el escalón.
+ * La regla de muestra del ADR 0029 es condición necesaria y no suficiente: una
+ * dirección sin contenido es thin content por mucho que el escalón esté
+ * poblado. Mientras los tres niveles fueron un armazón esto valía `false`, y
+ * ninguna ruta de spec entraba en el índice ni en el sitemap. Ahora pintan su
+ * dato —la tabla por tramo, y el gear y los talentos de cada tramo—, así que lo
+ * que decide cada URL es su muestra.
  *
- * La enciende #99, que es quien pone el contenido. Lo hace aquí y no en cada
- * página para que sea una línea y no cuatro.
+ * Sigue siendo una constante, y no una condición borrada, porque es el
+ * interruptor que habría que apagar si las páginas volvieran a quedarse sin
+ * contenido: una línea, y visible en el diff.
  */
-export const SPEC_PAGES_PUBLISHED = false;
+export const SPEC_PAGES_PUBLISHED = true;
 
 /**
  * Una página de segmento es indexable si alguna de sus tres bases de
@@ -113,6 +116,17 @@ export function specRoutesWithSample(samples: readonly SegmentSampleRead[]): Ind
 /** Lo anterior, más la condición de que la página exista de verdad. */
 export function indexableSpecRoutes(samples: readonly SegmentSampleRead[]): IndexableRoute[] {
   return SPEC_PAGES_PUBLISHED ? specRoutesWithSample(samples) : [];
+}
+
+/**
+ * Si una ruta de spec concreta se indexa.
+ *
+ * Es la lista que publica el sitemap, recorrida y no reescrita: si la página y
+ * el sitemap decidieran cada uno por su cuenta acabarían discrepando, y Google
+ * vería URL anunciadas que dicen `noindex` o indexables que nadie anuncia.
+ */
+export function isSpecPathIndexable(path: string, samples: readonly SegmentSampleRead[]): boolean {
+  return indexableSpecRoutes(samples).some((route) => route.path === path);
 }
 
 /**

@@ -2,8 +2,10 @@ import { resolveSpecRoute } from "@wowpvp/core";
 import type { Metadata } from "next";
 import { notFound, permanentRedirect } from "next/navigation";
 
-import { SpecPage, specMetadata } from "../../../../../../components/spec-page";
+import { SegmentPage } from "../../../../../../components/segment-page";
+import { specMetadata } from "../../../../../../components/spec-page";
 import { isLocale, localizedPathname } from "../../../../../../i18n/locales";
+import { loadSegmentPage } from "../../../../../../server/spec";
 
 interface SpecSegmentParams {
   locale: string;
@@ -25,9 +27,9 @@ export async function generateMetadata({
 }
 
 // La página de segmento es la que §22 marca como prioritaria para indexar, y la
-// que la regla anti-thin-content condiciona a que haya muestra suficiente. Esa
-// condición se aplica cuando haya datos que enseñar; la ruta existe ya porque de
-// ella cuelga el enlazado interno entre segmentos.
+// que la regla anti-thin-content condiciona a su muestra: se indexa si alguna de
+// sus tres bases llega al umbral (ADR 0029). La ruta existe aunque no llegue,
+// porque de ella cuelga el enlazado entre tramos y porque explica qué le falta.
 export default async function SpecSegmentPage({ params }: { params: Promise<SpecSegmentParams> }) {
   const { locale, ...rest } = await params;
   if (!isLocale(locale)) notFound();
@@ -38,5 +40,6 @@ export default async function SpecSegmentPage({ params }: { params: Promise<Spec
     permanentRedirect(localizedPathname(resolution.path, locale));
   }
 
-  return <SpecPage route={resolution.route} locale={locale} />;
+  const data = await loadSegmentPage(resolution.route);
+  return <SegmentPage route={resolution.route} locale={locale} data={data} />;
 }

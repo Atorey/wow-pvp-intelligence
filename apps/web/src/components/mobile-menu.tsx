@@ -1,7 +1,8 @@
 "use client";
 
 import { Menu } from "lucide-react";
-import type { ReactNode } from "react";
+import { usePathname } from "next/navigation";
+import { type ReactNode, useState } from "react";
 
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "./ui/sheet";
 
@@ -23,10 +24,25 @@ import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "./ui/sheet";
  * El panel recibe su contenido como `children` y no lo construye: quien lo
  * arma es la barra lateral, en el servidor, y lo pinta en los dos sitios desde
  * el mismo sitio del código para que no puedan divergir.
+ *
+ * Se cierra solo al cambiar de ruta. El panel vive en el layout, que sobrevive
+ * a la navegación de cliente: sin esto, elegir una spec cargaría la página
+ * debajo y dejaría el panel abierto tapándola. No se hace envolviendo cada
+ * enlace en un `SheetClose`, porque el mismo panel se pinta también en la
+ * columna de ancho, donde no hay `Sheet` al que cerrar.
  */
 export function MobileMenu({ label, children }: { label: string; children: ReactNode }) {
+  const pathname = usePathname();
+  const [open, setOpen] = useState(false);
+  const [openedAt, setOpenedAt] = useState(pathname);
+
+  if (pathname !== openedAt) {
+    setOpenedAt(pathname);
+    setOpen(false);
+  }
+
   return (
-    <Sheet>
+    <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger
         aria-label={label}
         className="text-muted-foreground hover:text-foreground -m-2 cursor-pointer p-2 lg:hidden"

@@ -38,6 +38,10 @@ test("el bloque de posición dice el tope del leaderboard en las dos lenguas", (
   // lo que no puede desaparecer, con el separador de cada lengua.
   assert.match(copyFor("en").player.standing.ladderCap, /5,000/);
   assert.match(copyFor("es").player.standing.ladderCap, /5\.000/);
+  // La tabla por tramo de las páginas de spec la dice también: es la
+  // distribución que ese corte recorta.
+  assert.match(copyFor("en").spec.ladderCap, /5,000/);
+  assert.match(copyFor("es").spec.ladderCap, /5\.000/);
 });
 
 /**

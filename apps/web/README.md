@@ -9,22 +9,22 @@ npm run web:build    # el mismo build que corre CI y Netlify
 
 ## Qué hay hoy y qué no
 
-La búsqueda de personaje y el perfil ya funcionan de punta a punta; el resto de páginas siguen siendo andamiaje:
+La búsqueda de personaje, el perfil y las páginas de spec ya funcionan de punta a punta:
 
 |        |                                                                                                                                                                                                                                                             |
 | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Sí** | El segmento de idioma `/[locale]`, la negociación de `Accept-Language` y los `hreflang` ([ADR 0012](../../docs/decisions/0012-producto-bilingue.md)).                                                                                                       |
 | **Sí** | Entornos: qué origen se anuncia y qué se indexa en producción, en preview y en local.                                                                                                                                                                       |
 | **Sí** | Tokens, tipografía y tema, con conmutador ([ADR 0019](../../docs/decisions/0019-sistema-visual-en-css-con-tailwind.md) y [ADR 0025](../../docs/decisions/0025-componentes-con-shadcn-ui.md)). Los componentes de datos llegan con las páginas que los usan. |
-| **Sí** | Las rutas de producto y dónde vive el copy ([ADR 0020](../../docs/decisions/0020-mapa-de-rutas-del-sitio.md)). Las páginas existen y todavía no enseñan datos.                                                                                              |
+| **Sí** | Las rutas de producto y dónde vive el copy ([ADR 0020](../../docs/decisions/0020-mapa-de-rutas-del-sitio.md)).                                                                                                                                              |
 | **Sí** | El pie con la línea de atribución que exige la ToU de Blizzard (§4 del [brief](../../docs/design/brief.md#4-atribución-y-no-afiliación)), renderizado desde el layout.                                                                                      |
 | **Sí** | La búsqueda de personaje: autocompletado sobre la población y llamada a Blizzard si no la tenemos ([ADR 0024](../../docs/decisions/0024-busqueda-de-personaje-en-la-web.md)).                                                                               |
-| **Sí** | Postgres, por el pooler y una conexión por invocación ([ADR 0013](../../docs/decisions/0013-web-serverless-y-cuota-en-postgres.md), decisión 10). Lo usan el buscador y el perfil.                                                                          |
+| **Sí** | Postgres, por el pooler y una conexión por invocación ([ADR 0013](../../docs/decisions/0013-web-serverless-y-cuota-en-postgres.md), decisión 10). Lo usan el buscador, el perfil y las páginas de spec.                                                     |
 | **Sí** | El perfil de personaje: identidad, cifras propias, caja Player Gap, posición en la spec y equipamiento observado ([§2 del brief](../../docs/design/brief.md#2-la-página-fuera-de-cobertura)).                                                               |
 | **Sí** | La medición de la North Star, emitida por la propia caja Player Gap, y la política de privacidad ([ADR 0028](../../docs/decisions/0028-medicion-de-primera-parte-y-sin-banner.md)). No hay banner de cookies porque no hay cookies.                         |
 | **Sí** | La página de metodología: de dónde salen los datos, qué es la población observada, cómo se forman los tramos y qué significa cada nivel de confianza (§24 del [plan](../../docs/product-plan.md)).                                                          |
 | **Sí** | `robots.txt`, `sitemap.xml` y la regla que decide si una página entra en el índice ([ADR 0029](../../docs/decisions/0029-que-se-indexa-y-que-no.md)).                                                                                                       |
-| **No** | Las páginas de spec y de segmento, que siguen enseñando su dirección y nada más.                                                                                                                                                                            |
+| **Sí** | Las páginas de spec y de tramo: la tabla por tramo de rating, y el gear y los talentos de cada tramo con su base declarada.                                                                                                                                 |
 
 ## Rutas
 
@@ -41,7 +41,7 @@ Las reglas y sus porqués están en el [ADR 0029](../../docs/decisions/0029-que-
 
 - **Ninguna página escribe su `robots` a mano: se pide a `robotsFor()`.** Multiplica por el entorno, y esa es toda su razón de ser — el `robots` de una página pisa el del layout, así que un `index: true` suelto publicaría cada preview de Netlify en Google.
 - **Una página se indexa cuando tiene contenido propio y comparable**, con el umbral de §13.4 y a través de `canShowComparison()` / `isComparable()`. La población de un escalón no basta: mide cuánta gente hay, no de cuánta sabemos algo (#76).
-- **Las páginas de spec no se indexan todavía**, aunque el escalón tenga muestra: siguen siendo armazón. Lo declara `SPEC_PAGES_PUBLISHED` en [`src/seo/indexable.ts`](src/seo/indexable.ts), y encenderlo es parte de #99.
+- **Las páginas de spec se indexan ruta a ruta, con la misma lista que publica el sitemap** (`isSpecPathIndexable` en [`src/seo/indexable.ts`](src/seo/indexable.ts)): un tramo entra si alguna de sus tres bases llega al umbral, y la spec y su modalidad si entra alguno de sus tramos. `SPEC_PAGES_PUBLISHED` quedó encendido con #99 y es el interruptor que habría que apagar si volvieran a quedarse sin contenido.
 - **El sitemap se recorre, no se escribe.** Sale del catálogo de `@wowpvp/core` filtrado por la muestra de cada escalón, y su `lastModified` es el `computed_at` del dato. Los perfiles no entran nunca: son miles de rutas dinámicas contra Postgres y se descubren por enlace.
 
 ## La búsqueda
@@ -64,6 +64,18 @@ Es lo que **escribe** y lo que llama a Blizzard, junto con el botón "Actualizar
 - **El estado de la caja Player Gap lo decide `canShowComparison()` sobre el `gear_sample` del segmento objetivo**, nunca sobre su población (decisión 3 del [ADR 0010](../../docs/decisions/0010-cobertura-por-segmento.md)). Y hay una tercera causa de "sin comparación" que la §1.5 del brief no contempla: que el perfil que falte sea el del propio personaje.
 - **El item level sale de la observación que trajo el equipo**, no del snapshot más reciente. El leaderboard inserta filas sin gear cada vez que cambia el rating, así que el último snapshot casi siempre trae un null que se leería como "no lleva nada".
 - **"Actualizar" respeta el TTL** de la búsqueda y no lo fuerza: es la misma cuota compartida con el pipeline, y un botón que ignore la caché es un botón de gastar. Si el perfil está fresco, la página lo dice en vez de fingir que ha refrescado algo.
+
+## Las páginas de spec
+
+`/{locale}/spec/{spec}`, `/{locale}/spec/{spec}/{modalidad}` y `/{locale}/spec/{spec}/{modalidad}/{tramo}` leen de los agregados diarios, siempre por la caché de proceso. Lo que no se adivina leyendo los componentes:
+
+- **El resumen y la página de modalidad son la misma vista** mientras solo haya una modalidad publicada: la de spec a secas abre en Solo Shuffle. El tramo es su propia página.
+- **Una sola población por página** (ADR 0011, punto 5). El total de la cabecera es la suma de la tabla, aunque sume tramos contados con 7 días y con 14 (ADR 0007): cada fila dice su ventana y la nota lo explica. La cabecera no enseña un "rating mediano" porque la mediana de la spec entera no se deduce de las de cada tramo; enseña el **tramo mediano**, que sí.
+- **La confianza de cada fila sale de los perfiles con gear, nunca de la población**, y la tabla enseña las dos columnas juntas para que se vea que no son la misma cifra (#76).
+- **El puesto en la modalidad solo se afirma con la misma corrida que los tramos.** Si la última corrida de la región no trae la spec, la tarjeta no se pinta en vez de dividir la población de un día entre el total de otro.
+- **Gear y talentos van en la misma página del tramo**, no en pestañas: la canónica no lleva query y un tramo indexado por sus nodos tiene que enseñarlos ahí. Cada familia —gear, nodos con árbol de héroe, talentos PvP— se decide con su propia base, que son las mismas tres con las que se decide la indexación.
+- **Las listas largas se pliegan con `<details>`, no se cortan**, y no con el `Collapsible` de shadcn: lo plegado tiene que estar en el HTML que se indexa y abrirse sin JavaScript.
+- **Los dos primeros niveles de la miga de pan son texto**: la ruta de clase todavía no está decidida (#98).
 
 ## La medición y la privacidad
 

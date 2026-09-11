@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   ALL_SPECS,
+  CLASS_LABELS,
   CLASS_SLUGS,
+  isClassSlug,
   parseShuffleBracket,
   parseSpecSlug,
   requireSpec,
@@ -84,6 +86,16 @@ test("el slug no es el orden del bracket de Blizzard", () => {
   // resuelva es la decisión, no un descuido (ADR 0016).
   assert.equal(parseSpecSlug("mage-frost"), undefined);
   assert.equal(shuffleBracketId(requireSpec("mage", "frost")), "shuffle-mage-frost");
+});
+
+test("el label de toda spec acaba en el nombre de su clase", () => {
+  // La barra lateral lista las specs dentro de su clase y enseña solo "Frost",
+  // recortando el nombre de la clase del label: uno que no acabara en él se
+  // pintaría entero, repitiendo la clase.
+  for (const spec of ALL_SPECS) {
+    assert.ok(isClassSlug(spec.classSlug), spec.label);
+    assert.ok(spec.label.endsWith(` ${CLASS_LABELS[spec.classSlug]}`), spec.label);
+  }
 });
 
 test("el slug de toda spec es su label en minúsculas y con guiones", () => {

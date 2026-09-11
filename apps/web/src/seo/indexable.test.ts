@@ -6,6 +6,7 @@ import {
   SPEC_PAGES_PUBLISHED,
   indexableSpecRoutes,
   isSegmentIndexable,
+  isSpecPathIndexable,
   robotsFor,
   specRoutesWithSample,
 } from "./indexable";
@@ -101,11 +102,29 @@ describe("specRoutesWithSample", () => {
 });
 
 describe("indexableSpecRoutes", () => {
-  it("mientras las páginas de spec sean armazón no se publica ninguna", () => {
-    // La regla de muestra es necesaria, no suficiente: una dirección sin
-    // contenido es thin content aunque el escalón esté muestreado (§22).
-    assert.equal(SPEC_PAGES_PUBLISHED, false);
-    assert.deepEqual(indexableSpecRoutes([sample({ gear: 120 })]), []);
+  it("con las páginas de spec encendidas, publica lo que respalda la muestra", () => {
+    assert.equal(SPEC_PAGES_PUBLISHED, true);
+    assert.deepEqual(
+      indexableSpecRoutes([sample({ gear: 120 })]),
+      specRoutesWithSample([sample({ gear: 120 })]),
+    );
+  });
+});
+
+describe("isSpecPathIndexable", () => {
+  it("una ruta se indexa si está en lo que publica el sitemap, por la base que sea", () => {
+    const samples = [sample({ talentNodes: 46 })];
+
+    assert.equal(isSpecPathIndexable("/spec/frost-mage", samples), true);
+    assert.equal(isSpecPathIndexable("/spec/frost-mage/solo-shuffle", samples), true);
+    assert.equal(isSpecPathIndexable("/spec/frost-mage/solo-shuffle/2000-2200", samples), true);
+  });
+
+  it("un tramo sin muestra no se indexa aunque su spec sí", () => {
+    const samples = [sample({ gear: 120 })];
+
+    assert.equal(isSpecPathIndexable("/spec/frost-mage/solo-shuffle/1800-2000", samples), false);
+    assert.equal(isSpecPathIndexable("/spec/fire-mage", samples), false);
   });
 });
 

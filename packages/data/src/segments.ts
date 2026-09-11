@@ -226,6 +226,74 @@ export async function readBracketSegments(
   return rows.map(toSegmentRead);
 }
 
+/** La población de un bracket dentro de una corrida. */
+export interface BracketPopulation {
+  bracket: string;
+  population: number;
+}
+
+/**
+ * Cuánta población trae cada bracket en la corrida más reciente de una región.
+ */
+export interface RunPopulationRead {
+  /** La temporada de la corrida: una corrida agrega una sola (ADR 0007, punto 9). */
+  seasonId: number;
+  computedAt: Date;
+  /** De mayor a menor población. */
+  brackets: BracketPopulation[];
+}
+
+interface RunPopulationRow {
+  season_id: number;
+  computed_at: Date;
+  bracket: string;
+  population: number;
+}
+
+/**
+ * La población de todos los brackets de la última corrida, en una consulta.
+ *
+ * Existe para lo que una spec no puede saber de sí misma: qué parte de lo
+ * observado en la modalidad es suyo y en qué puesto queda. Comparar specs es
+ * pintarlas juntas, así que aquí **no** se mezclan corridas como en
+ * `readSegmentSamples`: todas las filas son de la misma. Y "la más reciente de
+ * la región" es una sola fecha para todos los brackets porque
+ * `refresh-aggregates` escribe la corrida entera con un único `computed_at`.
+ *
+ * Suma `sample_size`, que es población activa **en la ventana de cada escalón**
+ * (ADR 0007, punto 6): tramos contados con 7 días y con 14 entran en el mismo
+ * total. No se corrige aquí porque no hay nada que corregir sin inventar —cada
+ * fila dice la verdad sobre su ventana—; quien lo pinte lo declara.
+ *
+ * `null` es que la región no tiene ninguna corrida todavía, y es lo que también
+ * responde a "qué temporada enseñar": sin corrida no hay ninguna.
+ */
+export async function readRunPopulation(
+  db: Queryable,
+  key: { region: Region },
+): Promise<RunPopulationRead | null> {
+  const { rows } = await db.query<RunPopulationRow>(
+    `select season_id, computed_at, bracket, sum(sample_size)::int as population
+       from population_segments
+      where region = $1
+        and computed_at = (
+          select max(computed_at) from population_segments where region = $1
+        )
+      group by season_id, computed_at, bracket
+      order by population desc, bracket`,
+    [key.region],
+  );
+
+  const first = rows[0];
+  if (!first) return null;
+
+  return {
+    seasonId: first.season_id,
+    computedAt: first.computed_at,
+    brackets: rows.map((row) => ({ bracket: row.bracket, population: row.population })),
+  };
+}
+
 /**
  * Lo justo para decidir si una URL de segmento es indexable (ADR 0029): las
  * tres bases de comparación que puede tener un escalón, y de cuándo son.
@@ -308,6 +376,14 @@ export type VariableKind =
   | "talent-node"
   | "pvp-talent"
   | "hero-tree";
+
+/**
+ * Las tres variables de gear. Se piden juntas porque comparten denominador: una
+ * gema y un encantamiento salen de la misma fila observada que el item (ADR
+ * 0027). Ninguna variable de talento puede entrar aquí, porque cada una tiene
+ * su propia base.
+ */
+export const GEAR_KINDS: readonly VariableKind[] = ["gear-item", "gear-gem", "gear-enchant"];
 
 /**
  * Las columnas de una adopción, compartidas por las dos lecturas. `icon_url` da

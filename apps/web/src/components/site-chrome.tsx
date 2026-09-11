@@ -1,21 +1,15 @@
 import { getRegion } from "@wowpvp/blizzard";
-import {
-  BRACKET_LABELS,
-  CLASS_LABELS,
-  CLASS_SLUGS,
-  HOME_PATH,
-  METHODOLOGY_PATH,
-  PRIVACY_PATH,
-} from "@wowpvp/core";
+import { BRACKET_LABELS, HOME_PATH, METHODOLOGY_PATH, PRIVACY_PATH } from "@wowpvp/core";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-import { classColor } from "../design/class-color";
 import { copyFor } from "../i18n/copy";
 import { type Locale, localizedPathname } from "../i18n/locales";
+import { ClassNav } from "./class-nav";
 import { LanguageSwitch } from "./language-switch";
 import { MobileMenu } from "./mobile-menu";
 import { QuickSearch } from "./quick-search";
+import { SIDEBAR_ROW } from "./sidebar-row";
 import { ThemeSwitch } from "./theme-switch";
 import { BookOpen, ShieldCheck } from "lucide-react";
 
@@ -40,7 +34,7 @@ const BRACKETS = [BRACKET_LABELS["solo-shuffle"], "2v2", "3v3", "RBG", "BG Blitz
 /**
  * Un bloque de la barra lateral: etiqueta en versalita y lista.
  *
- * Varias de sus entradas todavía no llevan a ninguna parte. No se pintan
+ * Las modalidades no publicadas todavía no llevan a ninguna parte. No se pintan
  * apagadas —el sistema visual no tiene nivel "deshabilitado"
  * (docs/design/system.md §2.1)—: la que está publicada se marca como actual y
  * las demás son texto del mismo nivel, sin insinuar nada.
@@ -55,8 +49,6 @@ function SidebarBlock({ label, children }: { label: string; children: ReactNode 
     </div>
   );
 }
-
-const ROW = "flex items-center gap-2.5 rounded px-3 py-1.5 text-sm";
 
 export function SiteSidebar({ locale }: { locale: Locale }) {
   const copy = copyFor(locale);
@@ -85,7 +77,7 @@ export function SiteSidebar({ locale }: { locale: Locale }) {
              */}
             <span
               aria-current={index === 0 ? "true" : undefined}
-              className={`${ROW} ${index === 0 ? "bg-accent text-accent-foreground" : "text-muted-foreground"}`}
+              className={`${SIDEBAR_ROW} ${index === 0 ? "bg-accent text-accent-foreground" : "text-muted-foreground"}`}
             >
               {bracket}
             </span>
@@ -94,22 +86,7 @@ export function SiteSidebar({ locale }: { locale: Locale }) {
       </SidebarBlock>
 
       <SidebarBlock label={copy.nav.classesLabel}>
-        {CLASS_SLUGS.map((slug) => (
-          <li key={slug}>
-            <span className={`${ROW} text-muted-foreground`}>
-              {/*
-               * El punto lleva el color de clase y el nombre está escrito al
-               * lado: el color acompaña, nunca es lo único que distingue una
-               * entrada de otra.
-               */}
-              <span
-                aria-hidden="true"
-                className={`${classColor(slug).fill} size-2.5 shrink-0 rounded-sm`}
-              />
-              {CLASS_LABELS[slug]}
-            </span>
-          </li>
-        ))}
+        <ClassNav locale={locale} />
       </SidebarBlock>
     </>
   );

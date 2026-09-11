@@ -4,6 +4,7 @@ import { notFound, permanentRedirect } from "next/navigation";
 
 import { SpecPage, specMetadata } from "../../../../../components/spec-page";
 import { isLocale, localizedPathname } from "../../../../../i18n/locales";
+import { loadSpecOverview } from "../../../../../server/spec";
 
 interface SpecBracketParams {
   locale: string;
@@ -33,5 +34,6 @@ export default async function SpecBracketPage({ params }: { params: Promise<Spec
     permanentRedirect(localizedPathname(resolution.path, locale));
   }
 
-  return <SpecPage route={resolution.route} locale={locale} />;
+  const data = await loadSpecOverview(resolution.route);
+  return <SpecPage route={resolution.route} locale={locale} data={data} />;
 }

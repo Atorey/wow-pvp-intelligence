@@ -1,5 +1,6 @@
 import type { PlayerRoute, Region } from "@wowpvp/core";
 import {
+  GEAR_KINDS,
   readActivity,
   readLatestGear,
   readLatestObservedSeason,
@@ -13,7 +14,6 @@ import {
   type CharacterSnapshotRead,
   type Queryable,
   type SegmentRead,
-  type VariableKind,
 } from "@wowpvp/data";
 import { cache } from "react";
 import { cachedAdoptionFor, cachedBracketSegments } from "./aggregate-cache";
@@ -134,9 +134,6 @@ export async function loadPlayerProfile(
     gear,
   };
 }
-
-/** Las tres variables de gear van juntas: comparten denominador (ADR 0027). */
-const GEAR_KINDS: readonly VariableKind[] = ["gear-item", "gear-gem", "gear-enchant"];
 
 /**
  * Las adopciones de los dos escalones, en dos consultas.

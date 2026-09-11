@@ -58,6 +58,21 @@ export function formatPercent(value: number, locale: Locale): string {
 }
 
 /**
+ * Una proporción de población: qué parte de lo observado es de un tramo o de
+ * una spec.
+ *
+ * Con un decimal, al contrario que la adopción, porque aquí los valores
+ * pequeños son lo normal: cuarenta specs se reparten una modalidad y un tramo
+ * alto pesa menos del 1 % de su spec. Sin decimal, media tabla diría "0 %" de
+ * tramos que tienen gente. Tampoco va sola: al lado va el recuento del que sale.
+ */
+export function formatShare(value: number, locale: Locale): string {
+  return new Intl.NumberFormat(locale, { style: "percent", maximumFractionDigits: 1 }).format(
+    value,
+  );
+}
+
+/**
  * La fecha de una observación. Sin hora: lo que importa es de qué día es el
  * dato, y una hora en UTC invita a restarla mentalmente contra la del lector.
  */
