@@ -52,8 +52,16 @@ export const REQUESTS_PER_PROFILE = 4;
 /**
  * Baja el perfil completo de un personaje: 4 peticiones.
  *
- * Secuenciales y todas por BlizzardClient (regla 4): el throttling es global,
- * así que lanzarlas en paralelo no las haría más rápidas.
+ * A la vez, y todas por BlizzardClient (regla 4). Encadenarlas con `await` no
+ * respetaba mejor el ritmo global —de eso se encarga la cola, que reparte
+ * turnos espaciados y es la que sabe lo que hay pidiendo turno (ADR 0005)— y
+ * hacía que el coste de un perfil fuese la **suma** de cuatro idas y vueltas a
+ * Blizzard en vez del turno más lento. El ritmo real medido así se quedaba en
+ * una cuarta parte del techo configurado, con el bucket horario compartido
+ * intacto: el cuello no era la cuota, era esperar cuatro veces seguidas.
+ *
+ * Las cuatro son independientes entre sí: ninguna necesita lo que devuelve
+ * otra, y el llamante ya sabe que el personaje existe.
  *
  * El bracket ya lo conocemos por la spec ingerida, así que se pide directo en
  * vez de pasar por pvp-summary como hace la búsqueda bajo demanda (que sí tiene
@@ -65,16 +73,12 @@ export async function fetchProfileParts(
 ): Promise<ProfileParts> {
   const base = `/profile/wow/character/${encodeURIComponent(target.realmSlug)}/${encodeURIComponent(target.nameSlug)}`;
 
-  const profile = await client.tryGet<ProfileResponse>(base, "profile");
-  const bracketStats = await client.tryGet<PvpBracketResponse>(
-    `${base}/pvp-bracket/${target.bracket}`,
-    "profile",
-  );
-  const equipment = await client.tryGet<EquipmentResponse>(`${base}/equipment`, "profile");
-  const specializations = await client.tryGet<SpecializationsResponse>(
-    `${base}/specializations`,
-    "profile",
-  );
+  const [profile, bracketStats, equipment, specializations] = await Promise.all([
+    client.tryGet<ProfileResponse>(base, "profile"),
+    client.tryGet<PvpBracketResponse>(`${base}/pvp-bracket/${target.bracket}`, "profile"),
+    client.tryGet<EquipmentResponse>(`${base}/equipment`, "profile"),
+    client.tryGet<SpecializationsResponse>(`${base}/specializations`, "profile"),
+  ]);
 
   return {
     profile: { status: profile.status, data: profile.data },

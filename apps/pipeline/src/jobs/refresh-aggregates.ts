@@ -53,6 +53,37 @@ import { printActivitySummary, rebuildActivity } from "./refresh-activity";
 
 const MS_PER_DAY = 86_400_000;
 
+/**
+ * Filas por INSERT al escribir `aggregate_snapshots`. Con 40 specs × brackets
+ * × segmentos y una ingesta de perfiles que no para de rellenar gear, esa
+ * tabla es la que crece sin techo: un `await` por variable convertía el
+ * recálculo en miles de round-trips secuenciales a Postgres, hasta pasar de
+ * dos minutos a no caber en la media hora del job. Mismo patrón que
+ * `refresh-activity.ts`: unnest en lotes en vez de fila a fila.
+ */
+const WRITE_BATCH = 1_000;
+
+/** ms legibles para el resumen de tiempos por fase, sin importar cuán grande. */
+function formatDuration(ms: number): string {
+  return ms >= 1_000 ? `${(ms / 1_000).toFixed(1)}s` : `${Math.round(ms)}ms`;
+}
+
+/**
+ * Resumen de a qué fase se le fue el tiempo: sin esto, "la corrida tardó 21
+ * minutos" no dice si el problema está en la consulta, en el cálculo o en la
+ * escritura, y esa pregunta se contesta releyendo el job entero en vez de
+ * mirando su salida.
+ *
+ * El total es reloj de pared y no la suma de las fases, para que cuadre con lo
+ * que mide quien lo ejecuta. Las fases no lo cubren entero —queda fuera
+ * resolver la temporada y la impresión— y esa diferencia es informativa: si
+ * sobra tiempo sin atribuir, está en algo que no se está midiendo.
+ */
+function printPhaseTimings(phases: Record<string, number>, elapsedMs: number): void {
+  const parts = Object.entries(phases).map(([name, ms]) => `${name} ${formatDuration(ms)}`);
+  console.log(`\nTiempos: ${parts.join(" · ")} · corrida ${formatDuration(elapsedMs)}.`);
+}
+
 // --- Argumentos ---
 
 export interface Options {
@@ -617,6 +648,66 @@ export function computeSegments(
 
 // --- Escritura ---
 
+/** Una variable ya resuelta a su `population_segment_id`, lista para el insert masivo. */
+interface PendingVariable {
+  segmentRowId: string;
+  variable: AggregatedVariable;
+}
+
+/**
+ * Escribe `aggregate_snapshots` en lotes de `WRITE_BATCH` con `unnest`, en vez
+ * de un `INSERT` por variable: esa tabla es la que crece con las 40 specs y con
+ * una ingesta continua que no va a dejar de rellenar perfiles, así que es ahí
+ * donde el número de round-trips tenía que dejar de escalar 1:1 con la
+ * población.
+ */
+async function writeVariables(
+  client: pg.PoolClient,
+  pending: readonly PendingVariable[],
+  itemNames: Map<number, string>,
+): Promise<void> {
+  for (let i = 0; i < pending.length; i += WRITE_BATCH) {
+    const batch = pending.slice(i, i + WRITE_BATCH);
+    await client.query(
+      `insert into aggregate_snapshots
+         (population_segment_id, variable_kind, variable_key, slot_group, item_id,
+          item_name, talent_tree, talent_id, talent_name,
+          enchantment_id, enchantment_name,
+          users, denominator, unavailable, adoption_rate)
+       select * from unnest(
+         $1::bigint[], $2::text[], $3::text[], $4::text[], $5::bigint[],
+         $6::text[], $7::text[], $8::bigint[], $9::text[],
+         $10::bigint[], $11::text[],
+         $12::int[], $13::int[], $14::int[], $15::double precision[]
+       )`,
+      [
+        batch.map((p) => p.segmentRowId),
+        batch.map((p) => p.variable.kind),
+        batch.map((p) => p.variable.key),
+        batch.map((p) => p.variable.slotGroup),
+        batch.map((p) => p.variable.itemId),
+        // El nombre observado manda sobre el del catálogo: la gema lo trae
+        // consigo y el item equipado no, así que ninguna de las dos vías sirve
+        // para las dos.
+        batch.map(
+          (p) =>
+            p.variable.itemName ??
+            (p.variable.itemId === null ? null : (itemNames.get(p.variable.itemId) ?? null)),
+        ),
+        batch.map((p) => p.variable.talentTree),
+        batch.map((p) => p.variable.talentId),
+        batch.map((p) => p.variable.talentName),
+        batch.map((p) => p.variable.enchantmentId),
+        batch.map((p) => p.variable.enchantmentName),
+        batch.map((p) => p.variable.adoption.users),
+        batch.map((p) => p.variable.adoption.denominator),
+        batch.map((p) => p.variable.adoption.unavailable),
+        batch.map((p) => p.variable.adoption.value),
+      ],
+    );
+  }
+}
+
 /**
  * Todas las filas de una corrida entran o no entra ninguna.
  *
@@ -624,6 +715,12 @@ export function computeSegments(
  * este segmento": una corrida a medias dejaría unos brackets con agregado nuevo
  * y otros con el de ayer bajo la misma marca temporal, y nada distinguiría una
  * cosa de la otra al leerlo.
+ *
+ * `population_segments` se sigue insertando fila a fila: son unos cientos como
+ * mucho (un `computed_at` por bracket × segmento) y hace falta el id de vuelta
+ * para poder enlazar sus variables. El volumen real — y el que crecía sin
+ * límite — está en `aggregate_snapshots`, que se acumula aquí y se escribe de
+ * una vez con `writeVariables`.
  */
 async function writeSegments(
   pool: pg.Pool,
@@ -634,7 +731,7 @@ async function writeSegments(
   itemNames: Map<number, string>,
 ): Promise<{ variables: number }> {
   const client = await pool.connect();
-  let variables = 0;
+  const pending: PendingVariable[] = [];
 
   try {
     await client.query("begin");
@@ -689,39 +786,10 @@ async function writeSegments(
       const segmentRowId = rows[0]?.id;
       if (!segmentRowId) throw new Error(`No se pudo insertar el segmento ${segment.segmentId}.`);
 
-      for (const variable of segment.variables) {
-        await client.query(
-          `insert into aggregate_snapshots
-             (population_segment_id, variable_kind, variable_key, slot_group, item_id,
-              item_name, talent_tree, talent_id, talent_name,
-              enchantment_id, enchantment_name,
-              users, denominator, unavailable, adoption_rate)
-           values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
-          [
-            segmentRowId,
-            variable.kind,
-            variable.key,
-            variable.slotGroup,
-            variable.itemId,
-            // El nombre observado manda sobre el del catálogo: la gema lo trae
-            // consigo y el item equipado no, así que ninguna de las dos vías
-            // sirve para las dos.
-            variable.itemName ??
-              (variable.itemId === null ? null : (itemNames.get(variable.itemId) ?? null)),
-            variable.talentTree,
-            variable.talentId,
-            variable.talentName,
-            variable.enchantmentId,
-            variable.enchantmentName,
-            variable.adoption.users,
-            variable.adoption.denominator,
-            variable.adoption.unavailable,
-            variable.adoption.value,
-          ],
-        );
-        variables++;
-      }
+      for (const variable of segment.variables) pending.push({ segmentRowId, variable });
     }
+
+    await writeVariables(client, pending, itemNames);
 
     await client.query("commit");
   } catch (err) {
@@ -731,7 +799,7 @@ async function writeSegments(
     client.release();
   }
 
-  return { variables };
+  return { variables: pending.length };
 }
 
 // --- Salida ---
@@ -783,6 +851,10 @@ function printSegments(segments: readonly ComputedSegment[]): void {
  * comprobaría el test no sería este job.
  */
 export async function refreshAggregates(args: string[], borrowedPool?: pg.Pool): Promise<void> {
+  // Tiempo por fase: la corrida creció hasta no caber en su job sin que nadie
+  // supiera en qué se iba. No se guarda en ningún sitio a propósito — es
+  // diagnóstico de esta corrida, no una métrica histórica.
+  const startedAt = Date.now();
   const options = parseOptions(args);
   const region = getRegion();
   const now = new Date();
@@ -818,9 +890,11 @@ export async function refreshAggregates(args: string[], borrowedPool?: pg.Pool):
     // ventana lo hará la actividad que ya estuviera materializada: la
     // inspección previa no puede dejar rastro en la base de datos.
     console.log("Ventana de actividad (§27, #16):");
+    const activityStart = Date.now();
     printActivitySummary(
       await rebuildActivity(pool, region, seasonId, now, { dryRun: options.dryRun }),
     );
+    const activityMs = Date.now() - activityStart;
     if (options.dryRun) {
       console.log(
         "(--dry-run: la actividad no se ha escrito; los segmentos de abajo se filtran con la " +
@@ -829,19 +903,23 @@ export async function refreshAggregates(args: string[], borrowedPool?: pg.Pool):
     }
     console.log("");
 
+    const loadStart = Date.now();
     const [active, searchOnly, { profiles, itemNames }] = await Promise.all([
       loadActive(pool, region, seasonId, cutoff),
       loadSearchOnly(pool, region, seasonId, cutoff),
       loadProfiles(pool, region, seasonId, cutoff),
     ]);
+    const loadMs = Date.now() - loadStart;
 
     console.log(
       `Población cargada: ${active.length} personajes activos, ${profiles.length} con perfil completo` +
         `${searchOnly.length > 0 ? `, ${searchOnly.length} excluidos por venir solo de búsqueda` : ""}.`,
     );
 
+    const computeStart = Date.now();
     const members = buildMembers(active, profiles);
     const segments = computeSegments(members, searchOnly, now, options.window);
+    const computeMs = Date.now() - computeStart;
     if (segments.length === 0) {
       throw new Error(
         `Ningún segmento tiene población dentro de la ventana de ${widest} días. ` +
@@ -858,9 +936,14 @@ export async function refreshAggregates(args: string[], borrowedPool?: pg.Pool):
       console.log(
         `--dry-run: no se ha escrito nada (serían ${segments.length} segmentos y ${variables} variables).`,
       );
+      printPhaseTimings(
+        { actividad: activityMs, carga: loadMs, cálculo: computeMs },
+        Date.now() - startedAt,
+      );
       return;
     }
 
+    const writeStart = Date.now();
     const computedAt = new Date();
     const { variables } = await writeSegments(
       pool,
@@ -870,10 +953,15 @@ export async function refreshAggregates(args: string[], borrowedPool?: pg.Pool):
       segments,
       itemNames,
     );
+    const writeMs = Date.now() - writeStart;
 
     console.log(
       `${segments.length} segmentos y ${variables} variables escritos con computed_at ` +
         `${computedAt.toISOString()}.`,
+    );
+    printPhaseTimings(
+      { actividad: activityMs, carga: loadMs, cálculo: computeMs, escritura: writeMs },
+      Date.now() - startedAt,
     );
 
     // La cobertura de perfiles es la limitación que decide si estos agregados
