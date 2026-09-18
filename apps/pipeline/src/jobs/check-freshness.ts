@@ -20,7 +20,9 @@ import { createPool } from "../db/pool";
  * GitHub manda el correo. Sin servicio de terceros, coherente con el ADR 0028.
  *
  * Lo que **no** vigila es la cobertura servible por par `(spec, segmento)`, que
- * se mueve con la temporada y es otra pregunta: esa es de #74.
+ * se mueve con la temporada y es otra pregunta: esa la contesta el comando
+ * `coverage` (ADR 0032). Una corrida puede estar al día y no poder servirle una
+ * comparación a nadie.
  */
 
 interface FreshnessRow {

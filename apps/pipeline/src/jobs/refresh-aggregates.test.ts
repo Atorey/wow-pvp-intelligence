@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   buildMembers,
   computeSegments,
+  coverageOf,
   parseOptions,
   selectByWindow,
   type ActiveRow,
@@ -306,4 +307,47 @@ test("la fila declara cuánta de su población es evidencia y cuánta es arranqu
   assert.equal(segment?.summary.sampleSize, 3);
   assert.equal(segment?.activeByDelta, 1);
   assert.equal(segment?.activeByFirstSeen, 2);
+});
+
+test("la cobertura empareja cada segmento con el de arriba de la misma corrida", () => {
+  const members = [
+    ...Array.from({ length: 40 }, (_, i) => member({ characterId: `sujeto-${i}`, rating: 1850 })),
+    ...Array.from({ length: 35 }, (_, i) =>
+      member({
+        characterId: `objetivo-${i}`,
+        rating: 2050,
+        profileCapturedAt: daysAgo(1),
+        gearBySlot: new Map([["HEAD", 1]]),
+      }),
+    ),
+  ];
+
+  const [pair] = coverageOf(computeSegments(members, [], NOW, null)).filter(
+    (candidate) => candidate.subject.id === "1800-2000",
+  );
+
+  assert.equal(pair?.target.id, "2000-2200");
+  assert.equal(pair?.subjects, 40);
+  // Los denominadores del par son los del objetivo: población y gear por
+  // separado, porque un Player Gap se sirve con el segundo (ADR 0010).
+  assert.equal(pair?.targetSampleSize, 35);
+  assert.equal(pair?.targetGearSample, 35);
+});
+
+test("un segmento sin nadie encima deja el par a cero en vez de desaparecer", () => {
+  const members = Array.from({ length: 40 }, (_, i) =>
+    member({ characterId: `sujeto-${i}`, rating: 2050 }),
+  );
+
+  const segments = computeSegments(members, [], NOW, null);
+  const [pair] = coverageOf(segments);
+
+  // `computeSegments` no escribe filas de segmentos vacíos, así que sin esta
+  // fila "encima de estos 40 no hay nadie" solo se podría leer como una
+  // ausencia — indistinguible de una corrida que no llegó a hacerse.
+  assert.equal(segments.length, 1);
+  assert.equal(pair?.subject.id, "2000-2200");
+  assert.equal(pair?.targetSampleSize, 0);
+  assert.equal(pair?.targetGearSample, 0);
+  assert.equal(pair?.targetWindow, null);
 });

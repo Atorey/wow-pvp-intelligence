@@ -57,6 +57,7 @@ const BATCH_SIZE = 1_000;
 const SEEDED_TABLES = [
   "aggregate_snapshots",
   "item_media",
+  "segment_coverage",
   "population_segments",
   "character_activity",
   "character_presence",

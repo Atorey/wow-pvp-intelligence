@@ -3,6 +3,7 @@ import {
   ACTIVITY_WINDOWS,
   DEFAULT_SEGMENT_SCALE,
   aggregateSegment,
+  buildCoverage,
   formatSegment,
   groupBySegment,
   isActiveWithin,
@@ -13,6 +14,7 @@ import {
   type ActivityEvidence,
   type ActivityWindowDays,
   type AggregatedVariable,
+  type CoveragePair,
   type GearSelection,
   type HeroTreeSelection,
   type PlayerBuild,
@@ -21,6 +23,7 @@ import {
 } from "@wowpvp/core";
 import { getRegion } from "../config";
 import { createPool } from "../db/pool";
+import { printCoverage } from "./coverage";
 import { printActivitySummary, rebuildActivity } from "./refresh-activity";
 
 /**
@@ -49,6 +52,11 @@ import { printActivitySummary, rebuildActivity } from "./refresh-activity";
  *   distintas del mismo personaje (leaderboard vs. muestreo de perfiles), así
  *   que la fila guarda el rango temporal de los perfiles usados en vez de
  *   dejarlo suponer.
+ *
+ * Y publica una tercera cosa además de las dos tablas de §28: la **cobertura
+ * servible por par `(spec, segmento objetivo)`** (ADR 0032). Sale de los
+ * mismos segmentos que se acaban de calcular y se escribe en la misma
+ * transacción, porque es una lectura de esta corrida y de ninguna otra.
  */
 
 const MS_PER_DAY = 86_400_000;
@@ -646,6 +654,34 @@ export function computeSegments(
   return computed;
 }
 
+// --- Cobertura servible ---
+
+/**
+ * Los pares `(spec, segmento objetivo)` de esta corrida (ADR 0032).
+ *
+ * No consulta nada: sale de los mismos segmentos que se acaban de calcular, así
+ * que la cobertura publicada describe exactamente la corrida que la acompaña y
+ * no una foto sacada después con otra ventana.
+ *
+ * El emparejamiento y la puerta viven en core, no aquí: quién es el objetivo de
+ * quién es la escala (`nextSegment`) y qué se puede servir es
+ * `canShowComparison()` sobre el `gear_sample` del objetivo (ADR 0010).
+ */
+export function coverageOf(segments: readonly ComputedSegment[]): CoveragePair[] {
+  return buildCoverage(
+    segments.map((segment) => ({
+      bracket: segment.bracket,
+      classSlug: segment.classSlug,
+      specSlug: segment.specSlug,
+      segmentMin: segment.segmentMin,
+      sampleSize: segment.summary.sampleSize,
+      gearSample: segment.summary.gearSample,
+      activityWindowDays: segment.window,
+    })),
+    DEFAULT_SEGMENT_SCALE,
+  );
+}
+
 // --- Escritura ---
 
 /** Una variable ya resuelta a su `population_segment_id`, lista para el insert masivo. */
@@ -709,6 +745,57 @@ async function writeVariables(
 }
 
 /**
+ * Escribe la cobertura de la corrida, también en lotes con `unnest`.
+ *
+ * Va dentro de la misma transacción que los segmentos porque comparten
+ * `computed_at` y se leen juntas: una corrida a medias dejaría una cobertura que
+ * dice "21 pares servibles" junto a unos agregados que no son los que la
+ * produjeron, y nada distinguiría una cosa de la otra al leerlo.
+ */
+async function writeCoverage(
+  client: pg.PoolClient,
+  region: string,
+  seasonId: number,
+  computedAt: Date,
+  pairs: readonly CoveragePair[],
+): Promise<void> {
+  for (let i = 0; i < pairs.length; i += WRITE_BATCH) {
+    const batch = pairs.slice(i, i + WRITE_BATCH);
+    await client.query(
+      `insert into segment_coverage
+         (computed_at, region, season_id, bracket, class_slug, spec_slug,
+          subject_segment_id, subject_segment_min, subjects,
+          segment_id, segment_min, segment_max,
+          sample_size, gear_sample, activity_window_days)
+       select $1::timestamptz, $2::text, $3::int, * from unnest(
+         $4::text[], $5::text[], $6::text[],
+         $7::text[], $8::int[], $9::int[],
+         $10::text[], $11::int[], $12::int[],
+         $13::int[], $14::int[], $15::int[]
+       )`,
+      [
+        computedAt,
+        region,
+        seasonId,
+        batch.map((pair) => pair.bracket),
+        batch.map((pair) => pair.classSlug),
+        batch.map((pair) => pair.specSlug),
+        batch.map((pair) => pair.subject.id),
+        batch.map((pair) => pair.subject.min),
+        batch.map((pair) => pair.subjects),
+        batch.map((pair) => pair.target.id),
+        batch.map((pair) => pair.target.min),
+        // El tramo abierto de arriba no tiene máximo, y no se finge uno.
+        batch.map((pair) => (Number.isFinite(pair.target.max) ? pair.target.max : null)),
+        batch.map((pair) => pair.targetSampleSize),
+        batch.map((pair) => pair.targetGearSample),
+        batch.map((pair) => pair.targetWindow),
+      ],
+    );
+  }
+}
+
+/**
  * Todas las filas de una corrida entran o no entra ninguna.
  *
  * En una transacción porque el consumidor lee "el computed_at más reciente de
@@ -728,6 +815,7 @@ async function writeSegments(
   seasonId: number,
   computedAt: Date,
   segments: readonly ComputedSegment[],
+  coverage: readonly CoveragePair[],
   itemNames: Map<number, string>,
 ): Promise<{ variables: number }> {
   const client = await pool.connect();
@@ -790,6 +878,7 @@ async function writeSegments(
     }
 
     await writeVariables(client, pending, itemNames);
+    await writeCoverage(client, region, seasonId, computedAt, coverage);
 
     await client.query("commit");
   } catch (err) {
@@ -931,10 +1020,14 @@ export async function refreshAggregates(args: string[], borrowedPool?: pg.Pool):
 
     printSegments(segments);
 
+    const coverage = coverageOf(segments);
+    printCoverage(coverage);
+
     if (options.dryRun) {
       const variables = segments.reduce((acc, s) => acc + s.variables.length, 0);
       console.log(
-        `--dry-run: no se ha escrito nada (serían ${segments.length} segmentos y ${variables} variables).`,
+        `--dry-run: no se ha escrito nada (serían ${segments.length} segmentos, ${variables} ` +
+          `variables y ${coverage.length} pares de cobertura).`,
       );
       printPhaseTimings(
         { actividad: activityMs, carga: loadMs, cálculo: computeMs },
@@ -951,13 +1044,14 @@ export async function refreshAggregates(args: string[], borrowedPool?: pg.Pool):
       seasonId,
       computedAt,
       segments,
+      coverage,
       itemNames,
     );
     const writeMs = Date.now() - writeStart;
 
     console.log(
-      `${segments.length} segmentos y ${variables} variables escritos con computed_at ` +
-        `${computedAt.toISOString()}.`,
+      `${segments.length} segmentos, ${variables} variables y ${coverage.length} pares de ` +
+        `cobertura escritos con computed_at ${computedAt.toISOString()}.`,
     );
     printPhaseTimings(
       { actividad: activityMs, carga: loadMs, cálculo: computeMs, escritura: writeMs },
