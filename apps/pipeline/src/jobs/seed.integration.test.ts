@@ -105,8 +105,8 @@ describe("lecturas de @wowpvp/data contra el schema real", { skip }, () => {
     });
 
     it("distingue población suficiente de base de comparación suficiente (#76)", async () => {
-      // El escalón de 48 personas con 9 perfiles: la columna `confidence` de la
-      // tabla diría `medium`, y la comparación no se puede enseñar. Es el caso
+      // El escalón de 48 personas con 9 perfiles: un solo nivel de confianza por
+      // escalón diría `medium`, y la comparación no se puede enseñar. Es el caso
       // que obliga a derivar la confianza del denominador de cada cifra.
       const segment = await readSegment(pool, {
         region,

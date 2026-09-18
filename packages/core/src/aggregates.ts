@@ -22,7 +22,6 @@
  *   siendo `canShowComparison()` en el consumidor — necesitamos la fila con
  *   n=12 precisamente para saber cuánto le falta a esa spec para llegar a 30.
  */
-import { confidenceFor } from "./confidence";
 import {
   comparableItemsByGroup,
   hasComparableGear,
@@ -33,7 +32,6 @@ import {
   type TalentSelection,
 } from "./player-gap";
 import { median, percentile } from "./stats";
-import type { ConfidenceLevel } from "./types";
 
 /**
  * Tipos de variable agregada.
@@ -94,9 +92,17 @@ export interface AggregatedVariable {
 
 /** La forma de un segmento: cuánta gente hay y cómo se reparte (§27). */
 export interface SegmentSummary {
-  /** Personajes activos del segmento. Es el n que sostiene la confianza (ADR 0003). */
+  /**
+   * Personajes activos del segmento: población, no base de comparación.
+   *
+   * El resumen no trae el nivel de confianza aunque sepa calcularlo. Devolverlo
+   * ponía en un mismo objeto un `sampleSize` y un `confidence` sin decir cuál de
+   * los cinco denominadores de aquí abajo lo sostenía, y así acabó guardado en
+   * la base una confianza `high` sobre segmentos con `gearSample` a cero
+   * (ADR 0033). Se deriva donde se usa, con `confidenceFor()` sobre el
+   * denominador de esa cifra.
+   */
   sampleSize: number;
-  confidence: ConfidenceLevel;
   ratingMedian: number | null;
   ratingP25: number | null;
   ratingP75: number | null;
@@ -135,7 +141,6 @@ export function summarizeSegment(population: readonly PlayerBuild[]): SegmentSum
 
   return {
     sampleSize: population.length,
-    confidence: confidenceFor(population.length),
     ratingMedian: median(ratings),
     ratingP25: percentile(ratings, 0.25),
     ratingP75: percentile(ratings, 0.75),

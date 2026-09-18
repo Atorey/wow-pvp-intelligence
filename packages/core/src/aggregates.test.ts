@@ -55,6 +55,20 @@ test("el segmento resume rating e item level de quien lo tiene", () => {
   assert.equal(summary.itemLevelSample, 2);
 });
 
+test("el resumen no trae un nivel de confianza, ni el de la población", () => {
+  // Cien personajes de población y ni un perfil: el resumen sabría contestar
+  // `high` sobre el sampleSize, y ese es justo el número que se guardó durante
+  // un mes al lado de un gearSample a cero. La confianza se deriva donde se usa,
+  // sobre el denominador de cada cifra (ADR 0033).
+  const summary = summarizeSegment(
+    Array.from({ length: 100 }, (_, i) => build({ rating: 1800 + i })),
+  );
+
+  assert.equal(summary.sampleSize, 100);
+  assert.equal(summary.gearSample, 0);
+  assert.equal("confidence" in summary, false);
+});
+
 test("los denominadores de gear y talentos son independientes del tamaño del segmento", () => {
   const summary = summarizeSegment([
     withGear(1810, { HEAD: 1 }),

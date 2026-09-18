@@ -29,13 +29,14 @@ export interface Provenance {
 /**
  * Única forma de construir una `Provenance`.
  *
- * `confidence` no es un parámetro: se deriva. `population_segments` tiene una
- * columna con ese nombre que mide la población y no la base de comparación —el
- * 20 de agosto de 2026 había 59 filas guardadas como `high` con `gear_sample`
- * a cero—, así que copiarla al tipo habría convertido esta capa en la puerta
- * por la que se cuela justo lo que prohíbe el punto 3 del ADR 0010. Aquí no se
- * copia: se calcula desde el denominador de cada cifra, con la función de
- * `packages/core` que ya es la única puerta (ADR 0003).
+ * `confidence` no es un parámetro: se deriva. `population_segments` tuvo una
+ * columna con ese nombre que medía población y no base de comparación —el 20 de
+ * agosto de 2026, 59 filas guardadas como `high` con `gear_sample` a cero—, y
+ * copiarla al tipo habría convertido esta capa en la puerta por la que se cuela
+ * justo lo que prohíbe el punto 3 del ADR 0010. La columna ya no existe
+ * (ADR 0033), pero la regla no dependía de que desapareciera: la confianza se
+ * calcula desde el denominador de cada cifra, con la función de `packages/core`
+ * que ya es la única puerta (ADR 0003).
  */
 export function provenanceFor(input: {
   computedAt: Date;
