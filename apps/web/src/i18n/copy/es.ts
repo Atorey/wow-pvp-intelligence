@@ -61,8 +61,28 @@ export const es: Copy = {
 
     meta: {
       title: "Qué se juega ahora",
-      empty:
-        "Esta lectura todavía no está publicada. Cuando lo esté, aquí estarán las specs observadas en Solo Shuffle, con cuántos personajes las llevan y qué proporción de ellos pasa de 2400.",
+      empty: "La corrida de agregados más reciente no tiene a nadie observado en Solo Shuffle.",
+      unavailable: "Estas cifras no se han podido leer ahora mismo. El buscador sigue funcionando.",
+      table: {
+        rank: "#",
+        spec: "Spec",
+        weight: "Peso relativo",
+        observed: "Observados",
+        ofLadder: "De la ladder",
+        ofHigh: (rating) => `De ${rating}+`,
+        index: "Índice",
+        noHigh: (needed) => `menos de ${needed} observados`,
+        shareNote: (observed, bracket, specs) =>
+          `Las proporciones son sobre los ${observed} personajes observados en ${bracket} en esta corrida, repartidos entre sus ${specs} specs.`,
+        indexNote: (rating) =>
+          `El índice es la proporción de una spec en ${rating}+ dividida por su proporción en toda la modalidad: un ×1,9 dice que arriba pesa casi el doble que en el conjunto. No es una medida de lo fuerte que sea.`,
+        highNote: (needed, rating) =>
+          `Una spec con menos de ${needed} personajes observados por encima de ${rating} no publica ni su proporción de ahí arriba ni su índice: con esa muestra, una proporción describe a un puñado de personas.`,
+        notSaid:
+          "Representación no es rendimiento. El leaderboard no publica resultados por partida, así que de aquí no sale qué spec gana más: una spec puede estar sobrerrepresentada por ser popular o fácil de jugar.",
+        trendPending:
+          "La variación semana a semana todavía no se publica: exige conservar la serie de corridas anteriores, no solo la más reciente.",
+      },
     },
 
     population: {
@@ -108,7 +128,7 @@ export const es: Copy = {
   },
 
   aggregates: {
-    computedAt: (when) => `Cifras del segmento calculadas el ${when}`,
+    computedAt: (when) => `Cifras calculadas el ${when}`,
     staleRun: (when) =>
       `La corrida de agregados más reciente que consta es del ${when}. La siguiente no ha llegado, así que estas cifras tienen más de un día.`,
   },

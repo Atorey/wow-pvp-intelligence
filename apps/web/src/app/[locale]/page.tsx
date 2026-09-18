@@ -1,15 +1,17 @@
-import { getRegion } from "@wowpvp/blizzard";
-import { BRACKET_LABELS, HOME_PATH } from "@wowpvp/core";
+import { BRACKET_LABELS, BRACKET_SLUGS, HOME_PATH } from "@wowpvp/core";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 
 import { CharacterSearch } from "../../components/character-search";
 import { RecentSearches } from "../../components/recent-searches";
+import { SpecRepresentationTable } from "../../components/spec-representation-table";
 import { Card } from "../../components/ui/card";
 import { copyFor } from "../../i18n/copy";
 import { alternatesFor } from "../../i18n/alternates";
-import { isLocale } from "../../i18n/locales";
+import { formatRating } from "../../i18n/format";
+import { isLocale, type Locale } from "../../i18n/locales";
+import { loadHomeData, type HomeScope } from "../../server/home";
 
 export async function generateMetadata({
   params,
@@ -29,40 +31,55 @@ export async function generateMetadata({
 }
 
 /**
- * Una sección de datos que todavía no lee de Postgres.
+ * El encabezado de un bloque de la portada: el título y, al lado, el ámbito de
+ * lo que hay debajo.
  *
- * Existe como componente y no como un `<p>` suelto porque son dos y van a ser
- * más, y porque lo que declara no es "cargando": es que **esa lectura no está
- * publicada**. La §1.5 del brief pide decir con palabras lo que falta en vez de
- * dejar el hueco, y la regla de no bajar umbrales para llenar pantalla se
- * incumple igual llenándola con cifras de ejemplo.
+ * El ámbito va pegado al título y no dentro de la tarjeta porque acota lo que se
+ * afirma —la modalidad, la región y la temporada—, y una cifra sin ámbito se lee
+ * como si valiera para todo el juego.
  */
-function PendingSection({
-  title,
-  scope,
-  children,
-}: {
-  title: string;
-  scope?: string;
-  children: ReactNode;
-}) {
+function SectionHeading({ title, scope }: { title: string; scope?: string }) {
   return (
-    <section className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <h2 className="text-foreground tracking-caps text-xl uppercase">{title}</h2>
-        {scope !== undefined && <span className="text-subtle-foreground text-sm">{scope}</span>}
-      </div>
-      {/*
-       * Discontinuo y no una `Alert`: `Alert` lleva `role="alert"`, que es una
-       * región viva y anuncia lo que hay dentro como si acabara de pasar algo.
-       * Aquí no ha pasado nada — esa lectura todavía no está publicada, y lo
-       * estaba igual antes de entrar.
-       */}
-      <Card className="text-muted-foreground border-dashed p-5 text-sm shadow-none">
-        {children}
-      </Card>
-    </section>
+    <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+      <h2 className="text-foreground tracking-caps text-xl uppercase">{title}</h2>
+      {scope !== undefined && <span className="text-subtle-foreground text-sm">{scope}</span>}
+    </div>
   );
+}
+
+/**
+ * Lo que va donde iría una lectura que no hay.
+ *
+ * Existe como componente y no como un `<p>` suelto porque lo que declara no es
+ * "cargando": es que **esa lectura no está**, y la §1.5 del brief pide decir con
+ * palabras lo que falta en vez de dejar el hueco. La regla de no bajar umbrales
+ * para llenar pantalla se incumple igual llenándola con cifras de ejemplo.
+ *
+ * Discontinuo y no una `Alert`: `Alert` lleva `role="alert"`, que es una región
+ * viva y anuncia lo que hay dentro como si acabara de pasar algo. Aquí no ha
+ * pasado nada — esa lectura no está publicada, y lo estaba igual antes de
+ * entrar.
+ */
+function MissingCard({ children }: { children: ReactNode }) {
+  return (
+    <Card className="text-muted-foreground border-dashed p-5 text-sm shadow-none">{children}</Card>
+  );
+}
+
+/**
+ * El ámbito del bloque de la modalidad: `Solo Shuffle · EU · temporada 42`.
+ *
+ * La temporada la dice la corrida, así que sin corrida no se escribe ninguna: un
+ * "temporada 42" heredado de otra cosa afirmaría de qué temporada son unas
+ * cifras que no están.
+ */
+function metaScope(scope: HomeScope, locale: Locale): string {
+  const [bracket] = BRACKET_SLUGS;
+  const parts = [BRACKET_LABELS[bracket], scope.region.toUpperCase()];
+  if (scope.seasonId !== null) {
+    parts.push(copyFor(locale).spec.season(formatRating(scope.seasonId, locale)));
+  }
+  return parts.join(" · ");
 }
 
 export default async function HomePage({ params }: { params: Promise<{ locale: string }> }) {
@@ -70,7 +87,7 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
   if (!isLocale(locale)) notFound();
 
   const copy = copyFor(locale);
-  const region = getRegion();
+  const { scope, meta } = await loadHomeData();
 
   // El buscador es lo que §23 pone en el centro de la portada, encima de todo
   // lo demás: es la única puerta al producto, porque sin personaje no hay ni
@@ -91,20 +108,25 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
         <p className="text-muted-foreground max-w-measure text-lg">{copy.home.subtitle}</p>
       </div>
 
-      <CharacterSearch locale={locale} region={region} />
+      <CharacterSearch locale={locale} region={scope.region} />
 
-      <RecentSearches locale={locale} region={region} />
+      <RecentSearches locale={locale} region={scope.region} />
 
-      <PendingSection
-        title={copy.home.meta.title}
-        scope={`${BRACKET_LABELS["solo-shuffle"]} · ${region.toUpperCase()}`}
-      >
-        {copy.home.meta.empty}
-      </PendingSection>
+      <section className="flex flex-col gap-3">
+        <SectionHeading title={copy.home.meta.title} scope={metaScope(scope, locale)} />
+        {meta.state === "listed" ? (
+          <SpecRepresentationTable locale={locale} board={meta.board} />
+        ) : (
+          <MissingCard>
+            {meta.state === "empty" ? copy.home.meta.empty : copy.home.meta.unavailable}
+          </MissingCard>
+        )}
+      </section>
 
-      <PendingSection title={copy.home.population.title}>
-        {copy.home.population.empty}
-      </PendingSection>
+      <section className="flex flex-col gap-3">
+        <SectionHeading title={copy.home.population.title} />
+        <MissingCard>{copy.home.population.empty}</MissingCard>
+      </section>
 
       <p className="text-subtle-foreground max-w-measure text-xs">{copy.home.lead}</p>
     </main>

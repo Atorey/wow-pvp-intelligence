@@ -203,17 +203,49 @@ describe("readBracketSegments", () => {
 describe("readRunPopulation", () => {
   it("devuelve la población de cada bracket, de una sola corrida y con su temporada", async () => {
     const db = fakeDb([
-      { season_id: 42, computed_at: COMPUTED_AT, bracket: "shuffle-priest-holy", population: 1817 },
-      { season_id: 42, computed_at: COMPUTED_AT, bracket: "shuffle-mage-frost", population: 662 },
+      {
+        season_id: 42,
+        computed_at: COMPUTED_AT,
+        bracket: "shuffle-mage-frost",
+        segment_min: 2000,
+        population: 500,
+      },
+      {
+        season_id: 42,
+        computed_at: COMPUTED_AT,
+        bracket: "shuffle-mage-frost",
+        segment_min: 2400,
+        population: 162,
+      },
+      {
+        season_id: 42,
+        computed_at: COMPUTED_AT,
+        bracket: "shuffle-priest-holy",
+        segment_min: 2000,
+        population: 1817,
+      },
     ]);
 
     const run = await readRunPopulation(db, { region: "eu" });
 
     assert.equal(run?.seasonId, 42);
     assert.equal(run?.computedAt, COMPUTED_AT);
+    // Los brackets salen de mayor a menor población aunque la consulta los
+    // traiga agrupados por tramo, que es más fino que el total que los ordena.
     assert.deepEqual(run?.brackets, [
-      { bracket: "shuffle-priest-holy", population: 1817 },
-      { bracket: "shuffle-mage-frost", population: 662 },
+      {
+        bracket: "shuffle-priest-holy",
+        population: 1817,
+        segments: [{ segmentMin: 2000, population: 1817 }],
+      },
+      {
+        bracket: "shuffle-mage-frost",
+        population: 662,
+        segments: [
+          { segmentMin: 2000, population: 500 },
+          { segmentMin: 2400, population: 162 },
+        ],
+      },
     ]);
 
     // Comparar specs es pintarlas juntas: la corrida es una sola para todas,

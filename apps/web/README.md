@@ -25,6 +25,7 @@ La búsqueda de personaje, el perfil y las páginas de spec ya funcionan de punt
 | **Sí** | La página de metodología: de dónde salen los datos, qué es la población observada, cómo se forman los tramos y qué significa cada nivel de confianza (§24 del [plan](../../docs/product-plan.md)).                                                          |
 | **Sí** | `robots.txt`, `sitemap.xml` y la regla que decide si una página entra en el índice ([ADR 0029](../../docs/decisions/0029-que-se-indexa-y-que-no.md)).                                                                                                       |
 | **Sí** | Las páginas de spec y de tramo: la tabla por tramo de rating, y el gear y los talentos de cada tramo con su base declarada.                                                                                                                                 |
+| **Sí** | La portada: el bloque «Qué se juega ahora», con el reparto de Solo Shuffle entre sus specs y qué parte del tramo alto es cada una.                                                                                                                          |
 
 ## Rutas
 
@@ -76,6 +77,16 @@ Es lo que **escribe** y lo que llama a Blizzard, junto con el botón "Actualizar
 - **Gear y talentos van en la misma página del tramo**, no en pestañas: la canónica no lleva query y un tramo indexado por sus nodos tiene que enseñarlos ahí. Cada familia —gear, nodos con árbol de héroe, talentos PvP— se decide con su propia base, que son las mismas tres con las que se decide la indexación.
 - **Las listas largas se pliegan con `<details>`, no se cortan**, y no con el `Collapsible` de shadcn: lo plegado tiene que estar en el HTML que se indexa y abrirse sin JavaScript.
 - **Los dos primeros niveles de la miga de pan son texto**: la ruta de clase todavía no está decidida (#98).
+
+## La portada
+
+Encima de todo va el buscador, que es la única puerta al producto (§23 del plan) y no necesita Postgres. Debajo, el bloque «Qué se juega ahora» lee el reparto de la modalidad entre sus specs. Lo que no se adivina leyendo los componentes:
+
+- **Es una sola lectura, y es la que ya piden las páginas de spec**: `readRunPopulation` por la caché de proceso. La portada no añade consulta ninguna; lo que añadió fue el desglose por tramo de esa lectura, del que sale «De 2400+».
+- **El fallo de lectura se atrapa aquí y en ninguna otra página.** Una excepción tumbaría también el buscador, que es lo caro de perder; el bloque dice que no se ha podido leer, que es distinto de que no haya nadie, y la línea `home-meta-unavailable` deja constancia.
+- **El corte del tramo alto es de producto y vive en `@wowpvp/core`** (`HIGH_RATING_FLOOR`). Una spec sin muestra suficiente ahí arriba no publica ni su proporción ni su índice, y lo decide `canShowComparison()`.
+- **El índice es la cifra más fácil de leer mal**: es la proporción de arriba dividida por la del conjunto, y su nota termina diciendo qué no es. No hay columna de variación semanal porque exige conservar la serie de corridas (#27), y su ausencia se declara en vez de rellenarse con un cero.
+- **No hay enlace a «las 40 specs»**: `/meta` está declarada y sin código (ADR 0020, decisión 5). Cada fila enlaza a su spec, y la barra lateral despliega las cuarenta.
 
 ## La medición y la privacidad
 

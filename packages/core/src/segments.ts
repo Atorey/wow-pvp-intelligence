@@ -105,6 +105,32 @@ export function servesIcpSubjects(
 }
 
 /**
+ * Dónde empieza "el tramo alto": el rating a partir del cual una población
+ * cuenta como la parte alta de la ladder (§17 del plan,
+ * `high_rating_representation`).
+ *
+ * Es una decisión de producto y no un detalle de la portada: de aquí sale el
+ * denominador con el que se compara el peso de una spec arriba contra su peso
+ * en toda la modalidad, así que moverlo cambia todas esas cifras a la vez. Por
+ * eso vive donde la escala y no en quien la pinta.
+ *
+ * Cae en un borde de la escala a propósito —2400 abre un tramo, no lo parte—,
+ * porque lo que se suma son filas de `population_segments` enteras: un corte a
+ * mitad de tramo obligaría a repartir una población que no sabemos cómo se
+ * reparte por dentro.
+ */
+export const HIGH_RATING_FLOOR = 2400;
+
+/**
+ * ¿Está este tramo dentro de la parte alta? Se pregunta por el suelo del tramo
+ * y no por el rating de nadie: la unidad de la que hay población guardada es el
+ * tramo.
+ */
+export function isHighRating(segmentMin: number, floor: number = HIGH_RATING_FLOOR): boolean {
+  return segmentMin >= floor;
+}
+
+/**
  * Todos los tramos de una escala, de menor a mayor, incluido el abierto de
  * arriba. Útil para recorrer agregados sin dejarse ninguno fuera.
  */

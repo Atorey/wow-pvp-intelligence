@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  HIGH_RATING_FLOOR,
   allSegments,
   formatSegment,
+  isHighRating,
   nextSegment,
   previousSegment,
   segmentFor,
@@ -79,4 +81,17 @@ test("el fondo de la ladder no es ICP por mucha gente que se acumule ahí", () =
   assert.equal(servesIcpSubjects(segmentFor(500)), false);
   // El primer tramo no tiene a nadie debajo: no sirve a ningún sujeto.
   assert.equal(servesIcpSubjects(segmentFor(0)), false);
+});
+
+test("el tramo alto empieza donde empieza un tramo, no a mitad de uno", () => {
+  // Lo que se suma para decir "de 2400+" son filas enteras de
+  // population_segments. Un suelo a mitad de tramo obligaría a repartir por
+  // dentro una población de la que solo se guarda el total.
+  assert.equal(segmentFor(HIGH_RATING_FLOOR).min, HIGH_RATING_FLOOR);
+});
+
+test("está en el tramo alto quien abre en el suelo o por encima", () => {
+  assert.equal(isHighRating(2400), true);
+  assert.equal(isHighRating(3000), true);
+  assert.equal(isHighRating(2200), false);
 });
