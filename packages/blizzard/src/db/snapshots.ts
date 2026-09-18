@@ -108,19 +108,17 @@ export async function insertProfileSnapshot(
     snapshotId = existing.rows[0]?.id ?? null;
   }
 
-  // Una fila por slot, no un unnest en bloque: enchantment_ids, gem_item_ids y
-  // bonus_list son int[], y unnest sobre un array de arrays los aplanaría en
+  // Un INSERT multi-fila, no un unnest en bloque: enchantment_ids, gem_item_ids
+  // y bonus_list son int[], y unnest sobre un array de arrays los aplanaría en
   // una sola dimensión, mezclando las gemas de un item con las del siguiente.
-  // Son ~16 slots por personaje dentro de la misma transacción.
-  for (const item of snapshotId ? input.gear : []) {
-    await client.query(
-      `insert into character_snapshot_gear
-         (snapshot_id, slot, item_id, item_name, item_level, quality,
-          enchantment_ids, enchantment_names, gem_item_ids, gem_item_names, bonus_list)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-       on conflict (snapshot_id, slot) do nothing`,
-      [
-        snapshotId,
+  // Con una tupla de parámetros por slot cada array sigue siendo un parámetro
+  // suyo y llega intacto, y el personaje entero paga una latencia de red en vez
+  // de las dieciséis que costaba una consulta por slot.
+  if (snapshotId && input.gear.length > 0) {
+    const params: unknown[] = [snapshotId];
+    const tuples = input.gear.map((item) => {
+      const start = params.length;
+      params.push(
         item.slot,
         item.itemId,
         item.itemName,
@@ -131,7 +129,19 @@ export async function insertProfileSnapshot(
         item.gemItemIds,
         item.gemItemNames,
         item.bonusList,
-      ],
+      );
+      // $1 es el snapshot_id, compartido por todas las filas.
+      const slots = Array.from({ length: 10 }, (_, i) => `$${start + 1 + i}`);
+      return `($1, ${slots.join(", ")})`;
+    });
+
+    await client.query(
+      `insert into character_snapshot_gear
+         (snapshot_id, slot, item_id, item_name, item_level, quality,
+          enchantment_ids, enchantment_names, gem_item_ids, gem_item_names, bonus_list)
+       values ${tuples.join(", ")}
+       on conflict (snapshot_id, slot) do nothing`,
+      params,
     );
   }
 
