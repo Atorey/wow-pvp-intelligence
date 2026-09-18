@@ -120,9 +120,9 @@ export function buildCoverage(
  *
  * `population` describe cuánta gente hay en el objetivo; `gear`, con cuánta de
  * ella se puede comparar. Enseñar la primera como si fuera la segunda es el
- * error que `population_segments.confidence` lleva guardado: filas `high` con
- * `gear_sample = 0`, que es población de sobra y ni un perfil con el que
- * comparar.
+ * error que `population_segments.confidence` guardó mientras existió: filas
+ * `high` con `gear_sample = 0`, que es población de sobra y ni un perfil con el
+ * que comparar. Esa columna ya no está (ADR 0033); la lección, sí.
  */
 export function coverageConfidence(pair: CoveragePair): {
   population: ConfidenceLevel;

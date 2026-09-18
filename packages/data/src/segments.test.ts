@@ -17,8 +17,9 @@ const COMPUTED_AT = new Date("2026-08-20T03:00:00Z");
 
 /**
  * Una fila como las que hay hoy en la tabla: 3.000 personas de población y cero
- * perfiles con gear. Lleva la columna `confidence` con el valor que de verdad se
- * guardó —`high`— para que los tests puedan comprobar que no se lee.
+ * perfiles con gear. Arrastra un `confidence` a `high` que la tabla ya no tiene
+ * (ADR 0033) porque lo que se comprueba aquí no es que la columna falte, sino
+ * que el mapeo no leería una confianza de la fila ni aunque volviera a estar.
  */
 function row(overrides: Partial<SegmentRow> = {}): SegmentRow & { confidence: string } {
   return {

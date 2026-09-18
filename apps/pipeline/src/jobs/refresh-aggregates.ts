@@ -4,6 +4,7 @@ import {
   DEFAULT_SEGMENT_SCALE,
   aggregateSegment,
   buildCoverage,
+  confidenceFor,
   formatSegment,
   groupBySegment,
   isActiveWithin,
@@ -830,14 +831,14 @@ async function writeSegments(
         `insert into population_segments
            (computed_at, region, season_id, bracket, class_slug, spec_slug,
             segment_id, segment_min, segment_max, activity_window_days,
-            sample_size, confidence, rating_median, rating_p25, rating_p75,
+            sample_size, rating_median, rating_p25, rating_p75,
             rating_min, rating_max, equipped_item_level_median,
             item_level_sample, gear_sample, talent_sample,
             talent_node_sample, pvp_talent_sample,
             profile_data_from, profile_data_to, excluded_search,
             active_by_delta, active_by_first_seen)
          values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
-                 $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28)
+                 $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)
          returning id`,
         [
           computedAt,
@@ -851,7 +852,6 @@ async function writeSegments(
           segment.segmentMax,
           segment.window,
           summary.sampleSize,
-          summary.confidence,
           summary.ratingMedian,
           summary.ratingP25,
           summary.ratingP75,
@@ -895,7 +895,10 @@ async function writeSegments(
 
 function printSegments(segments: readonly ComputedSegment[]): void {
   console.log("\n=== AGREGADOS POR SEGMENTO ===");
-  console.log("(confianza según §13.4: high n≥100, medium n≥30, por debajo no se compara)\n");
+  console.log(
+    "(confianza de POBLACIÓN según §13.4: high n≥100, medium n≥30. La de la " +
+      "comparación sale del gear, que tiene su propio denominador)\n",
+  );
 
   let currentBracket = "";
   for (const segment of segments) {
@@ -924,7 +927,8 @@ function printSegments(segments: readonly ComputedSegment[]): void {
         : `${segment.activeByDelta} con partidas vistas`;
 
     console.log(
-      `  ${label}: n=${summary.sampleSize} (${summary.confidence}, ventana ${segment.window}d, ` +
+      `  ${label}: n=${summary.sampleSize} (${confidenceFor(summary.sampleSize)}, ` +
+        `ventana ${segment.window}d, ` +
         `${evidencia}) · mediana ${summary.ratingMedian ?? "—"} CR · ${perfiles}`,
     );
   }
