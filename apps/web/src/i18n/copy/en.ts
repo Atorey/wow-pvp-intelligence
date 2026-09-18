@@ -107,11 +107,47 @@ export const en = {
     meta: {
       title: "What's being played",
       /**
-       * El estado vacío nombra lo que faltará y no se disculpa: la §1.5 del
-       * brief pide declarar con palabras lo que no hay, no dejar el hueco.
+       * Las dos ausencias del bloque, que no son la misma y no se dicen igual
+       * (§1.5 del brief): en una no hay a quién describir, en la otra no hemos
+       * podido mirar. Confundirlas convertiría un fallo nuestro en un hecho
+       * sobre la ladder.
        */
-      empty:
-        "This reading isn't published yet. When it is, the specs observed in Solo Shuffle go here, with how many characters carry each one and what share of them sit above 2400.",
+      empty: "The most recent aggregate run has nobody observed in Solo Shuffle.",
+      unavailable: "These figures couldn't be read right now. Search still works.",
+      table: {
+        rank: "#",
+        spec: "Spec",
+        weight: "Relative weight",
+        observed: "Observed",
+        ofLadder: "Of the ladder",
+        ofHigh: (rating: string) => `Of ${rating}+`,
+        index: "Index",
+        /**
+         * Lo que se escribe donde iría la proporción de una spec arriba cuando
+         * su muestra no llega. Dice la cifra que falta, no un guion: un hueco
+         * se lee como un cero.
+         */
+        noHigh: (needed: string) => `fewer than ${needed} observed`,
+        shareNote: (observed: string, bracket: string, specs: string) =>
+          `Shares are over the ${observed} characters observed in ${bracket} in this run, across its ${specs} specs.`,
+        /**
+         * El índice es la cifra más fácil de leer mal, así que su nota dice qué
+         * división es y termina diciendo qué no es (§3.8 del brief).
+         */
+        indexNote: (rating: string) =>
+          `The index is a spec's share of ${rating}+ divided by its share of the whole bracket: ×1.9 means it weighs almost twice as much up there as it does overall. It is not a measure of how strong it is.`,
+        highNote: (needed: string, rating: string) =>
+          `A spec with fewer than ${needed} characters observed above ${rating} publishes neither its share up there nor its index: at that size a share describes a handful of people.`,
+        /** La caja «lo que esta tabla no dice» del mockup de /meta, en una línea. */
+        notSaid:
+          "Representation is not performance. The leaderboard publishes no per-match result, so nothing here says which spec wins more: a spec can be overrepresented for being popular or easy to play.",
+        /**
+         * La columna de variación semanal del mockup no está, y se dice por qué
+         * en vez de dejar la tabla como si nunca hubiera tenido una.
+         */
+        trendPending:
+          "Week-on-week variation isn't published yet: it needs the series of past runs kept, not only the most recent one.",
+      },
     },
 
     population: {
@@ -175,7 +211,12 @@ export const en = {
    * dicen igual la caja Player Gap y las páginas de spec.
    */
   aggregates: {
-    computedAt: (when: string) => `Segment figures computed ${when}`,
+    /**
+     * Sin nombrar el escalón: la misma frase acompaña ahora al reparto de la
+     * modalidad en la portada, que no es un segmento. Qué cifras son lo dice el
+     * bloque que hay encima.
+     */
+    computedAt: (when: string) => `Figures computed ${when}`,
     /**
      * La corrida vigente ya no es la que debería haber (ADR 0031). No es un
      * error de la página: el dato de ayer sigue siendo cierto sobre ayer, y lo

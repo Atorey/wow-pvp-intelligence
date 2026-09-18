@@ -4,6 +4,7 @@ import { test } from "node:test";
 import {
   formatCount,
   formatDate,
+  formatIndex,
   formatPercent,
   formatPercentile,
   formatRating,
@@ -56,10 +57,21 @@ test("una proporción de población lleva un decimal, y un tramo pequeño no sal
   // 18 de 4.412: con el formato de la adopción se leería "0 %" de un tramo que
   // tiene gente.
   assert.equal(formatShare(18 / 4412, "en"), "0.4%");
+  // El decimal no desaparece cuando es cero: en una columna, "5 %" al lado de
+  // "6,8 %" se lee como dos precisiones distintas.
+  assert.equal(formatShare(0.05, "es"), "5,0 %");
 });
 
 test("no se inventan decimales que la muestra no sostiene", () => {
   // La fracción cruda va siempre al lado, así que el porcentaje es la lectura
   // rápida y no la cifra que manda.
   assert.equal(formatPercent(128 / 312, "en"), "41%");
+});
+
+test("el índice lleva el signo de multiplicar y un decimal fijo", () => {
+  // Con decimal también en el entero: en una columna donde alternen "×2" y
+  // "×1,3" las dos cifras parecen medidas con distinta precisión.
+  assert.equal(formatIndex(1.9, "es"), "×1,9");
+  assert.equal(formatIndex(2, "en"), "×2.0");
+  assert.equal(formatIndex(0.64, "en"), "×0.6");
 });

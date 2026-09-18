@@ -4,6 +4,7 @@ import { MIN_SAMPLE_MEDIUM, segmentFor } from "@wowpvp/core";
 import {
   provenanceFor,
   type AdoptionRead,
+  type BracketPopulation,
   type RunPopulationRead,
   type SegmentRead,
   type VariableKind,
@@ -198,14 +199,23 @@ describe("medianSegment", () => {
 });
 
 describe("el puesto de la spec en la modalidad", () => {
+  /**
+   * Un bracket de la corrida. Lleva su desglose por tramo porque la lectura lo
+   * trae, aunque el puesto se decida solo con el total: un fixture sin tramos
+   * sería una población que no está en ninguna parte.
+   */
+  function bracketOf(bracket: string, population: number): BracketPopulation {
+    return { bracket, population, segments: [{ segmentMin: 1800, population }] };
+  }
+
   function run(overrides: Partial<RunPopulationRead> = {}): RunPopulationRead {
     return {
       seasonId: 42,
       computedAt: COMPUTED_AT,
       brackets: [
-        { bracket: "shuffle-priest-holy", population: 5000 },
-        { bracket: "shuffle-mage-frost", population: 4412 },
-        { bracket: "shuffle-warrior-arms", population: 1286 },
+        bracketOf("shuffle-priest-holy", 5000),
+        bracketOf("shuffle-mage-frost", 4412),
+        bracketOf("shuffle-warrior-arms", 1286),
       ],
       ...overrides,
     };
@@ -232,10 +242,7 @@ describe("el puesto de la spec en la modalidad", () => {
       bracket: "shuffle-mage-frost",
       segments: FROST,
       run: run({
-        brackets: [
-          { bracket: "shuffle-overall", population: 99999 },
-          { bracket: "shuffle-mage-frost", population: 4412 },
-        ],
+        brackets: [bracketOf("shuffle-overall", 99999), bracketOf("shuffle-mage-frost", 4412)],
       }),
     });
 
@@ -259,7 +266,7 @@ describe("el puesto de la spec en la modalidad", () => {
     const overview = specOverviewFor({
       bracket: "shuffle-mage-frost",
       segments: FROST,
-      run: run({ brackets: [{ bracket: "shuffle-priest-holy", population: 5000 }] }),
+      run: run({ brackets: [bracketOf("shuffle-priest-holy", 5000)] }),
     });
 
     assert.equal(overview?.standing, null);

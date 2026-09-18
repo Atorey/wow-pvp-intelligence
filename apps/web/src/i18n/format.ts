@@ -67,9 +67,29 @@ export function formatPercent(value: number, locale: Locale): string {
  * tramos que tienen gente. Tampoco va sola: al lado va el recuento del que sale.
  */
 export function formatShare(value: number, locale: Locale): string {
-  return new Intl.NumberFormat(locale, { style: "percent", maximumFractionDigits: 1 }).format(
-    value,
-  );
+  // El decimal es fijo, también cuando es un cero: estas cifras se leen en
+  // columna, y un "5 %" al lado de un "6,8 %" parece medido con otra precisión.
+  return new Intl.NumberFormat(locale, {
+    style: "percent",
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  }).format(value);
+}
+
+/**
+ * Cuántas veces cabe una proporción en otra: "×1,3".
+ *
+ * Con el signo de multiplicar delante, y no con una "x" de teclado, porque es la
+ * operación que describe —una proporción dividida por otra— y no una letra. Un
+ * decimal fijo, incluido el del entero: una columna donde alternen "×2" y "×1,3"
+ * se lee como dos precisiones distintas de la misma cifra.
+ */
+export function formatIndex(value: number, locale: Locale): string {
+  const number = new Intl.NumberFormat(locale, {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  }).format(value);
+  return `×${number}`;
 }
 
 /**

@@ -226,10 +226,26 @@ export async function readBracketSegments(
   return rows.map(toSegmentRead);
 }
 
+/** La población de un tramo dentro de un bracket de la corrida. */
+export interface SegmentPopulation {
+  /** El suelo del tramo: la clave con la que se decide qué es "la parte alta". */
+  segmentMin: number;
+  population: number;
+}
+
 /** La población de un bracket dentro de una corrida. */
 export interface BracketPopulation {
   bracket: string;
   population: number;
+  /**
+   * Cómo se reparte esa población por tramos, de menor a mayor.
+   *
+   * Viaja con el total y no en una lectura aparte porque sale de las mismas
+   * filas: quien compara el peso de una spec arriba con su peso en la modalidad
+   * necesita las dos cifras **de la misma corrida**, y dos consultas darían dos
+   * fechas en cuanto una cayera entre medias.
+   */
+  segments: SegmentPopulation[];
 }
 
 /**
@@ -247,6 +263,7 @@ interface RunPopulationRow {
   season_id: number;
   computed_at: Date;
   bracket: string;
+  segment_min: number;
   population: number;
 }
 
@@ -254,11 +271,17 @@ interface RunPopulationRow {
  * La población de todos los brackets de la última corrida, en una consulta.
  *
  * Existe para lo que una spec no puede saber de sí misma: qué parte de lo
- * observado en la modalidad es suyo y en qué puesto queda. Comparar specs es
- * pintarlas juntas, así que aquí **no** se mezclan corridas como en
- * `readSegmentSamples`: todas las filas son de la misma. Y "la más reciente de
- * la región" es una sola fecha para todos los brackets porque
- * `refresh-aggregates` escribe la corrida entera con un único `computed_at`.
+ * observado en la modalidad es suyo, en qué puesto queda y qué parte de ella
+ * está en la parte alta de la ladder. Comparar specs es pintarlas juntas, así
+ * que aquí **no** se mezclan corridas como en `readSegmentSamples`: todas las
+ * filas son de la misma. Y "la más reciente de la región" es una sola fecha
+ * para todos los brackets porque `refresh-aggregates` escribe la corrida entera
+ * con un único `computed_at`.
+ *
+ * Baja el desglose por tramo y no solo el total porque el corte que separa "la
+ * parte alta" es una decisión de producto que vive en `packages/core`: aquí se
+ * devuelven los tramos y quien compara decide dónde empieza lo alto, en vez de
+ * quedar ese número escrito en una `where` de la que ya no se puede mover.
  *
  * Suma `sample_size`, que es población activa **en la ventana de cada escalón**
  * (ADR 0007, punto 6): tramos contados con 7 días y con 14 entran en el mismo
@@ -273,24 +296,36 @@ export async function readRunPopulation(
   key: { region: Region },
 ): Promise<RunPopulationRead | null> {
   const { rows } = await db.query<RunPopulationRow>(
-    `select season_id, computed_at, bracket, sum(sample_size)::int as population
+    `select season_id, computed_at, bracket, segment_min, sum(sample_size)::int as population
        from population_segments
       where region = $1
         and computed_at = (
           select max(computed_at) from population_segments where region = $1
         )
-      group by season_id, computed_at, bracket
-      order by population desc, bracket`,
+      group by season_id, computed_at, bracket, segment_min
+      order by bracket, segment_min`,
     [key.region],
   );
 
   const first = rows[0];
   if (!first) return null;
 
+  const byBracket = new Map<string, BracketPopulation>();
+  for (const row of rows) {
+    const entry = byBracket.get(row.bracket) ?? { bracket: row.bracket, population: 0, segments: [] };
+    entry.population += row.population;
+    entry.segments.push({ segmentMin: row.segment_min, population: row.population });
+    byBracket.set(row.bracket, entry);
+  }
+
   return {
     seasonId: first.season_id,
     computedAt: first.computed_at,
-    brackets: rows.map((row) => ({ bracket: row.bracket, population: row.population })),
+    // El orden por población ya no lo puede dar la consulta, que ahora agrupa
+    // más fino que el total con el que se ordena.
+    brackets: [...byBracket.values()].sort(
+      (a, b) => b.population - a.population || a.bracket.localeCompare(b.bracket),
+    ),
   };
 }
 
