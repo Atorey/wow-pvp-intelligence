@@ -152,8 +152,38 @@ export const en = {
 
     population: {
       title: "How many are playing each bracket",
-      empty:
-        "This reading isn't published yet. When it is, the number of distinct characters observed in each bracket over the last 7 days goes here.",
+      /** El ámbito del bloque: a qué región, temporada y ventana se refiere. */
+      window: (days: string) => `last ${days} days`,
+      /**
+       * Las dos ausencias, otra vez separadas: nadie dentro de la ventana no es
+       * lo mismo que no haber podido mirar.
+       */
+      empty: "No character has been observed with activity in the last few days.",
+      unavailable: "These figures couldn't be read right now. Search still works.",
+      list: {
+        /**
+         * Lo que se escribe en las cuatro modalidades que el pipeline no
+         * ingiere. No es una cifra baja ni un dato pendiente de cargar: de ellas
+         * no hay ninguna fila, y se dice con esas palabras (§1.5 del brief).
+         */
+        notIngested: "not ingested yet",
+        notIngestedNote:
+          "The four brackets without a figure don't have a low one: their leaderboards aren't ingested yet, so there isn't a single row of them in the database.",
+        note: (observed: string, bracket: string, days: string) =>
+          `Distinct characters observed in ${bracket} with activity in the ${days} days up to this run. One character counts once even if they play several of its specs, which is why ${observed} is not the sum of the specs above.`,
+        /**
+         * De qué está hecha la cifra. Va pegada a ella y no en la metodología
+         * porque la mayor parte no es actividad vista: es la cota más antigua
+         * defendible, y sin decirlo el número promete más de lo que sostiene.
+         */
+        evidence: (delta: string) =>
+          `Of those, ${delta} have been seen raising their match counter between two of our observations. The rest are dated at the first time we saw them on the ladder, which is the oldest bound the data supports: nobody gets on the list without having played.`,
+        observed:
+          "Observed = seen on the leaderboard we read, or looked up here. It is not every player.",
+        /** Igual que en la tabla de arriba: la variación del mockup no está. */
+        trendPending:
+          "Variation over the previous week isn't published yet: it needs the earlier window kept, not only the most recent run.",
+      },
     },
   },
 

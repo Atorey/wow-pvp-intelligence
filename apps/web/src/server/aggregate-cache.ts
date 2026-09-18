@@ -1,9 +1,11 @@
 import { aggregateCacheUntil, type Region } from "@wowpvp/core";
 import {
+  readActiveCharacters,
   readAdoptionFor,
   readBracketSegments,
   readRunPopulation,
   readSegmentSamples,
+  type ActiveCharactersRead,
   type AdoptionRead,
   type Queryable,
   type RunPopulationRead,
@@ -170,6 +172,41 @@ export function cachedRunPopulation(
   region: Region,
 ): Promise<RunPopulationRead | null> {
   return runCache.read(region, () => readRunPopulation(db, { region }));
+}
+
+/** Sin extractor: la fecha es la de la corrida, y la trae quien llama. */
+const activeCache = new AggregateCache<ActiveCharactersRead>(() => null);
+
+/**
+ * Cuánta gente distinta hay dentro de la ventana de actividad de la modalidad.
+ *
+ * La ventana se ancla al `computed_at` de la corrida y no al reloj de la
+ * visita, y por eso la fecha entra en la clave. `refresh-aggregates` reconstruye
+ * `character_activity` al empezar y escribe los escalones después, en la misma
+ * corrida y con el mismo instante: contar los 7 días anteriores a esa fecha es
+ * contar sobre la tabla tal y como quedó. Medirlos contra `Date.now()` daría una
+ * cifra que se mueve sola entre dos visitas sin que haya entrado un dato nuevo,
+ * y que no casaría con la fecha que la propia portada declara debajo.
+ */
+export function cachedActiveCharacters(
+  db: Queryable,
+  key: {
+    region: Region;
+    seasonId: number;
+    brackets: readonly string[];
+    /** La corrida sobre la que se cuenta: lo que fecha la respuesta y su vigencia. */
+    computedAt: Date;
+    /** Dónde empieza la ventana, ya resuelta por `activityWindowStart()`. */
+    since: Date;
+  },
+): Promise<ActiveCharactersRead> {
+  return activeCache.read(
+    // La fecha de la corrida entra en la clave: la de mañana pregunta por una
+    // clave que no existe y la de hoy caduca sola, sin invalidación escrita.
+    `${key.region}|${key.seasonId}|${key.computedAt.getTime()}`,
+    () => readActiveCharacters(db, key),
+    key.computedAt,
+  );
 }
 
 const samplesCache = new AggregateCache<SegmentSampleRead[]>(

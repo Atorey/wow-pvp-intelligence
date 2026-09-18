@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { deriveActivity, isActiveWithin } from "./activity";
+import { activityWindowStart, deriveActivity, isActiveWithin } from "./activity";
 
 const DAY = 86_400_000;
 const NOW = new Date("2026-08-19T12:00:00Z");
@@ -87,6 +87,19 @@ test("la ventana se mide contra la fecha de actividad, no contra la de la últim
   assert.equal(isActiveWithin(activity, NOW, 14), false);
   // Dentro de la de 30, que es la de "season active" del ranking, no la del meta.
   assert.equal(isActiveWithin(activity, NOW, 30), true);
+});
+
+test("el límite de la ventana y el predicado recortan por la misma fecha", () => {
+  // Las dos formas de aplicar el mismo recorte: la de SQL, que necesita el
+  // límite como fecha, y la de memoria. El borde exacto entra en las dos —una
+  // abierta en `>` y otra en `>=` serían dos poblaciones distintas.
+  const start = activityWindowStart(NOW, 7);
+  assert.equal(start.getTime(), daysAgo(7).getTime());
+
+  const onTheEdge = deriveActivity([seen(20, 100), seen(7, 140)]);
+  assert.ok(onTheEdge);
+  assert.equal(onTheEdge.lastActiveAt.getTime(), start.getTime());
+  assert.equal(isActiveWithin(onTheEdge, NOW, 7), true);
 });
 
 test("dos contadores de origen distinto no se restan entre sí", () => {

@@ -1,10 +1,11 @@
 import { getRegion } from "@wowpvp/blizzard";
-import { BRACKET_LABELS, HOME_PATH, METHODOLOGY_PATH, PRIVACY_PATH } from "@wowpvp/core";
+import { HOME_PATH, METHODOLOGY_PATH, PRIVACY_PATH } from "@wowpvp/core";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { copyFor } from "../i18n/copy";
 import { type Locale, localizedPathname } from "../i18n/locales";
+import { BRACKET_NAMES, isPublishedBracket } from "./brackets";
 import { ClassNav } from "./class-nav";
 import { LanguageSwitch } from "./language-switch";
 import { MobileMenu } from "./mobile-menu";
@@ -20,16 +21,6 @@ import { BookOpen, ShieldCheck } from "lucide-react";
  * atribución tiene que estar en **todas** (brief §4.3, cláusula 2.m de la ToU):
  * repetirla en cada página es garantizar que algún día falte en una.
  */
-
-/**
- * Las modalidades que el jugador conoce, en el orden en que las nombra.
- *
- * Solo la primera está publicada. Las otras cuatro **no son páginas que falten**:
- * el pipeline no ingiere sus leaderboards, así que de ellas no hay dato ninguno.
- * Están escritas aquí y no en `packages/core` justo por eso — no son rutas ni
- * conceptos del dominio, son los nombres del juego.
- */
-const BRACKETS = [BRACKET_LABELS["solo-shuffle"], "2v2", "3v3", "RBG", "BG Blitz"] as const;
 
 /**
  * Un bloque de la barra lateral: etiqueta en versalita y lista.
@@ -68,21 +59,25 @@ export function SiteSidebar({ locale }: { locale: Locale }) {
       <QuickSearch locale={locale} region={region} />
 
       <SidebarBlock label={copy.nav.bracketsLabel}>
-        {BRACKETS.map((bracket, index) => (
-          <li key={bracket}>
-            {/*
-             * Solo Shuffle es la única publicada, y es además donde ya está
-             * el visitante: se marca como actual en vez de enlazar a la
-             * página en la que ya se encuentra el sitio entero.
-             */}
-            <span
-              aria-current={index === 0 ? "true" : undefined}
-              className={`${SIDEBAR_ROW} ${index === 0 ? "bg-accent text-accent-foreground" : "text-muted-foreground"}`}
-            >
-              {bracket}
-            </span>
-          </li>
-        ))}
+        {BRACKET_NAMES.map((bracket) => {
+          const published = isPublishedBracket(bracket);
+
+          return (
+            <li key={bracket}>
+              {/*
+               * Solo Shuffle es la única publicada, y es además donde ya está
+               * el visitante: se marca como actual en vez de enlazar a la
+               * página en la que ya se encuentra el sitio entero.
+               */}
+              <span
+                aria-current={published ? "true" : undefined}
+                className={`${SIDEBAR_ROW} ${published ? "bg-accent text-accent-foreground" : "text-muted-foreground"}`}
+              >
+                {bracket}
+              </span>
+            </li>
+          );
+        })}
       </SidebarBlock>
 
       <SidebarBlock label={copy.nav.classesLabel}>

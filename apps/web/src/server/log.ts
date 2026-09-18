@@ -26,11 +26,11 @@ export type ServerEvent =
   /** No se pudo escribir un evento de la North Star: una fila de métrica perdida. */
   | "gap-view-write-failed"
   /**
-   * La portada no pudo leer el reparto de la modalidad. No tumba la página —el
-   * buscador no necesita Postgres—, así que sin esta línea el fallo no se vería
-   * en ninguna parte.
+   * La portada no pudo leer sus cifras: ni el reparto de la modalidad ni la
+   * población de la ventana. No tumba la página —el buscador no necesita
+   * Postgres—, así que sin esta línea el fallo no se vería en ninguna parte.
    */
-  | "home-meta-unavailable"
+  | "home-data-unavailable"
   /** No se pudo preguntar a Blizzard: sin cuota o sin presupuesto de tiempo. */
   | "blizzard-unavailable";
 

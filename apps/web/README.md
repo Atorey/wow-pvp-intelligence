@@ -26,6 +26,7 @@ La búsqueda de personaje, el perfil y las páginas de spec ya funcionan de punt
 | **Sí** | `robots.txt`, `sitemap.xml` y la regla que decide si una página entra en el índice ([ADR 0029](../../docs/decisions/0029-que-se-indexa-y-que-no.md)).                                                                                                       |
 | **Sí** | Las páginas de spec y de tramo: la tabla por tramo de rating, y el gear y los talentos de cada tramo con su base declarada.                                                                                                                                 |
 | **Sí** | La portada: el bloque «Qué se juega ahora», con el reparto de Solo Shuffle entre sus specs y qué parte del tramo alto es cada una.                                                                                                                          |
+| **Sí** | La portada: el bloque «Cuánta gente hay en cada modalidad», con los personajes distintos observados en la ventana de actividad y las cuatro modalidades que el pipeline no ingiere diciéndolo.                                                              |
 
 ## Rutas
 
@@ -80,13 +81,17 @@ Es lo que **escribe** y lo que llama a Blizzard, junto con el botón "Actualizar
 
 ## La portada
 
-Encima de todo va el buscador, que es la única puerta al producto (§23 del plan) y no necesita Postgres. Debajo, el bloque «Qué se juega ahora» lee el reparto de la modalidad entre sus specs. Lo que no se adivina leyendo los componentes:
+Encima de todo va el buscador, que es la única puerta al producto (§23 del plan) y no necesita Postgres. Debajo, dos bloques: «Qué se juega ahora» lee el reparto de la modalidad entre sus specs, y «Cuánta gente hay en cada modalidad» cuenta la población dentro de la ventana de actividad. Lo que no se adivina leyendo los componentes:
 
-- **Es una sola lectura, y es la que ya piden las páginas de spec**: `readRunPopulation` por la caché de proceso. La portada no añade consulta ninguna; lo que añadió fue el desglose por tramo de esa lectura, del que sale «De 2400+».
-- **El fallo de lectura se atrapa aquí y en ninguna otra página.** Una excepción tumbaría también el buscador, que es lo caro de perder; el bloque dice que no se ha podido leer, que es distinto de que no haya nadie, y la línea `home-meta-unavailable` deja constancia.
+- **El reparto es la lectura que ya piden las páginas de spec**: `readRunPopulation` por la caché de proceso. No añadió consulta ninguna; lo que añadió fue el desglose por tramo de esa lectura, del que sale «De 2400+».
+- **El fallo de lectura se atrapa aquí y en ninguna otra página.** Una excepción tumbaría también el buscador, que es lo caro de perder; el bloque dice que no se ha podido leer, que es distinto de que no haya nadie, y la línea `home-data-unavailable` deja constancia.
 - **El corte del tramo alto es de producto y vive en `@wowpvp/core`** (`HIGH_RATING_FLOOR`). Una spec sin muestra suficiente ahí arriba no publica ni su proporción ni su índice, y lo decide `canShowComparison()`.
 - **El índice es la cifra más fácil de leer mal**: es la proporción de arriba dividida por la del conjunto, y su nota termina diciendo qué no es. No hay columna de variación semanal porque exige conservar la serie de corridas (#27), y su ausencia se declara en vez de rellenarse con un cero.
 - **No hay enlace a «las 40 specs»**: `/meta` está declarada y sin código (ADR 0020, decisión 5). Cada fila enlaza a su spec, y la barra lateral despliega las cuarenta.
+- **La población de la ventana no sale de sumar escalones, y por eso es una consulta propia** (`readActiveCharacters`). `population_segments` cuenta cada escalón con **su** ventana —7 días o 14, según le llegara la muestra— y un personaje que juega varias specs está en varios escalones. Medido el 18 de septiembre de 2026: 38.015 personajes distintos frente a 43.578 de suma de escalones. La cifra sale de `character_activity`, nunca de contar filas de `character_snapshots`, que desde el ADR 0009 solo guarda las que cambian.
+- **La ventana se ancla al `computed_at` de la corrida, no al reloj de la visita.** `refresh-aggregates` reconstruye `character_activity` al empezar y escribe los escalones después con el mismo instante, así que los 7 días anteriores a esa fecha son los que la tabla tiene contados. Con `Date.now()` la cifra se movería entre dos visitas sin dato nuevo y no casaría con la fecha que el propio bloque declara debajo.
+- **Las cinco modalidades se pintan y cuatro dicen que no tienen dato.** El pipeline solo ingiere Solo Shuffle (#34 y #37 traerían las demás): esconderlas dejaría el titular —«cada modalidad»— prometiendo cinco con una sola fila a la vista, y lo que falta se dice con palabras (§1.5 del brief). Sus nombres viven en [`src/components/brackets.ts`](src/components/brackets.ts), compartidos con la barra lateral.
+- **El desglose de evidencia va pegado a la cifra.** Parte de la población entra por `played-delta` —le hemos visto subir el contador— y parte por `first-seen`, que solo sostiene que jugó antes de nuestra primera observación. Un recuento sin ese reparto promete más de lo que aguanta (§27 del plan). La variación semanal sigue sin publicarse, por lo mismo que en la tabla de arriba (#27).
 
 ## La medición y la privacidad
 

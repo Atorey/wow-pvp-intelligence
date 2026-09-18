@@ -150,6 +150,19 @@ export function deriveActivity(
 }
 
 /**
+ * Dónde empieza la ventana: la fecha a partir de la cual una actividad cuenta.
+ *
+ * Existe porque el mismo recorte se aplica de dos formas que tienen que dar lo
+ * mismo — fila a fila en memoria con `isActiveWithin()`, y de golpe en un
+ * `where` de SQL, que necesita el límite como fecha y no como predicado. Con
+ * dos restas escritas por separado, una ventana de 7 días abierta en `>=` y
+ * otra en `>` son dos poblaciones distintas que nadie decidió que lo fueran.
+ */
+export function activityWindowStart(now: Date, days: ActivityWindowDays): Date {
+  return new Date(now.getTime() - days * MS_PER_DAY);
+}
+
+/**
  * Única puerta para decidir si una fecha de actividad cae dentro de la ventana.
  *
  * Aislada como `canShowComparison()`: nada de comparar milisegundos suelto por
@@ -161,5 +174,5 @@ export function isActiveWithin(
   now: Date,
   days: ActivityWindowDays,
 ): boolean {
-  return activity.lastActiveAt.getTime() >= now.getTime() - days * MS_PER_DAY;
+  return activity.lastActiveAt >= activityWindowStart(now, days);
 }

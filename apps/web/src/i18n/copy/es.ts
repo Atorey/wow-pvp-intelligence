@@ -87,8 +87,22 @@ export const es: Copy = {
 
     population: {
       title: "Cuánta gente hay en cada modalidad",
-      empty:
-        "Esta lectura todavía no está publicada. Cuando lo esté, aquí estará cuántos personajes distintos se han observado en cada modalidad en los últimos 7 días.",
+      window: (days) => `últimos ${days} días`,
+      empty: "No consta ningún personaje con actividad observada en los últimos días.",
+      unavailable: "Estas cifras no se han podido leer ahora mismo. El buscador sigue funcionando.",
+      list: {
+        notIngested: "todavía no se ingiere",
+        notIngestedNote:
+          "Las cuatro modalidades sin cifra no la tienen baja: su leaderboard no se ingiere todavía, así que de ellas no hay ninguna fila en la base.",
+        note: (observed, bracket, days) =>
+          `Personajes distintos observados en ${bracket} con actividad en los ${days} días anteriores a esta corrida. Quien juega varias de sus specs cuenta una vez, y por eso ${observed} no es la suma de las specs de arriba.`,
+        evidence: (delta) =>
+          `De ellos, a ${delta} les hemos visto subir el contador de partidas entre dos observaciones nuestras. Al resto se les fecha en la primera vez que los vimos en la ladder, que es la cota más antigua que sostiene el dato: nadie entra en la lista sin haber jugado.`,
+        observed:
+          "Observado = visto en el leaderboard que leemos, o consultado aquí. No son todos los jugadores.",
+        trendPending:
+          "La variación sobre la semana anterior todavía no se publica: exige conservar la ventana previa, no solo la corrida más reciente.",
+      },
     },
   },
 
