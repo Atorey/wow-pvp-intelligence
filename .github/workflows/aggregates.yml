@@ -40,3 +40,7 @@ jobs:
       # job falle contra un schema viejo.
       - run: npm run db:migrate
       - run: npm run pipeline -- refresh-aggregates
+      # La serie de cobertura servible (ADR 0032). La corrida de arriba ya
+      # imprime la del día; esto es lo que deja ver cómo se mueve, que es la
+      # pregunta que no se puede contestar con una sola corrida.
+      - run: npm run pipeline -- coverage

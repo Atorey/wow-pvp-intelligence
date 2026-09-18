@@ -1,6 +1,7 @@
 import { migrate } from "./db/migrate";
 import { backfillNameFold } from "./jobs/backfill-name-fold";
 import { checkFreshness } from "./jobs/check-freshness";
+import { coverage } from "./jobs/coverage";
 import { fetchLeaderboards } from "./jobs/fetch-leaderboard";
 import { ingestLeaderboards } from "./jobs/ingest-leaderboard";
 import { lookupCharacters } from "./jobs/lookup-character";
@@ -60,6 +61,10 @@ const COMMANDS: Record<string, { run: (args: string[]) => Promise<void>; help: s
     run: checkFreshness,
     help: "Falla si los agregados que sirve la web son de una corrida perdida [--all-regions]",
   },
+  coverage: {
+    run: coverage,
+    help: "Cobertura servible por par (spec, segmento) y su serie por corrida [--runs]",
+  },
   "player-gap": {
     run: playerGap,
     help: "Genera el Player Gap de un personaje contra el siguiente segmento [--run --character --top --rating]",
@@ -102,6 +107,8 @@ function printHelp(): void {
   console.log("  --specs S,S    acota la corrida a estas specs, p.ej. frost-mage");
   console.log("  --segments R,R acota a los segmentos objetivo con este rating de entrada");
   console.log("  --seed S       semilla del muestreo dentro de cada par");
+  console.log("\nOpciones de coverage:");
+  console.log("  --runs N       corridas de la serie histórica (default 7)");
   console.log("\nOpciones de lookup-character:");
   console.log("  --character R/N  personaje a buscar; se puede repetir");
   console.log("  --force        ignora la caché y vuelve a preguntar a Blizzard");
