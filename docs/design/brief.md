@@ -29,7 +29,7 @@ Y hay algo **calculable que no está en el mockup**: `compareItemLevel()` da el 
 
 ### 1.3 Decisión — la caja es una lista, no un panel de barras
 
-**Se abandonan las barras.** La caja la ocupa la **lista de mayores diferencias de gear** en el formato fijo de §13.6, precedida por una cabecera con las dos cifras de contexto —item level y solapamiento de gear— y cerrada por la nota de causalidad.
+**Se abandonan las barras.** La caja la ocupan las **listas de mayores diferencias** —la de gear y la de nodos de talento— en el formato fijo de §13.6, precedidas por una cabecera con las dos cifras de contexto —item level y solapamiento de gear— y cerradas por la nota de causalidad.
 
 Anatomía, de arriba abajo:
 

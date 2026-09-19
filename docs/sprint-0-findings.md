@@ -130,6 +130,8 @@ Casi cada jugador tiene un código único. El código completo codifica el árbo
 
 > **Anotado el 4 de septiembre de 2026 ([ADR 0026](decisions/0026-talentos-por-nodo.md))**: el hallazgo de arriba se confirma con la población de #66 detrás —entre 75 y 97 códigos distintos por cada 100 perfiles, y 101 de los 140 pares servibles con la build más repetida por debajo del 10%—, pero **la conclusión sobre el coste era falsa**. No hacía falta decodificar nada: la respuesta de `/specializations` que ya descargábamos trae `selected_class_talents`, `selected_spec_talents`, `selected_hero_talents`, `selected_hero_talent_tree` y `pvp_talent_slots` ya resueltos por Blizzard. Solo los estábamos tirando, porque `SpecializationsResponse` modelaba únicamente el código.
 
+> **Anotado el 18 de septiembre de 2026**: la consecuencia de arriba ya no describe el producto. Los nodos se agregan desde la [migración 0012](../db/migrations/0012_talent_nodes.sql) y la caja Player Gap pinta **dos** listas —gear y nodos de talento— desde el 6 de septiembre de 2026 (#18), cada una sobre su propio denominador. Lo que sí sigue en pie es el hallazgo de esta sección, que no era sobre talentos sino sobre el **código**: agregarlo por coincidencia exacta no agrupa a nadie. #24 se cerró sin escribir código.
+
 ### 6.3 Dos correcciones que salieron de leer los reportes
 
 - **Abalorios y anillos se comparan por grupo, no por hueco**. `TRINKET_1`/`TRINKET_2` y `FINGER_1`/`FINGER_2` son intercambiables, y comparar por el slot literal partía la adopción del mismo item en dos: en la primera versión, el mismo abalorio de Fury salía a la vez como +16 puntos en `TRINKET_2` y −11 en `TRINKET_1`. Puro artefacto del orden en que la API devuelve el equipo, con toda la apariencia de un insight.
@@ -155,9 +157,9 @@ Según el criterio de §32:
 
 - Rating: fiable ✅
 - Gear: fiable ✅ (9.775 filas por slot, con gemas y encantamientos) y **con señal discriminante demostrada** (sección 6.1). Las gemas y los encantamientos que aquí solo se contaban como "vienen" también discriminan, medido el 4 de septiembre de 2026 sobre los mismos perfiles: 29-39 gemas y 48-57 encantamientos distintos por cada ~100 perfiles de un segmento —la mitad de dispersos que los códigos de loadout, y por eso agrupan— y diez diferencias por encima de los 10 puntos entre 1800-2000 y 2000-2200 ([ADR 0027](decisions/0027-gear-por-item-gema-y-encantamiento.md))
-- Talentos: **disponibles ✅ pero no utilizables todavía** ⚠️ (sección 6.2) — el dato está, la comparación por código exacto no informa
+- Talentos: ~~**disponibles ✅ pero no utilizables todavía** ⚠️~~ **disponibles y utilizables, por nodo** ✅ — corregido el 4 de septiembre de 2026 ([ADR 0026](decisions/0026-talentos-por-nodo.md)). Lo que no informa sigue siendo la comparación por **código exacto** (sección 6.2); la variable que agrupa es el nodo, y Blizzard lo entrega decodificado en la misma respuesta
 
-Sigue dando para un **GO**: §32 lo condiciona a que rating y gear sean fiables, y ambos lo son con la comparación real ya hecha. Pero el GO es sobre un Player Gap **de gear**, no el de tres categorías del mockup.
+Sigue dando para un **GO**: §32 lo condiciona a que rating y gear sean fiables, y ambos lo son con la comparación real ya hecha. Pero el GO es sobre un Player Gap **de gear**, no el de tres categorías del mockup. <sup>Corregido el 18 de septiembre de 2026: son **dos** categorías desde el 6 de septiembre —gear y nodos de talento ([ADR 0026](decisions/0026-talentos-por-nodo.md))—. Las que siguen sin dato, y por eso sin caja, son stats secundarias y embellishments.</sup>
 
 De ahí colgaban dos decisiones de producto, no de datos. **Ambas tomadas el 21 de agosto de 2026 (#56)**, y con eso Phase 0 queda cerrada de verdad.
 
@@ -177,6 +179,8 @@ Tres consecuencias directas: #66 recibe su contrato de muestreo (cuota por par, 
 
 **#24 no entra antes del MVP.** El Player Gap del lanzamiento es **de gear**, y se queda en `priority:mvp-plus`.
 
+> **Decisión revocada el 4 de septiembre de 2026, e issue cerrada el 18 ([ADR 0026](decisions/0026-talentos-por-nodo.md))**: la caja lanza con **dos** categorías. Se revoca sin que #24 llegara a hacerse: la decisión de abajo daba por cierto que la categoría Talents costaba un parser, y no costaba nada —Blizzard entrega los nodos decodificados en la respuesta que ya descargábamos—. Los nodos se agregan desde la [migración 0012](../db/migrations/0012_talent_nodes.sql) y su lista se pinta desde el 6 de septiembre de 2026 (#18), con su propio `n` —`talent_node_sample`, no `gear_sample`— y su propia confianza al lado del título ([§1.3 del brief](design/brief.md#13-decisión--la-caja-es-una-lista-no-un-panel-de-barras)). Lo único que no cambia es el motivo de fondo, que nunca fue sobre talentos: lo que no sirve es el **código exacto**.
+
 Es literalmente el plan de contingencia que §32 del plan ya contemplaba —"GO condicionado: se lanza MVP con Player Gap basado solo en gear/stats"— activado por un motivo distinto del previsto. §32 lo condicionaba a que el dato faltara; el dato está (§2, 594 de 595 perfiles), lo que no sirve es la comparación por código exacto (§6.2). El efecto sobre lo que se puede pintar es el mismo.
 
 **Por qué no al revés**, teniendo el mockup de §13.1 cuatro barras:
@@ -185,7 +189,7 @@ Es literalmente el plan de contingencia que §32 del plan ya contemplaba —"GO 
 - ~~**#24 es investigación de duración desconocida** —parsear el árbol de talentos de cada spec contra un formato que Blizzard no documenta como API— y ponerlo en el camino crítico ata la fecha de lanzamiento a algo sin estimar.~~ **Premisa errónea, corregida el 4 de septiembre de 2026** ([ADR 0026](decisions/0026-talentos-por-nodo.md)): Blizzard entrega los nodos decodificados en la misma respuesta que el código, así que no había parser que escribir ni cuota que gastar. Lo que sí sigue en pie es la otra razón —la comparación por código exacto no informa— y por eso el Player Gap del lanzamiento **sigue siendo de gear**: los nodos se agregan y se publican por segmento, y llevarlos a la caja es #18.
 - **La categoría que falta no se disimula, se declara.** La comparación exacta se queda en el reporte marcada con `hasUsableSignal: false` y explicando la limitación antes de enseñar nada, que es lo que ya hace hoy.
 
-Consecuencia inmediata: **#57 queda desbloqueado con la respuesta clara** —la caja "WHAT SEPARATES YOU FROM 2000+?" tiene **una sola categoría**, no cuatro—, y lo que #57 decide es qué enseña esa caja en esas condiciones. Las barras del mockup, con una sola categoría, dejan de tener sentido como forma; la lista de _biggest differences_ sí está completa y cumple el formato fijo de §13.6.
+Consecuencia inmediata: **#57 queda desbloqueado con la respuesta clara** —la caja "WHAT SEPARATES YOU FROM 2000+?" tiene **una sola categoría**, no cuatro—, y lo que #57 decide es qué enseña esa caja en esas condiciones. <sup>Dos categorías desde el 6 de septiembre de 2026, no una. Lo que #57 decidió —lista y no barras— no cambia por eso: la segunda lista se añadió debajo de la primera, que es justo lo que una lista admite y un panel de cuatro barras no.</sup> Las barras del mockup, con una sola categoría, dejan de tener sentido como forma; la lista de _biggest differences_ sí está completa y cumple el formato fijo de §13.6.
 
 ## 9. Ampliación a todas las specs (#13)
 
