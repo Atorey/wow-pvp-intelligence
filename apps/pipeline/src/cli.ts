@@ -6,6 +6,7 @@ import { fetchLeaderboards } from "./jobs/fetch-leaderboard";
 import { ingestLeaderboards } from "./jobs/ingest-leaderboard";
 import { lookupCharacters } from "./jobs/lookup-character";
 import { playerGap } from "./jobs/player-gap";
+import { pruneAggregates } from "./jobs/prune-aggregates";
 import { refreshActivity } from "./jobs/refresh-activity";
 import { refreshAggregates } from "./jobs/refresh-aggregates";
 import { refreshLeaderboard } from "./jobs/refresh-leaderboard";
@@ -57,6 +58,10 @@ const COMMANDS: Record<string, { run: (args: string[]) => Promise<void>; help: s
     run: refreshAggregates,
     help: "Job diario: recalcula la distribución y el adoption_rate por segmento [--window --dry-run]",
   },
+  "prune-aggregates": {
+    run: pruneAggregates,
+    help: "Aplica la retención de aggregate_snapshots; la encadena refresh-aggregates [--min-users --dry-run]",
+  },
   "check-freshness": {
     run: checkFreshness,
     help: "Falla si los agregados que sirve la web son de una corrida perdida [--all-regions]",
@@ -107,6 +112,9 @@ function printHelp(): void {
   console.log("  --specs S,S    acota la corrida a estas specs, p.ej. frost-mage");
   console.log("  --segments R,R acota a los segmentos objetivo con este rating de entrada");
   console.log("  --seed S       semilla del muestreo dentro de cada par");
+  console.log("\nOpciones de prune-aggregates:");
+  console.log("  --min-users N  usuarios mínimos para conservar una fila no vigente (default 5)");
+  console.log("  --dry-run      cuenta lo que borraría, sin borrar");
   console.log("\nOpciones de coverage:");
   console.log("  --runs N       corridas de la serie histórica (default 7)");
   console.log("\nOpciones de lookup-character:");
