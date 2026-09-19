@@ -123,6 +123,16 @@ export interface SegmentSummary {
   /** Miembros con `talent_loadout_code`. No es la base de los nodos. */
   talentSample: number;
   /**
+   * Códigos de loadout **distintos** observados en el segmento.
+   *
+   * Es la medida de la división que el ADR 0026 describe: sobre `talentSample`
+   * da directamente "cuántas builds distintas por cada cien perfiles". Vive aquí
+   * y no en una fila por código porque el 92,8% de esas filas tenía un único
+   * usuario, y una fila que describe a una persona no puede enseñarse nunca
+   * —`canShowComparison()` pide n≥30— pero sí se contaba en el tamaño.
+   */
+  talentCodeDistinct: number;
+  /**
    * Miembros con nodos, y con talentos PvP. Tres cifras y no una porque
    * divergen: el código lleva guardado desde agosto de 2026 y los nodos empiezan
    * con el ADR 0026, así que durante días habrá segmentos con `talentSample` a
@@ -150,6 +160,11 @@ export function summarizeSegment(population: readonly PlayerBuild[]): SegmentSum
     itemLevelSample: itemLevels.length,
     gearSample: population.filter(hasComparableGear).length,
     talentSample: population.filter((member) => member.talentLoadoutCode !== null).length,
+    talentCodeDistinct: new Set(
+      population
+        .map((member) => member.talentLoadoutCode)
+        .filter((code): code is string => code !== null),
+    ).size,
     talentNodeSample: population.filter(hasComparableTalents).length,
     pvpTalentSample: population.filter(hasComparablePvpTalents).length,
   };
@@ -219,10 +234,22 @@ export function aggregateGearItems(population: readonly PlayerBuild[]): Aggregat
  * describe una población muy dividida y no una "build del segmento". Lo que se
  * compara de verdad son los nodos (`aggregateTalentNodes`, ADR 0026).
  *
- * Se sigue agregando porque el reparto de códigos es en sí el dato que mide esa
- * división, y porque su histórico arranca antes que el de los nodos: sin él no
- * se podría saber desde cuándo.
+ * Solo salen los códigos que lleva **más de una persona**. El reparto en sí no
+ * se pierde: lo mide `SegmentSummary.talentCodeDistinct`, que es la cifra que
+ * de verdad describe la división, y para eso basta un entero por segmento en vez
+ * de una fila por código. Lo que se deja de guardar son las filas de un solo
+ * usuario, que eran el 92,8% del total y que ninguna pantalla puede enseñar:
+ * `canShowComparison()` no deja publicar una comparación por debajo de n=30, así
+ * que una adopción de una persona es tamaño sin lectura posible.
  */
+/**
+ * Usuarios mínimos para que un código de loadout llegue a guardarse.
+ *
+ * Dos y no uno porque uno es, literalmente, "esta build la lleva esta persona":
+ * no agrupa, no se puede enseñar y se multiplicaba por cada segmento y corrida.
+ */
+const TALENT_CODE_MIN_USERS = 2;
+
 export function aggregateTalentCodes(population: readonly PlayerBuild[]): AggregatedVariable[] {
   const counts = new Map<string, number>();
   let denominator = 0;
@@ -239,6 +266,7 @@ export function aggregateTalentCodes(population: readonly PlayerBuild[]): Aggreg
   }
 
   return [...counts]
+    .filter(([, users]) => users >= TALENT_CODE_MIN_USERS)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([code, users]) => ({
       kind: "talent-code" as const,

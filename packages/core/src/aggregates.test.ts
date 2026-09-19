@@ -148,7 +148,41 @@ test("los talentos ausentes salen del denominador (regla 5)", () => {
   assert.equal(codes.get("A")?.value, 2 / 3);
   assert.equal(codes.get("A")?.denominator, 3);
   assert.equal(codes.get("A")?.unavailable, 1);
-  assert.equal(codes.size, 2);
+});
+
+test("un código de una sola persona no se agrega, pero sí cuenta en el denominador", () => {
+  const population = [
+    build({ rating: 1810, talentLoadoutCode: "A" }),
+    build({ rating: 1850, talentLoadoutCode: "A" }),
+    build({ rating: 1900, talentLoadoutCode: "B" }),
+    build({ rating: 1950 }),
+  ];
+
+  const codes = new Map(aggregateTalentCodes(population).map((v) => [v.key, v.adoption]));
+
+  // B lo lleva una persona: no llega a fila. Lo que no puede pasar es que
+  // además desaparezca de la cuenta, porque entonces la adopción de A subiría
+  // de 2/3 a 2/2 y el porcentaje describiría una población que no existe.
+  assert.equal(codes.has("B"), false);
+  assert.equal(codes.size, 1);
+  assert.equal(codes.get("A")?.denominator, 3);
+});
+
+test("el reparto de códigos se mide en el resumen, no en las filas", () => {
+  const population = [
+    build({ rating: 1810, talentLoadoutCode: "A" }),
+    build({ rating: 1850, talentLoadoutCode: "A" }),
+    build({ rating: 1900, talentLoadoutCode: "B" }),
+    build({ rating: 1950, talentLoadoutCode: "C" }),
+    build({ rating: 1990 }),
+  ];
+
+  // Cuatro perfiles con código, tres códigos distintos: la división que describe
+  // el ADR 0026 sigue siendo legible aunque B y C no lleguen a guardarse.
+  const summary = summarizeSegment(population);
+  assert.equal(summary.talentSample, 4);
+  assert.equal(summary.talentCodeDistinct, 3);
+  assert.equal(aggregateTalentCodes(population).length, 1);
 });
 
 test("una población sin perfiles no inventa variables", () => {

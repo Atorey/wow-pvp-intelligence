@@ -25,6 +25,7 @@ import {
 import { getRegion } from "../config";
 import { createPool } from "../db/pool";
 import { printCoverage } from "./coverage";
+import { prune } from "./prune-aggregates";
 import { printActivitySummary, rebuildActivity } from "./refresh-activity";
 
 /**
@@ -833,12 +834,12 @@ async function writeSegments(
             segment_id, segment_min, segment_max, activity_window_days,
             sample_size, rating_median, rating_p25, rating_p75,
             rating_min, rating_max, equipped_item_level_median,
-            item_level_sample, gear_sample, talent_sample,
+            item_level_sample, gear_sample, talent_sample, talent_code_distinct,
             talent_node_sample, pvp_talent_sample,
             profile_data_from, profile_data_to, excluded_search,
             active_by_delta, active_by_first_seen)
          values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
-                 $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)
+                 $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28)
          returning id`,
         [
           computedAt,
@@ -861,6 +862,7 @@ async function writeSegments(
           summary.itemLevelSample,
           summary.gearSample,
           summary.talentSample,
+          summary.talentCodeDistinct,
           summary.talentNodeSample,
           summary.pvpTalentSample,
           segment.profileFrom,
@@ -1075,6 +1077,19 @@ export async function refreshAggregates(args: string[], borrowedPool?: pg.Pool):
     } else {
       console.log(
         `Cobertura de perfiles: ${withProfiles}/${segments.length} segmentos con adoption_rate.`,
+      );
+    }
+
+    // La poda va aquí y no en un job aparte porque la corrida que acaba de
+    // escribirse es justo la que hay que respetar entera: separarlas dejaría una
+    // ventana en la que el detalle por variable de la corrida vigente depende de
+    // que alguien se acuerde de lanzar el segundo comando.
+    const pruned = await prune(pool, { minUsers: 5, dryRun: false });
+    if (pruned.deleted > 0) {
+      console.log(
+        `Retención: ${pruned.deleted.toLocaleString("es-ES")} filas de agregados ` +
+          `de corridas anteriores podadas (quedan ` +
+          `${(pruned.before - pruned.deleted).toLocaleString("es-ES")}).`,
       );
     }
   } finally {
