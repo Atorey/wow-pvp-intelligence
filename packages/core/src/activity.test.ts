@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { activityWindowStart, deriveActivity, isActiveWithin } from "./activity";
+import {
+  activityWindowStart,
+  deriveActivity,
+  isActiveWithin,
+  withArchivedActivity,
+} from "./activity";
 
 const DAY = 86_400_000;
 const NOW = new Date("2026-08-19T12:00:00Z");
@@ -129,4 +134,56 @@ test("cada origen aporta su propia evidencia", () => {
 
   assert.equal(activity?.evidence, "played-delta");
   assert.equal(activity?.lastActiveAt.getTime(), daysAgo(1).getTime());
+});
+
+// --- La parte archivada (ADR 0034) ---
+
+test("un arranque archivado sigue fechado en la primera observación de la serie entera", () => {
+  // Visto hace 40 días y nunca subió el contador. Tras archivar, la serie
+  // caliente empieza en el ancla de hace 20: derivada a secas diría que llegó
+  // entonces y le devolvería a una ventana de la que ya había salido.
+  const previous = deriveActivity([seen(40, 90), seen(20, 90), seen(3, 90)]);
+  const hot = deriveActivity([seen(20, 90), seen(3, 90)]);
+  assert.ok(previous && hot);
+
+  const carried = withArchivedActivity(hot, { previous, archivedObservations: 1 });
+
+  assert.equal(carried.evidence, "first-seen");
+  assert.equal(carried.lastActiveAt.getTime(), daysAgo(40).getTime());
+  assert.equal(carried.firstSeenAt.getTime(), daysAgo(40).getTime());
+  assert.equal(carried.observations, 3);
+});
+
+test("una subida que quedó en el archivo no se olvida", () => {
+  const previous = deriveActivity([seen(30, 90), seen(25, 95), seen(18, 95)]);
+  const hot = deriveActivity([seen(18, 95), seen(2, 95)]);
+  assert.ok(previous && hot);
+
+  const carried = withArchivedActivity(hot, { previous, archivedObservations: 2 });
+
+  assert.equal(carried.evidence, "played-delta");
+  assert.equal(carried.lastActiveAt.getTime(), daysAgo(25).getTime());
+  assert.equal(carried.observations, 4);
+});
+
+test("la subida contra el ancla cuenta como actividad nueva", () => {
+  // El ancla es lo que hace exacto el recorte: sin ella, la subida de hace 2
+  // días no tendría contra qué compararse.
+  const previous = deriveActivity([seen(30, 90), seen(18, 90)]);
+  const hot = deriveActivity([seen(18, 90), seen(2, 97)]);
+  assert.ok(previous && hot);
+
+  const carried = withArchivedActivity(hot, { previous, archivedObservations: 1 });
+
+  assert.equal(carried.evidence, "played-delta");
+  assert.equal(carried.lastActiveAt.getTime(), daysAgo(2).getTime());
+  assert.equal(carried.lastPlayed, 97);
+  assert.equal(carried.firstSeenAt.getTime(), daysAgo(30).getTime());
+});
+
+test("sin fila previa la actividad es la derivada tal cual", () => {
+  const hot = deriveActivity([seen(5, 10), seen(1, 12)]);
+  assert.ok(hot);
+
+  assert.deepEqual(withArchivedActivity(hot, null), hot);
 });

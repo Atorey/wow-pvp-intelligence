@@ -1,6 +1,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import dotenv from "dotenv";
+import { supabaseUrlFrom, type StorageConfig } from "./storage";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
@@ -89,4 +90,29 @@ export function getDatabaseUrl(): string {
     "DATABASE_URL",
     "En Supabase: Project Settings → Database → Connection string → URI.",
   );
+}
+
+/**
+ * Dónde se archiva el histórico frío de `character_snapshots` (ADR 0034).
+ *
+ * `SUPABASE_URL` es opcional porque la cadena de Postgres ya la lleva dentro; la
+ * clave de servicio no, y no tiene sustituto: el bucket es privado.
+ */
+export function getArchiveStorage(): StorageConfig {
+  const url = process.env["SUPABASE_URL"] ?? supabaseUrlFrom(getDatabaseUrl());
+  if (!url) {
+    throw new Error(
+      "Falta SUPABASE_URL en el .env de la raíz del repo, y DATABASE_URL no es de Supabase " +
+        "así que no se puede deducir. Es la URL del proyecto: https://<ref>.supabase.co.",
+    );
+  }
+
+  return {
+    url: url.replace(/\/+$/, ""),
+    serviceKey: required(
+      "SUPABASE_SERVICE_ROLE_KEY",
+      "Supabase → Project Settings → API keys → la clave secreta (service_role).",
+    ),
+    bucket: process.env["ARCHIVE_BUCKET"] || "snapshot-archive",
+  };
 }

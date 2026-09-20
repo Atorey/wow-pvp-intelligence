@@ -1,4 +1,5 @@
 import { migrate } from "./db/migrate";
+import { archiveSnapshots } from "./jobs/archive-snapshots";
 import { backfillNameFold } from "./jobs/backfill-name-fold";
 import { checkFreshness } from "./jobs/check-freshness";
 import { coverage } from "./jobs/coverage";
@@ -62,6 +63,10 @@ const COMMANDS: Record<string, { run: (args: string[]) => Promise<void>; help: s
     run: pruneAggregates,
     help: "Aplica la retención de aggregate_snapshots; la encadena refresh-aggregates [--min-users --dry-run]",
   },
+  "archive-snapshots": {
+    run: archiveSnapshots,
+    help: "Archiva en Supabase Storage los snapshots de más de 14 días que nadie lee [--days --dry-run]",
+  },
   "check-freshness": {
     run: checkFreshness,
     help: "Falla si los agregados que sirve la web son de una corrida perdida [--all-regions]",
@@ -115,6 +120,10 @@ function printHelp(): void {
   console.log("\nOpciones de prune-aggregates:");
   console.log("  --min-users N  usuarios mínimos para conservar una fila no vigente (default 5)");
   console.log("  --dry-run      cuenta lo que borraría, sin borrar");
+  console.log("\nOpciones de archive-snapshots:");
+  console.log("  --days N       días que se quedan en Postgres (default y mínimo 14)");
+  console.log("  --batch N      snapshots por lote subido (default 20000)");
+  console.log("  --dry-run      cuenta lo que archivaría, sin subir ni borrar");
   console.log("\nOpciones de coverage:");
   console.log("  --runs N       corridas de la serie histórica (default 7)");
   console.log("\nOpciones de lookup-character:");

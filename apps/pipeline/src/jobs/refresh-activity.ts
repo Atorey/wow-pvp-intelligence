@@ -1,5 +1,11 @@
 import type pg from "pg";
-import { deriveActivity, type ActivityObservation, type CharacterActivity } from "@wowpvp/core";
+import {
+  deriveActivity,
+  withArchivedActivity,
+  type ActivityObservation,
+  type ArchivedActivity,
+  type CharacterActivity,
+} from "@wowpvp/core";
 import { getRegion } from "../config";
 import { createPool } from "../db/pool";
 
@@ -24,9 +30,13 @@ import { createPool } from "../db/pool";
  *   ranking de temporada (#23) necesitan la misma fecha; recalcularla en cada
  *   uno es la forma segura de que acaben discrepando.
  *
- * La tabla es derivada: se reconstruye entera desde `character_snapshots`, así
- * que aquí sí se hace `update` sin romper el ADR 0002, que protege las
- * observaciones y no los cálculos sobre ellas.
+ * La tabla es derivada, así que aquí sí se hace `update` sin romper el ADR 0002,
+ * que protege las observaciones y no los cálculos sobre ellas. Pero desde el ADR
+ * 0034 **ya no se reconstruye desde cero**: el histórico de más de 14 días está
+ * archivado en Storage, y lo que se sabía de él —la fecha de arranque, una subida
+ * vieja del contador, cuántas observaciones había— vive solo en la fila anterior
+ * de esta misma tabla. Cada recálculo parte de ella (`withArchivedActivity`), y
+ * por eso vaciarla ya no es inocuo: se pierde lo que no está en la serie caliente.
  *
  * Se leen **todas** las fuentes, incluida `search`: la actividad es una
  * propiedad del personaje, y quién entra en un agregado es una decisión
@@ -231,11 +241,17 @@ async function loadBrackets(pool: pg.Pool, region: string, seasonId: number): Pr
 }
 
 /**
- * La serie entera de un bracket, sin recortar por ventana.
+ * La serie **caliente** de un bracket: lo que sigue en Postgres.
+ *
+ * No se recorta por ventana, porque la ventana no basta: la subida más reciente
+ * se mide contra la observación anterior, que puede caer fuera. Desde el ADR 0034
+ * esa observación está garantizada —el archivado conserva la última anterior al
+ * corte de cada origen, el ancla—, y lo que haya antes de ella se hereda de la
+ * fila materializada (`loadArchived`).
  *
  * Se consulta bracket a bracket y no todo de golpe para que la memoria del
  * proceso dependa del bracket más poblado (~5.000 personajes por sus
- * observaciones) y no del histórico completo, que solo crece.
+ * observaciones) y no de la población entera.
  */
 async function loadObservations(
   pool: pg.Pool,
@@ -262,6 +278,69 @@ async function loadObservations(
     matchesPlayed: row.matches_played,
     source: row.source,
   }));
+}
+
+/**
+ * Lo que se sabía de la parte archivada de cada serie: la fila que dejó el
+ * cálculo anterior y cuántas observaciones han salido ya de Postgres.
+ */
+async function loadArchived(
+  pool: pg.Pool,
+  region: string,
+  seasonId: number,
+  bracket: string,
+): Promise<Map<string, ArchivedActivity>> {
+  const { rows } = await pool.query<{
+    character_id: string;
+    last_active_at: Date;
+    evidence: CharacterActivity["evidence"];
+    last_played: number | null;
+    observations: number;
+    first_seen_at: Date;
+    last_seen_at: Date;
+    archived_observations: number;
+  }>(
+    `select a.character_id, a.last_active_at, a.evidence, a.last_played, a.observations,
+            a.first_seen_at, a.last_seen_at, a.archived_observations
+       from character_activity a
+       join characters c on c.id = a.character_id
+      where c.region = $1 and a.season_id = $2 and a.bracket = $3`,
+    [region, seasonId, bracket],
+  );
+
+  return new Map(
+    rows.map((row) => [
+      row.character_id,
+      {
+        previous: {
+          lastActiveAt: row.last_active_at,
+          evidence: row.evidence,
+          lastPlayed: row.last_played,
+          observations: row.observations,
+          firstSeenAt: row.first_seen_at,
+          lastSeenAt: row.last_seen_at,
+        },
+        archivedObservations: row.archived_observations,
+      },
+    ]),
+  );
+}
+
+/**
+ * Suma a cada actividad derivada lo que se sabía de su parte archivada.
+ *
+ * El `characterId` y el `bracket` se conservan aparte porque `withArchivedActivity`
+ * es de core y no sabe de claves: solo de la actividad.
+ */
+export function withArchived(
+  activities: readonly ComputedActivity[],
+  archived: ReadonlyMap<string, ArchivedActivity>,
+): ComputedActivity[] {
+  return activities.map((activity) => {
+    const { characterId, bracket } = activity;
+    const carried = withArchivedActivity(activity, archived.get(characterId) ?? null);
+    return { characterId, bracket, ...carried };
+  });
 }
 
 /** Presencia en la lista de un bracket, indexada por personaje. */
@@ -294,7 +373,11 @@ async function loadPresence(
  * agregados, aquí no hay histórico que conservar. La actividad de ayer no es
  * una medida distinta de la de hoy, es la misma medida con menos datos — y la
  * serie temporal que sí importa (cuándo jugó cada uno) ya está en los propios
- * snapshots, que siguen siendo append-only.
+ * snapshots, que siguen siendo append-only, ahora repartidos entre Postgres y el
+ * archivo (ADR 0034).
+ *
+ * `archived_observations` no se toca: solo lo mueve el archivado, en la misma
+ * transacción que borra las filas que cuenta.
  */
 async function writeActivity(
   client: pg.PoolClient,
@@ -361,8 +444,12 @@ export async function rebuildActivity(
 
     for (const bracket of brackets) {
       const observations = await loadObservations(pool, region, seasonId, bracket);
+      const archived = await loadArchived(pool, region, seasonId, bracket);
       const presence = await loadPresence(pool, region, seasonId, bracket);
-      const activities = withPresence(computeActivity(bracket, observations), presence);
+      const activities = withPresence(
+        withArchived(computeActivity(bracket, observations), archived),
+        presence,
+      );
       if (write) await writeActivity(client, seasonId, computedAt, activities);
       all.push(...activities);
     }
