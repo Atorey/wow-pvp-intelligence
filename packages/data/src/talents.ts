@@ -1,5 +1,4 @@
 import type { TalentTree } from "@wowpvp/core";
-import { toNumber } from "./columns";
 import type { CharacterKey } from "./characters";
 import type { ObservationProvenance } from "./provenance";
 import type { Queryable } from "./queryable";
@@ -31,7 +30,7 @@ export interface CharacterTalentsRead {
 
 interface TalentRow {
   tree: TalentTree;
-  talent_id: string;
+  node_id: number;
   talent_name: string | null;
   rank: number | null;
   captured_at: Date;
@@ -69,9 +68,15 @@ export async function readLatestTalents(
         order by s.captured_at desc
         limit 1
      )
-     select t.tree, t.talent_id, t.talent_name, t.rank, l.captured_at, l.source
+     select t.tree, lab.node_id, lab.name as talent_name, sel.rank, l.captured_at, l.source
        from latest_with_talents l
-       join character_snapshot_talents t on t.snapshot_id = l.id`,
+       join character_snapshot_talents t on t.snapshot_id = l.id
+       -- Los dos arrays se abren en el mismo unnest y no en dos: es lo que los
+       -- empareja posición a posición, que es la única relación que hay entre
+       -- una etiqueta y su rango. En 'pvp' ranks es null entero y esta forma
+       -- devuelve los nodos con rango null, que es justo lo que significa.
+       cross join lateral unnest(t.label_ids, t.ranks) as sel(label_id, rank)
+       join talent_labels lab on lab.id = sel.label_id`,
     [key.region, key.realmSlug, key.nameSlug, key.bracket, key.seasonId],
   );
 
@@ -81,9 +86,7 @@ export async function readLatestTalents(
   return {
     nodes: rows.map((row) => ({
       tree: row.tree,
-      // `talent_id` es bigint y el driver lo entrega como texto: sin esto, la
-      // clave con la que se cruza contra el agregado sería otra cadena.
-      talentId: toNumber(row.talent_id),
+      talentId: row.node_id,
       talentName: row.talent_name,
       rank: row.rank,
     })),

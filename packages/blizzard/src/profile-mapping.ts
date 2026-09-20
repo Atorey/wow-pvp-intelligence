@@ -36,7 +36,7 @@ export interface EquipmentResponse {
 interface SelectedTalent {
   id?: number;
   rank?: number;
-  tooltip?: { talent?: { name?: string } };
+  tooltip?: { talent?: { id?: number; name?: string } };
 }
 
 export interface SpecializationsResponse {
@@ -222,6 +222,14 @@ export interface TalentRow {
   talentId: number;
   /** null = no disponible (regla 5). El nodo está observado; el nombre, no. */
   talentName: string | null;
+  /**
+   * El id del talento elegido en el nodo, que no es el nodo: un nodo de
+   * elección son dos talentos bajo el mismo `talentId`. No entra en la
+   * identidad de la variable —la unidad de agregación sigue siendo el nodo
+   * (ADR 0026)— pero es de lo que `talentName` es función, y por eso viaja con
+   * él hasta el catálogo (ADR 0035). null = la API no trajo tooltip.
+   */
+  selectedTalentId: number | null;
   /** Puntos invertidos. null en 'pvp', que no tiene rangos. */
   rank: number | null;
 }
@@ -317,6 +325,7 @@ function mapNodes(
       tree,
       talentId: node.id,
       talentName: node.tooltip?.talent?.name ?? null,
+      selectedTalentId: node.tooltip?.talent?.id ?? null,
       rank: typeof node.rank === "number" ? node.rank : null,
     });
   }
@@ -353,6 +362,8 @@ export function mapPvpTalents(
       tree: "pvp",
       talentId: talent.id,
       talentName: talent.name ?? null,
+      // En pvp el talento *es* el nodo: no hay elección que desambiguar.
+      selectedTalentId: talent.id,
       rank: null,
     });
   }

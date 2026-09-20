@@ -145,25 +145,98 @@ export async function insertProfileSnapshot(
     );
   }
 
-  // Los talentos sí van en bloque: no tienen columnas de array, así que unnest
-  // no puede aplanar nada, y son ~85 filas por personaje — una consulta por nodo
-  // multiplicaría por cinco los viajes a la base de cada perfil.
   if (snapshotId && input.talents.length > 0) {
-    await client.query(
-      `insert into character_snapshot_talents (snapshot_id, tree, talent_id, talent_name, rank)
-       select $1, tree, talent_id, talent_name, rank
-         from unnest($2::text[], $3::bigint[], $4::text[], $5::int[])
-              as t(tree, talent_id, talent_name, rank)
-       on conflict (snapshot_id, tree, talent_id) do nothing`,
-      [
-        snapshotId,
-        input.talents.map((t) => t.tree),
-        input.talents.map((t) => t.talentId),
-        input.talents.map((t) => t.talentName),
-        input.talents.map((t) => t.rank),
-      ],
-    );
+    await writeTalents(client, snapshotId, input.talents);
   }
 
   return { snapshotId, isNew };
+}
+
+/**
+ * Las selecciones de talento de un snapshot: una fila por árbol, con las
+ * etiquetas por referencia al catálogo (ADR 0035).
+ *
+ * Son dos viajes y no uno porque el alta del catálogo no devuelve el id de lo
+ * que ya estaba: un `do update` sin condición sí lo devolvería, pero escribiría
+ * una versión nueva de las ~85 etiquetas de cada perfil para no cambiar nada, y
+ * eso hincha una tabla de 3.500 filas a base de tuplas muertas. Se da de alta lo
+ * que falte y después se resuelve el conjunto entero.
+ */
+async function writeTalents(
+  client: pg.PoolClient,
+  snapshotId: string,
+  talents: readonly TalentRow[],
+): Promise<void> {
+  const trees = talents.map((t) => t.tree);
+  const nodeIds = talents.map((t) => t.talentId);
+  const names = talents.map((t) => t.talentName);
+
+  // El `do update` está acotado a las etiquetas que todavía no tienen talent_id:
+  // las 3.515 que vienen de 0012 nunca lo guardaron, y sin esto se quedarían a
+  // null para siempre —justo las más comunes, que son las que importan—. En
+  // cuanto una se rellena deja de reescribirse, así que la reescritura ocurre
+  // una vez por etiqueta y no una por perfil.
+  await client.query(
+    `insert into talent_labels (tree, node_id, name, talent_id)
+     select tree, node_id, name, talent_id
+       from unnest($1::text[], $2::int[], $3::text[], $4::int[])
+            as t(tree, node_id, name, talent_id)
+     on conflict (tree, node_id, name) do update
+        set talent_id = excluded.talent_id
+      where talent_labels.talent_id is null
+        and excluded.talent_id is not null`,
+    [trees, nodeIds, names, talents.map((t) => t.selectedTalentId)],
+  );
+
+  // chr(1) como centinela para que el join sea hashable: comparar el nombre con
+  // `is not distinct from` fuerza un nested loop contra el catálogo entero.
+  const { rows: labels } = await client.query<{ id: number; tree: string; node_id: number }>(
+    `select l.id, l.tree, l.node_id
+       from talent_labels l
+       join unnest($1::text[], $2::int[], $3::text[]) as t(tree, node_id, name)
+         on l.tree = t.tree
+        and l.node_id = t.node_id
+        and coalesce(l.name, chr(1)) = coalesce(t.name, chr(1))`,
+    [trees, nodeIds, names],
+  );
+
+  const labelByKey = new Map(labels.map((row) => [`${row.tree}:${row.node_id}`, row.id]));
+
+  // El orden de label_ids y ranks tiene que ser el mismo, porque ranks es
+  // paralelo posición a posición y no lleva su propia clave.
+  const byTree = new Map<string, { labelIds: number[]; ranks: (number | null)[] }>();
+  for (const talent of talents) {
+    const labelId = labelByKey.get(`${talent.tree}:${talent.talentId}`);
+    // Sin etiqueta no hay nada que guardar: la selección se perdería igual, y
+    // meterla con un id inventado la haría irresoluble al leerla.
+    if (labelId === undefined) continue;
+
+    let bucket = byTree.get(talent.tree);
+    if (!bucket) {
+      bucket = { labelIds: [], ranks: [] };
+      byTree.set(talent.tree, bucket);
+    }
+    bucket.labelIds.push(labelId);
+    bucket.ranks.push(talent.rank);
+  }
+
+  if (byTree.size === 0) return;
+
+  // Un INSERT multi-fila y no un unnest en bloque, por lo mismo que el de gear:
+  // cada árbol tiene su número de nodos, y las matrices de Postgres son
+  // rectangulares. Un array de arrays de largos distintos ni siquiera llega.
+  const params: unknown[] = [snapshotId];
+  const tuples = [...byTree.entries()].map(([tree, { labelIds, ranks }]) => {
+    const start = params.length;
+    // null entero en 'pvp', que no tiene rangos (ADR 0026).
+    params.push(tree, labelIds, tree === "pvp" ? null : ranks);
+    return `($1, $${start + 1}, $${start + 2}::int[], $${start + 3}::smallint[])`;
+  });
+
+  await client.query(
+    `insert into character_snapshot_talents (snapshot_id, tree, label_ids, ranks)
+     values ${tuples.join(", ")}
+     on conflict (snapshot_id, tree) do nothing`,
+    params,
+  );
 }

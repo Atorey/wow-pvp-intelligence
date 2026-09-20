@@ -355,7 +355,9 @@ test("un nodo sin tooltip entra con el nombre a null, no se descarta", () => {
     FROST_MAGE,
   );
 
-  assert.deepEqual(result.talents, [{ tree: "class", talentId: 99846, talentName: null, rank: 1 }]);
+  assert.deepEqual(result.talents, [
+    { tree: "class", talentId: 99846, talentName: null, selectedTalentId: null, rank: 1 },
+  ]);
 });
 
 test("sin árbol de héroe el loadout sigue valiendo, con heroTree a null", () => {
@@ -387,8 +389,8 @@ test("los talentos PvP se leen de la spec del bracket aunque no sea la activa", 
   const talents = mapPvpTalents(FROST_WITH_NODES, FROST_MAGE);
 
   assert.deepEqual(talents, [
-    { tree: "pvp", talentId: 3517, talentName: "Ice Wall", rank: null },
-    { tree: "pvp", talentId: 828, talentName: "Precognition", rank: null },
+    { tree: "pvp", talentId: 3517, talentName: "Ice Wall", selectedTalentId: 3517, rank: null },
+    { tree: "pvp", talentId: 828, talentName: "Precognition", selectedTalentId: 828, rank: null },
   ]);
 });
 
