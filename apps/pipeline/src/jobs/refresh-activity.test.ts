@@ -4,6 +4,7 @@ import {
   computeActivity,
   parseOptions,
   summarizeActivity,
+  withArchived,
   withPresence,
   type ComputedActivity,
   type ObservationRow,
@@ -157,4 +158,31 @@ test("sin fila de presencia se deja lo derivado de la serie", () => {
   const [activity] = withPresence([computed({ lastSeenAt: daysAgo(1) })], new Map());
 
   assert.equal(activity?.lastSeenAt.getTime(), daysAgo(1).getTime());
+});
+
+test("lo archivado se hereda por personaje y conserva la clave de cada fila", () => {
+  const hot = [
+    computed({
+      characterId: "a",
+      evidence: "first-seen",
+      firstSeenAt: daysAgo(18),
+      observations: 2,
+    }),
+    computed({ characterId: "b" }),
+  ];
+  const previous = computed({
+    evidence: "first-seen",
+    lastActiveAt: daysAgo(40),
+    firstSeenAt: daysAgo(40),
+  });
+
+  const [a, b] = withArchived(hot, new Map([["a", { previous, archivedObservations: 5 }]]));
+
+  assert.equal(a?.characterId, "a");
+  assert.equal(a?.bracket, "shuffle-mage-frost");
+  assert.equal(a?.firstSeenAt.getTime(), daysAgo(40).getTime());
+  assert.equal(a?.lastActiveAt.getTime(), daysAgo(40).getTime());
+  assert.equal(a?.observations, 7);
+  // Sin fila previa, nada que heredar.
+  assert.deepEqual(b, hot[1]);
 });

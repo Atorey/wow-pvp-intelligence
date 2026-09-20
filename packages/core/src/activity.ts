@@ -150,6 +150,88 @@ export function deriveActivity(
 }
 
 /**
+ * La parte de la serie que ya no está en Postgres (ADR 0034).
+ *
+ * El histórico de más de 14 días se archiva en Storage y deja de poder leerse,
+ * así que la serie caliente ya no basta para derivar la actividad: la fecha de
+ * arranque y una subida vieja del contador están, por definición, en lo
+ * archivado. Lo que se sabía de esa parte se conserva en la propia fila
+ * materializada, y esto es lo que se lee de ella.
+ */
+export interface ArchivedActivity {
+  /** La actividad tal y como quedó la última vez que se calculó. */
+  previous: CharacterActivity;
+  /** Observaciones que salieron de la serie caliente al archivarse. */
+  archivedObservations: number;
+}
+
+/**
+ * Junta la actividad derivada de la serie caliente con lo que se sabía de la
+ * parte archivada.
+ *
+ * Es exacto, no una aproximación, porque todo lo que se hereda es monótono: una
+ * primera observación no deja de ser la primera cuando aparecen otras, y una
+ * subida del contador vista una vez sigue habiendo ocurrido. Dos condiciones lo
+ * sostienen, y las dos las garantiza el archivado y no esta función:
+ *
+ * - **La serie caliente conserva el ancla**: la última observación anterior al
+ *   corte de cada origen. Sin ella, la primera subida dentro de la ventana no
+ *   tendría contra qué compararse y se leería como un arranque.
+ * - **Solo se archiva lo que `previous` ya había visto**, o sea, filas anteriores
+ *   al último cálculo de esa fila. Si no, lo archivado se perdería sin haber
+ *   dejado rastro en ella.
+ *
+ * Sin `archived` (un personaje que aún no tiene fila) se devuelve la derivada tal
+ * cual: su serie entera sigue caliente.
+ */
+export function withArchivedActivity(
+  current: CharacterActivity,
+  archived: ArchivedActivity | null,
+): CharacterActivity {
+  if (!archived) return current;
+  const { previous, archivedObservations } = archived;
+
+  const firstSeenAt = earliest(previous.firstSeenAt, current.firstSeenAt);
+  const lastSeenAt = latest(previous.lastSeenAt, current.lastSeenAt);
+  const observations = current.observations + archivedObservations;
+  const lastPlayed = current.lastPlayed ?? previous.lastPlayed;
+
+  const deltas = [current, previous].filter((a) => a.evidence === "played-delta");
+  const [first, second] = deltas;
+  if (first) {
+    return {
+      lastActiveAt: second ? latest(first.lastActiveAt, second.lastActiveAt) : first.lastActiveAt,
+      evidence: "played-delta",
+      lastPlayed,
+      observations,
+      firstSeenAt,
+      lastSeenAt,
+    };
+  }
+
+  // Ninguna subida en ningún lado: se fecha en la primera observación de la
+  // serie entera, que es la heredada. Fecharla en la del ancla haría que alguien
+  // que lleva semanas parado reapareciera como recién llegado cada vez que se
+  // archiva su pasado.
+  return {
+    lastActiveAt: firstSeenAt,
+    evidence: "first-seen",
+    lastPlayed,
+    observations,
+    firstSeenAt,
+    lastSeenAt,
+  };
+}
+
+function earliest(a: Date, b: Date): Date {
+  return a.getTime() <= b.getTime() ? a : b;
+}
+
+function latest(a: Date, b: Date): Date {
+  return a.getTime() >= b.getTime() ? a : b;
+}
+
+/**
  * Dónde empieza la ventana: la fecha a partir de la cual una actividad cuenta.
  *
  * Existe porque el mismo recorte se aplica de dos formas que tienen que dar lo
