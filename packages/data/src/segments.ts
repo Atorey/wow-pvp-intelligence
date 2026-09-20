@@ -226,6 +226,51 @@ export async function readBracketSegments(
   return rows.map(toSegmentRead);
 }
 
+/**
+ * El mismo escalón en la corrida anterior **que todavía conserva sus
+ * agregados**, para poder decir cuánto se ha movido (ADR 0037).
+ *
+ * El `exists` no es una optimización, es la condición: `population_segments` no
+ * se poda nunca y `aggregate_snapshots` sí —de las corridas no vigentes
+ * sobrevive una por semana, y de ella solo las filas con cinco usuarios o más
+ * (ADR 0019)—, así que "la corrida de ayer" casi siempre tiene escalón y casi
+ * nunca tiene detalle por variable. Emparejar contra ella daría una lista
+ * entera de variables sin pareja, que quien pinte leería como "todo es nuevo"
+ * cuando lo que pasa es que el detalle de ayer ya no está.
+ *
+ * Por eso tampoco se pide "hace siete días": se pide **la anterior que se pueda
+ * comparar**, y se devuelve entera para que su `computedAt` viaje con ella. La
+ * serie tiene huecos reales —entre el 29 de agosto y el 13 de septiembre de
+ * 2026 no hubo ni una corrida— y llamar "la semana pasada" a lo que son quince
+ * días sería fechar mal la cifra.
+ *
+ * `null` es "no hay con qué comparar", y nunca "no ha cambiado".
+ */
+export async function readPreviousSegment(
+  db: Queryable,
+  segment: SegmentRead,
+): Promise<SegmentRead | null> {
+  const { rows } = await db.query<SegmentRow>(
+    `select ${SEGMENT_COLUMNS}
+       from population_segments ps
+      where ps.region = $1 and ps.season_id = $2 and ps.bracket = $3 and ps.segment_id = $4
+        and ps.computed_at < $5
+        and exists (select 1 from aggregate_snapshots a where a.population_segment_id = ps.id)
+      order by ps.computed_at desc
+      limit 1`,
+    [
+      segment.region,
+      segment.seasonId,
+      segment.bracket,
+      segment.segment.id,
+      segment.population.computedAt,
+    ],
+  );
+
+  const row = rows[0];
+  return row ? toSegmentRead(row) : null;
+}
+
 /** La población de un tramo dentro de un bracket de la corrida. */
 export interface SegmentPopulation {
   /** El suelo del tramo: la clave con la que se decide qué es "la parte alta". */

@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 
 import { classColor } from "../design/class-color";
 import { copyFor } from "../i18n/copy";
-import { formatCount, formatRating } from "../i18n/format";
+import { formatCount, formatDate, formatRating } from "../i18n/format";
 import type { Locale } from "../i18n/locales";
 import type { SegmentPageData } from "../server/spec";
 import type { SegmentDetail } from "../server/spec-view";
@@ -65,6 +65,14 @@ export function SegmentPage({
           <GearSection locale={locale} detail={detail} segment={label} fill={fill} />
           <TalentsSection locale={locale} detail={detail} fill={fill} />
           <NotPublished locale={locale} />
+          {detail.changesSince !== null && (
+            <p className="text-muted-foreground max-w-measure text-sm">
+              {copy.segment.change.since(
+                formatDate(detail.changesSince, locale),
+                formatCount(MIN_SAMPLE_HIGH, locale),
+              )}
+            </p>
+          )}
           <p className="text-muted-foreground max-w-measure text-sm">{copy.segment.causality}</p>
           <RunProvenance locale={locale} computedAt={computedAt} />
         </>

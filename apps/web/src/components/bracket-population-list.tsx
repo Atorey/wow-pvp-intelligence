@@ -20,9 +20,14 @@ import { Card } from "./ui/card";
  * de cuatro quintos del bloque: no hay ninguna fila suya en la base, y eso es
  * distinto de una cifra baja.
  *
- * Tampoco está la variación semanal del mockup, por lo mismo que la tabla de
- * arriba: exige conservar la ventana anterior. No se rellena con un cero —sería
- * una variación que nadie midió— y su ausencia se declara en la nota.
+ * Tampoco está la variación semanal del mockup, y aquí el motivo es propio y no
+ * el de la tabla de arriba: esta cifra cuenta personajes distintos, y
+ * `character_activity` guarda una fila por personaje con su última observación
+ * —clave `(character_id, bracket, season_id)`, migración 0006—, no una por
+ * ventana. Quien jugó las dos semanas solo conserva la fecha más reciente, así
+ * que recontar hoy la ventana anterior dejaría fuera justo a quien siguió
+ * jugando. No se rellena con un cero —sería una variación que nadie midió— y su
+ * ausencia se declara en la nota.
  */
 export function BracketPopulationList({
   locale,

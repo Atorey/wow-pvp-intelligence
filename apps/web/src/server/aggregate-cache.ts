@@ -3,6 +3,7 @@ import {
   readActiveCharacters,
   readAdoptionFor,
   readBracketSegments,
+  readPreviousSegment,
   readRunPopulation,
   readSegmentSamples,
   type ActiveCharactersRead,
@@ -156,6 +157,32 @@ export function cachedAdoptionFor(
   // resultado dejaría fuera de la caché justo esos.
   const computedAt = segments[0]?.gear.computedAt;
   return adoptionCache.read(key, () => readAdoptionFor(db, segments, kind), computedAt);
+}
+
+/**
+ * Sin extractor, y esta vez importa: la respuesta útil incluye `null` —hay
+ * escalones sin corrida anterior comparable— y la fecha que la mantiene vigente
+ * no es la de lo que se devuelve sino la de la corrida desde la que se pregunta,
+ * que es la que cambia la respuesta.
+ */
+const previousCache = new AggregateCache<SegmentRead | null>(() => null);
+
+/**
+ * El mismo escalón en la corrida anterior que conserva agregados, recordado
+ * mientras la actual siga siendo la última.
+ *
+ * La clave es el `rowId` de la corrida de hoy, como en las adopciones: la de
+ * mañana trae ids nuevos y pregunta por una clave que no existe.
+ */
+export function cachedPreviousSegment(
+  db: Queryable,
+  segment: SegmentRead,
+): Promise<SegmentRead | null> {
+  return previousCache.read(
+    segment.rowId,
+    () => readPreviousSegment(db, segment),
+    segment.gear.computedAt,
+  );
 }
 
 const runCache = new AggregateCache<RunPopulationRead | null>((run) => run?.computedAt ?? null);

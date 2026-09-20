@@ -80,8 +80,8 @@ export const es: Copy = {
           `Una spec con menos de ${needed} personajes observados por encima de ${rating} no publica ni su proporción de ahí arriba ni su índice: con esa muestra, una proporción describe a un puñado de personas.`,
         notSaid:
           "Representación no es rendimiento. El leaderboard no publica resultados por partida, así que de aquí no sale qué spec gana más: una spec puede estar sobrerrepresentada por ser popular o fácil de jugar.",
-        trendPending:
-          "La variación semana a semana todavía no se publica: exige conservar la serie de corridas anteriores, no solo la más reciente.",
+        trendPending: (needed, rating) =>
+          `La variación semana a semana todavía no se publica: marcar una spec como tendencia exige que su proporción por encima de ${rating} se mueva en la misma dirección, y ninguna llega todavía a los ${needed} observados ahí arriba que pide una tendencia.`,
       },
     },
 
@@ -101,7 +101,7 @@ export const es: Copy = {
         observed:
           "Observado = visto en el leaderboard que leemos, o consultado aquí. No son todos los jugadores.",
         trendPending:
-          "La variación sobre la semana anterior todavía no se publica: exige conservar la ventana previa, no solo la corrida más reciente.",
+          "La variación sobre la semana anterior todavía no se publica: esa cifra no se puede recontar hoy, porque de cada personaje se guarda su última observación y no una por ventana.",
       },
     },
   },
@@ -461,6 +461,13 @@ export const es: Copy = {
           `Sobre ${sample} perfiles: la API deja los talentos PvP fuera de algunos loadouts, así que su base es la suya.`,
         none: (sample, needed) =>
           `Todavía sin publicar: ${sample} perfiles leídos en este tramo, y hacen falta ${needed}.`,
+      },
+      change: {
+        points: (value) => `${value} pts`,
+        up: "sube desde la corrida anterior",
+        down: "baja desde la corrida anterior",
+        since: (date, min) =>
+          `Variación medida contra la corrida del ${date}, sobre un mínimo de ${min} perfiles. Solo se marca lo que se distingue del ruido de muestreo de su propia base; lo demás se queda sin marcar en vez de darlo por igual.`,
       },
       more: (count) => `${count} más`,
       unavailable: (count) =>

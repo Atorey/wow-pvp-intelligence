@@ -1,8 +1,10 @@
+import type { AdoptionChange } from "@wowpvp/core";
 import type { AdoptionRead } from "@wowpvp/data";
 
 import { copyFor } from "../i18n/copy";
-import { formatCount, formatPercent } from "../i18n/format";
+import { formatCount, formatPercent, formatPoints } from "../i18n/format";
 import type { Locale } from "../i18n/locales";
+import type { AdoptionRowView } from "../server/spec-view";
 import { ProportionBar } from "./proportion-bar";
 
 /**
@@ -27,7 +29,7 @@ export function AdoptionList({
   withIcon,
 }: {
   locale: Locale;
-  rows: readonly AdoptionRead[];
+  rows: readonly AdoptionRowView[];
   visible: number;
   fill: string;
   /** Solo lo que es equipo reserva el hueco del icono; un talento no tiene. */
@@ -36,8 +38,15 @@ export function AdoptionList({
   const copy = copyFor(locale).spec.segment;
   const shown = rows.slice(0, visible);
   const folded = rows.slice(visible);
-  const item = (row: AdoptionRead) => (
-    <AdoptionItem key={row.variableKey} locale={locale} row={row} fill={fill} withIcon={withIcon} />
+  const item = (view: AdoptionRowView) => (
+    <AdoptionItem
+      key={view.read.variableKey}
+      locale={locale}
+      row={view.read}
+      change={view.change}
+      fill={fill}
+      withIcon={withIcon}
+    />
   );
 
   return (
@@ -67,11 +76,14 @@ export function AdoptionList({
 function AdoptionItem({
   locale,
   row,
+  change,
   fill,
   withIcon,
 }: {
   locale: Locale;
   row: AdoptionRead;
+  /** El movimiento desde la corrida anterior, o `null` si no se puede afirmar. */
+  change: AdoptionChange | null;
   fill: string;
   withIcon: boolean;
 }) {
@@ -102,9 +114,38 @@ function AdoptionItem({
         <div className="flex items-center gap-3">
           <ProportionBar value={row.rate} fill={fill} />
           <span className="text-subtle-foreground shrink-0 text-xs">{fraction}</span>
+          {change !== null && <Change locale={locale} change={change} />}
         </div>
       </div>
     </li>
+  );
+}
+
+/**
+ * Lo que se ha movido una fila, en puntos porcentuales y con su signo.
+ *
+ * Va con la fracción y no con el porcentaje grande a propósito: la línea de
+ * abajo es la de la base —de cuánta gente sale la cifra y qué la sostiene— y la
+ * variación pertenece a esa conversación, no al titular de la fila.
+ *
+ * Sin verde ni rojo, en la misma tinta apagada que la fracción. Un par de
+ * colores de dirección diría que subir es bueno, y lo que la fila enseña es qué
+ * se lleva en el tramo, no qué conviene llevar (regla 3). Y el vocabulario de
+ * tokens no tiene ese par: el oro es `primary`, `warning` es un aviso y los
+ * `quality-*` son calidades de item (ADR 0025).
+ */
+function Change({ locale, change }: { locale: Locale; change: AdoptionChange }) {
+  const copy = copyFor(locale).spec.segment.change;
+
+  return (
+    <span
+      className="text-subtle-foreground shrink-0 text-xs tabular-nums"
+      // El signo lleva la dirección para quien lo ve. Quien lo oye recibe la
+      // palabra, que es lo que un "+31" no dice por sí solo.
+      aria-label={`${copy.points(formatPoints(change.delta, locale))}, ${copy[change.direction]}`}
+    >
+      {copy.points(formatPoints(change.delta, locale))}
+    </span>
   );
 }
 

@@ -320,7 +320,7 @@ describe("segmentDetailFor", () => {
       detail.gear.content.slots.map((slot) => [
         slot.group,
         slot.paired,
-        slot.rows.map((row) => row.variableKey),
+        slot.rows.map((view) => view.read.variableKey),
       ]),
       [
         ["HEAD", false, ["HEAD:1", "HEAD:2"]],
@@ -346,11 +346,11 @@ describe("segmentDetailFor", () => {
     if (detail.gear.state !== "listed") return;
     assert.equal(detail.gear.confidence, "medium");
     assert.deepEqual(
-      detail.gear.content.gems.map((row) => row.variableKey),
+      detail.gear.content.gems.map((view) => view.read.variableKey),
       ["gem:2", "gem:1"],
     );
     assert.deepEqual(
-      detail.gear.content.enchants.map((row) => row.variableKey),
+      detail.gear.content.enchants.map((view) => view.read.variableKey),
       ["enchant:7"],
     );
     assert.deepEqual(detail.gear.content.slots, []);
@@ -398,7 +398,7 @@ describe("segmentDetailFor", () => {
     assert.deepEqual(
       detail.build.content.trees.map((view) => [
         view.tree,
-        view.rows.map((row) => row.variableKey),
+        view.rows.map((row) => row.read.variableKey),
       ]),
       [
         ["class", ["class:2", "class:1"]],
@@ -406,7 +406,7 @@ describe("segmentDetailFor", () => {
       ],
     );
     assert.deepEqual(
-      detail.build.content.heroTrees.map((row) => row.variableKey),
+      detail.build.content.heroTrees.map((view) => view.read.variableKey),
       ["39", "40"],
     );
   });
@@ -423,5 +423,121 @@ describe("segmentDetailFor", () => {
 
     assert.deepEqual(withBase.itemLevel, { median: 246, sample: 300 });
     assert.equal(withoutBase.itemLevel, null);
+  });
+});
+
+describe("la variación desde la corrida anterior", () => {
+  const PREVIOUS_AT = new Date("2026-09-03T04:00:00Z");
+
+  /** Los mismos items, con las adopciones de la corrida anterior. */
+  function previousWith(rows: readonly AdoptionRead[]) {
+    return {
+      computedAt: PREVIOUS_AT,
+      adoptions: { ...noAdoptions, gear: rows },
+    };
+  }
+
+  function gearOf(detail: ReturnType<typeof segmentDetailFor>) {
+    if (detail.gear.state !== "listed") throw new Error("La lista de gear no salió.");
+    return detail.gear.content;
+  }
+
+  it("sin corrida anterior no hay fecha que declarar ni fila con variación", () => {
+    const detail = segmentDetailFor({
+      segment: segment(2000, { population: 641, gear: 312 }),
+      adoptions: { ...noAdoptions, gear: [adoption("gear-gem", "gem:1", 0.6)] },
+    });
+
+    assert.equal(detail.changesSince, null);
+    assert.deepEqual(
+      gearOf(detail).gems.map((view) => view.change),
+      [null],
+    );
+  });
+
+  it("la fila que se mueve lo bastante lo dice, con su signo, y la que no se calla", () => {
+    const detail = segmentDetailFor({
+      segment: segment(2000, { population: 641, gear: 312 }),
+      adoptions: {
+        ...noAdoptions,
+        gear: [
+          adoption("gear-item", "HEAD:1", 0.77, { slotGroup: "HEAD" }),
+          adoption("gear-item", "HEAD:2", 0.52, { slotGroup: "HEAD" }),
+        ],
+      },
+      previous: previousWith([
+        adoption("gear-item", "HEAD:1", 0.45, { slotGroup: "HEAD" }),
+        // Dos puntos: lo que se mueve cada semana sin que nadie cambie de equipo.
+        adoption("gear-item", "HEAD:2", 0.5, { slotGroup: "HEAD" }),
+      ]),
+    });
+
+    const [head] = gearOf(detail).slots;
+    assert.deepEqual(
+      head?.rows.map((view) => [view.read.variableKey, view.change?.direction ?? null]),
+      [
+        ["HEAD:1", "up"],
+        ["HEAD:2", null],
+      ],
+    );
+    const risen = head?.rows[0]?.change;
+    assert.ok(risen && Math.abs(risen.delta - 0.32) < 1e-9);
+  });
+
+  it("una bajada es una bajada y no un valor absoluto", () => {
+    const detail = segmentDetailFor({
+      segment: segment(2000, { population: 641, gear: 312 }),
+      adoptions: { ...noAdoptions, gear: [adoption("gear-gem", "gem:1", 0.2)] },
+      previous: previousWith([adoption("gear-gem", "gem:1", 0.6)]),
+    });
+
+    const change = gearOf(detail).gems[0]?.change;
+    assert.equal(change?.direction, "down");
+    assert.ok(change && change.delta < 0);
+  });
+
+  it("una variable sin fila la semana anterior no sale como subida desde cero", () => {
+    // La poda borra de las corridas viejas lo que llevaban menos de cinco
+    // personas (ADR 0019), así que una ausencia puede ser "nadie" o "tres".
+    const detail = segmentDetailFor({
+      segment: segment(2000, { population: 641, gear: 312 }),
+      adoptions: { ...noAdoptions, gear: [adoption("gear-gem", "gem:nueva", 0.44)] },
+      previous: previousWith([adoption("gear-gem", "gem:otra", 0.44)]),
+    });
+
+    assert.equal(gearOf(detail).gems[0]?.change, null);
+  });
+
+  it("no empareja dos familias que coincidan en clave", () => {
+    const detail = segmentDetailFor({
+      segment: segment(2000, { population: 641, gear: 312 }),
+      adoptions: { ...noAdoptions, gear: [adoption("gear-gem", "X", 0.9)] },
+      previous: previousWith([adoption("gear-item", "X", 0.2, { slotGroup: "HEAD" })]),
+    });
+
+    assert.equal(gearOf(detail).gems[0]?.change, null);
+  });
+
+  it("la fecha de la comparación se declara aunque no se haya movido nada", () => {
+    // Sin ella, un tramo sin una sola marca se lee como que no lo medimos.
+    const detail = segmentDetailFor({
+      segment: segment(2000, { population: 641, gear: 312 }),
+      adoptions: { ...noAdoptions, gear: [adoption("gear-gem", "gem:1", 0.6)] },
+      previous: previousWith([adoption("gear-gem", "gem:1", 0.6)]),
+    });
+
+    assert.deepEqual(detail.changesSince, PREVIOUS_AT);
+    assert.equal(gearOf(detail).gems[0]?.change, null);
+  });
+
+  it("una base pequeña en la corrida anterior no sostiene una variación", () => {
+    const thin = provenanceFor({ computedAt: PREVIOUS_AT, sampleSize: 300, denominator: 40 });
+    const detail = segmentDetailFor({
+      segment: segment(2000, { population: 641, gear: 312 }),
+      adoptions: { ...noAdoptions, gear: [adoption("gear-gem", "gem:1", 0.8)] },
+      previous: previousWith([adoption("gear-gem", "gem:1", 0.2, { provenance: thin })]),
+    });
+
+    assert.equal(gearOf(detail).gems[0]?.change, null);
   });
 });

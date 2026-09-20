@@ -5,6 +5,7 @@ import {
   readAdoption,
   readAdoptionFor,
   readBracketSegments,
+  readPreviousSegment,
   readRunPopulation,
   readSegment,
   readSegmentSamples,
@@ -198,6 +199,44 @@ describe("readBracketSegments", () => {
     const [call] = db.calls;
     assert.ok(call);
     assert.match(call.text, /computed_at = \(\s*select max\(computed_at\)/);
+  });
+});
+
+describe("readPreviousSegment", () => {
+  const current = toSegmentRead(row({ id: "99", computed_at: COMPUTED_AT }));
+
+  it("solo mira corridas que conserven agregados, y anteriores a la de partida", async () => {
+    // Sin el `exists`, la respuesta sería la corrida de ayer, que casi siempre
+    // tiene escalón y casi nunca detalle por variable (ADR 0019): emparejar
+    // contra ella daría una lista entera de variables sin pareja.
+    const db = fakeDb([row({ id: "84", computed_at: new Date("2026-08-13T03:00:00Z") })]);
+    const previous = await readPreviousSegment(db, current);
+
+    assert.equal(previous?.rowId, "84");
+    const [call] = db.calls;
+    assert.ok(call);
+    assert.match(call.text, /exists \(select 1 from aggregate_snapshots/);
+    assert.match(call.text, /ps\.computed_at < \$5/);
+    assert.match(call.text, /order by ps\.computed_at desc/);
+  });
+
+  it("pregunta por el mismo par, con la temporada incluida", async () => {
+    // La temporada entra en la clave porque un soft reset mueve a todo el
+    // mundo de tramo: comparar a través de temporadas mediría el reset.
+    const db = fakeDb([]);
+    await readPreviousSegment(db, current);
+
+    assert.deepEqual(db.calls[0]?.values, [
+      "eu",
+      42,
+      "shuffle-priest-holy",
+      "1800-2000",
+      COMPUTED_AT,
+    ]);
+  });
+
+  it("sin corrida anterior comparable devuelve null, que no es 'no ha cambiado'", async () => {
+    assert.equal(await readPreviousSegment(fakeDb([]), current), null);
   });
 });
 
