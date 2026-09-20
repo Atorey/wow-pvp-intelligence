@@ -19,6 +19,7 @@ import { isSpecPathIndexable } from "../seo/indexable";
 import {
   cachedAdoptionFor,
   cachedBracketSegments,
+  cachedPreviousSegment,
   cachedRunPopulation,
   cachedSegmentSamples,
 } from "./aggregate-cache";
@@ -27,6 +28,7 @@ import "./env";
 import {
   segmentDetailFor,
   specOverviewFor,
+  type SegmentAdoptions,
   type SegmentDetail,
   type SpecOverview,
 } from "./spec-view";
@@ -127,29 +129,51 @@ export async function loadSegmentPage(route: SpecRoute): Promise<SegmentPageData
   }
 
   const db = getDb();
+  // La corrida anterior va primero y sola: de ella depende si hay segunda
+  // tanda de lecturas, y pedirla en paralelo con las de hoy obligaría a
+  // lanzar las ocho para acabar tirando cuatro.
+  const previousRow = await cachedPreviousSegment(db, row);
+
   // Cuatro lecturas porque son cuatro bases: las tres variables de gear
   // comparten la suya y van juntas (ADR 0027), pero nodos, árbol de héroe y
   // talentos PvP tienen cada uno su denominador, y pedirlos a la vez mezclaría
   // en una lista porcentajes calculados sobre gente distinta.
+  const rows = previousRow === null ? [row] : [row, previousRow];
   const [gear, talentNodes, heroTrees, pvpTalents] = await Promise.all([
-    cachedAdoptionFor(db, [row], GEAR_KINDS),
-    cachedAdoptionFor(db, [row], "talent-node"),
-    cachedAdoptionFor(db, [row], "hero-tree"),
-    cachedAdoptionFor(db, [row], "pvp-talent"),
+    cachedAdoptionFor(db, rows, GEAR_KINDS),
+    cachedAdoptionFor(db, rows, "talent-node"),
+    cachedAdoptionFor(db, rows, "hero-tree"),
+    cachedAdoptionFor(db, rows, "pvp-talent"),
   ]);
-  const own = (byRowId: Map<string, AdoptionRead[]>): AdoptionRead[] =>
-    byRowId.get(row.rowId) ?? [];
+  const from =
+    (rowId: string) =>
+    (byRowId: Map<string, AdoptionRead[]>): AdoptionRead[] =>
+      byRowId.get(rowId) ?? [];
+  const adoptionsOf = (rowId: string): SegmentAdoptions => {
+    const own = from(rowId);
+    return {
+      gear: own(gear),
+      talentNodes: own(talentNodes),
+      heroTrees: own(heroTrees),
+      pvpTalents: own(pvpTalents),
+    };
+  };
 
   return {
     scope,
     detail: segmentDetailFor({
       segment: row,
-      adoptions: {
-        gear: own(gear),
-        talentNodes: own(talentNodes),
-        heroTrees: own(heroTrees),
-        pvpTalents: own(pvpTalents),
-      },
+      adoptions: adoptionsOf(row.rowId),
+      // La fecha sale del escalón anterior y no de una resta sobre hoy: entre
+      // dos corridas comparables puede haber una semana o quince días, y la
+      // serie de agregados tiene huecos reales.
+      previous:
+        previousRow === null
+          ? undefined
+          : {
+              computedAt: previousRow.gear.computedAt,
+              adoptions: adoptionsOf(previousRow.rowId),
+            },
     }),
     computedAt: row.gear.computedAt,
   };

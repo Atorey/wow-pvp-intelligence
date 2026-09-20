@@ -144,9 +144,15 @@ export const en = {
         /**
          * La columna de variación semanal del mockup no está, y se dice por qué
          * en vez de dejar la tabla como si nunca hubiera tenido una.
+         *
+         * El porqué **no** es la retención: desde el ADR 0019 la serie se
+         * conserva entera —`population_segments` no se poda nunca, y esa fue la
+         * razón de no podarla—. Lo que falta es muestra arriba: marcar una
+         * tendencia exige que la proporción del tramo alto acompañe (§17), y
+         * esa es la cifra que no llega (ADR 0037).
          */
-        trendPending:
-          "Week-on-week variation isn't published yet: it needs the series of past runs kept, not only the most recent one.",
+        trendPending: (needed: string, rating: string) =>
+          `Week-on-week variation isn't published yet: marking a spec as trending requires its share above ${rating} to move in the same direction, and no spec yet reaches the ${needed} observed up there that a trend needs.`,
       },
     },
 
@@ -181,8 +187,15 @@ export const en = {
         observed:
           "Observed = seen on the leaderboard we read, or looked up here. It is not every player.",
         /** Igual que en la tabla de arriba: la variación del mockup no está. */
+        /**
+         * Tampoco aquí es la retención. Esta cifra cuenta personajes distintos
+         * y `character_activity` guarda **una fila por personaje** con su
+         * última observación, no una por ventana: quien jugó las dos semanas
+         * solo tiene la fecha más reciente, así que recontar la ventana
+         * anterior hoy dejaría fuera justo a quien siguió jugando.
+         */
         trendPending:
-          "Variation over the previous week isn't published yet: it needs the earlier window kept, not only the most recent run.",
+          "Variation over the previous week isn't published yet: that figure can't be recounted today, because for each character we keep their latest observation and not one per window.",
       },
     },
   },
@@ -730,6 +743,32 @@ export const en = {
           `Over ${sample} profiles: the API leaves PvP talents out of some loadouts, so their base is their own.`,
         none: (sample: string, needed: string) =>
           `Not published yet: ${sample} profiles read in this segment, and ${needed} are needed.`,
+      },
+      /**
+       * La variación desde la corrida anterior comparable (ADR 0037).
+       *
+       * Sin flecha y sin color, y las dos ausencias son decisiones. El signo ya
+       * lleva la dirección, así que una flecha solo la repetiría; y un verde
+       * arriba con un rojo abajo diría que subir es bueno, que es convertir una
+       * correlación en un consejo sin escribir un solo verbo (regla 3). Lo que
+       * se enseña son puntos porcentuales y no un porcentaje de sí mismo: del
+       * 45 % al 77 % son 31 puntos, no "un 68 % más".
+       */
+      change: {
+        points: (value: string) => `${value} pts`,
+        /** Lo que dice el signo, para quien lo oye en vez de verlo. */
+        up: "up since the previous run",
+        down: "down since the previous run",
+        /**
+         * La línea que fecha la comparación. Se escribe aunque no se haya
+         * movido nada: sin ella, un tramo sin una sola marca se lee como que no
+         * medimos la variación, cuando lo que dice es que esta vez no se ha
+         * movido nada afirmable. No dice "a week ago" porque la serie tiene
+         * huecos —quince días entre dos corridas comparables, en septiembre de
+         * 2026— y la distancia real la dice la fecha.
+         */
+        since: (date: string, min: string) =>
+          `Variation measured against the run of ${date}, over the ${min}-profile minimum. Only moves that stand out from the sampling noise of their own base are marked; the rest are left unmarked rather than reported as flat.`,
       },
       /** Lo que queda plegado de una lista. Se pliega, no se corta. */
       more: (count: string) => `${count} more`,

@@ -2,10 +2,12 @@ import {
   COSMETIC_SLOTS,
   GEAR_SLOTS,
   MIN_SAMPLE_MEDIUM,
+  adoptionChange,
   canShowComparison,
   confidenceFor,
   parseShuffleBracket,
   slotGroup,
+  type AdoptionChange,
   type ConfidenceLevel,
   type RatingSegment,
 } from "@wowpvp/core";
@@ -197,29 +199,44 @@ export type Listing<T> =
       cause: "population" | "sampling";
     };
 
+/**
+ * Una adopción con lo que se ha movido desde la corrida anterior comparable
+ * (ADR 0037).
+ *
+ * El cambio viaja pegado a la fila y no en una lista aparte por lo mismo que la
+ * procedencia: no hay forma de pintar la flecha sin tener delante el porcentaje
+ * y el denominador sobre los que se decidió. `change` en `null` es lo normal —
+ * la inmensa mayoría de las filas no se mueven de forma afirmable— y significa
+ * "no se puede afirmar un movimiento", nunca "se ha quedado igual".
+ */
+export interface AdoptionRowView {
+  read: AdoptionRead;
+  change: AdoptionChange | null;
+}
+
 /** Un hueco de equipo con sus items, de más a menos llevado. */
 export interface SlotView {
   /** El grupo con el que se agregó: `'TRINKET'`, no `'TRINKET_1'`. */
   group: string;
   /** Si el grupo junta dos huecos, que es algo que se dice en pantalla. */
   paired: boolean;
-  rows: AdoptionRead[];
+  rows: AdoptionRowView[];
 }
 
 export interface GearContent {
   slots: SlotView[];
-  gems: AdoptionRead[];
-  enchants: AdoptionRead[];
+  gems: AdoptionRowView[];
+  enchants: AdoptionRowView[];
 }
 
 /** Los nodos de uno de los tres árboles del loadout. */
 export interface TreeView {
   tree: (typeof TREES)[number];
-  rows: AdoptionRead[];
+  rows: AdoptionRowView[];
 }
 
 export interface BuildContent {
-  heroTrees: AdoptionRead[];
+  heroTrees: AdoptionRowView[];
   trees: TreeView[];
 }
 
@@ -230,7 +247,19 @@ export interface SegmentDetail {
   gear: Listing<GearContent>;
   /** Nodos y árbol de héroe: los dos salen del loadout (ADR 0026). */
   build: Listing<BuildContent>;
-  pvp: Listing<AdoptionRead[]>;
+  pvp: Listing<AdoptionRowView[]>;
+  /**
+   * Contra qué corrida se ha medido la variación, o `null` si no había ninguna
+   * anterior que conservara agregados.
+   *
+   * Se declara aunque no se haya movido nada, y por eso no es "la fecha de los
+   * cambios" sino la de la comparación: sin ella, una página sin ninguna flecha
+   * se lee como que no medimos la variación, y lo que dice es que esta semana
+   * no se ha movido nada que se pueda afirmar. No se escribe "hace una semana"
+   * en ningún sitio — la serie tiene huecos y la distancia real la dice esta
+   * fecha.
+   */
+  changesSince: Date | null;
 }
 
 /** Las adopciones de un escalón, cada familia leída por separado. */
@@ -239,6 +268,12 @@ export interface SegmentAdoptions {
   talentNodes: readonly AdoptionRead[];
   heroTrees: readonly AdoptionRead[];
   pvpTalents: readonly AdoptionRead[];
+}
+
+/** El mismo escalón en la corrida anterior comparable, y de cuándo es. */
+export interface PreviousAdoptions {
+  computedAt: Date;
+  adoptions: SegmentAdoptions;
 }
 
 /** El orden en que se enseñan los árboles: el de la ventana de talentos del juego. */
@@ -261,10 +296,14 @@ const TREES = ["class", "spec", "hero"] as const;
 export function segmentDetailFor(input: {
   segment: SegmentRead;
   adoptions: SegmentAdoptions;
+  /** La corrida contra la que se mide la variación. Sin ella no hay flechas. */
+  previous?: PreviousAdoptions | undefined;
 }): SegmentDetail {
-  const { segment, adoptions } = input;
+  const { segment, adoptions, previous } = input;
   const population = segment.population.sampleSize;
   const items = adoptions.gear.filter((row) => row.kind === "gear-item");
+  const before = previousByKey(previous);
+  const rows = (list: readonly AdoptionRead[]): AdoptionRowView[] => byAdoption(list, before);
 
   return {
     segment,
@@ -272,9 +311,9 @@ export function segmentDetailFor(input: {
     gear: listingFor(
       { sample: segment.gear.denominator, population, unavailable: unavailableOf(items) },
       () => ({
-        slots: slotsFor(items),
-        gems: byAdoption(adoptions.gear.filter((row) => row.kind === "gear-gem")),
-        enchants: byAdoption(adoptions.gear.filter((row) => row.kind === "gear-enchant")),
+        slots: slotsFor(items, before),
+        gems: rows(adoptions.gear.filter((row) => row.kind === "gear-gem")),
+        enchants: rows(adoptions.gear.filter((row) => row.kind === "gear-enchant")),
       }),
     ),
     build: listingFor(
@@ -284,10 +323,10 @@ export function segmentDetailFor(input: {
         unavailable: unavailableOf(adoptions.talentNodes),
       },
       () => ({
-        heroTrees: byAdoption(adoptions.heroTrees),
+        heroTrees: rows(adoptions.heroTrees),
         trees: TREES.map((tree) => ({
           tree,
-          rows: byAdoption(adoptions.talentNodes.filter((row) => row.talentTree === tree)),
+          rows: rows(adoptions.talentNodes.filter((row) => row.talentTree === tree)),
         })).filter((view) => view.rows.length > 0),
       }),
     ),
@@ -297,9 +336,52 @@ export function segmentDetailFor(input: {
         population,
         unavailable: unavailableOf(adoptions.pvpTalents),
       },
-      () => byAdoption(adoptions.pvpTalents),
+      () => rows(adoptions.pvpTalents),
     ),
+    changesSince: previous?.computedAt ?? null,
   };
+}
+
+/**
+ * Las adopciones de la corrida anterior, indexadas para emparejarlas.
+ *
+ * La clave lleva el `kind` delante y no solo la `variable_key`: la unicidad en
+ * la tabla es `(escalón, kind, key)`, así que dos familias podrían coincidir en
+ * clave y emparejar un item con un talento. Cuesta un prefijo y quita un fallo
+ * que no daría error, solo un porcentaje comparado contra otra cosa.
+ */
+function previousByKey(previous: PreviousAdoptions | undefined): Map<string, AdoptionRead> {
+  const byKey = new Map<string, AdoptionRead>();
+  if (!previous) return byKey;
+
+  const { gear, talentNodes, heroTrees, pvpTalents } = previous.adoptions;
+  for (const row of [...gear, ...talentNodes, ...heroTrees, ...pvpTalents]) {
+    byKey.set(keyOf(row), row);
+  }
+  return byKey;
+}
+
+function keyOf(row: AdoptionRead): string {
+  return `${row.kind} ${row.variableKey}`;
+}
+
+/**
+ * El movimiento de una fila, o `null`.
+ *
+ * Una variable sin pareja en la corrida anterior sale sin cambio y no como una
+ * subida desde cero: la poda borra de las corridas viejas las filas con menos
+ * de cinco usuarios (ADR 0019), así que una ausencia puede ser "no lo llevaba
+ * nadie" o "lo llevaban tres". Indistinguibles, y `null` es "no disponible"
+ * (regla 5).
+ */
+function changeOf(row: AdoptionRead, before: ReadonlyMap<string, AdoptionRead>) {
+  const previous = before.get(keyOf(row));
+  if (!previous) return null;
+
+  return adoptionChange(
+    { value: previous.rate, denominator: previous.provenance.denominator },
+    { value: row.rate, denominator: row.provenance.denominator },
+  );
 }
 
 function listingFor<T>(
@@ -347,7 +429,10 @@ function itemLevelOf(segment: SegmentRead): SegmentDetail["itemLevel"] {
  * llegara crudo cae en su grupo en vez de abrir otro con la mitad de la
  * adopción. Los cosméticos no se pintan: no son una elección de rendimiento.
  */
-function slotsFor(rows: readonly AdoptionRead[]): SlotView[] {
+function slotsFor(
+  rows: readonly AdoptionRead[],
+  before: ReadonlyMap<string, AdoptionRead>,
+): SlotView[] {
   const byGroup = new Map<string, AdoptionRead[]>();
   for (const row of rows) {
     if (row.slotGroup === null) continue;
@@ -360,7 +445,11 @@ function slotsFor(rows: readonly AdoptionRead[]): SlotView[] {
   }
 
   return [...byGroup]
-    .map(([group, list]) => ({ group, paired: slotsIn(group) > 1, rows: byAdoption(list) }))
+    .map(([group, list]) => ({
+      group,
+      paired: slotsIn(group) > 1,
+      rows: byAdoption(list, before),
+    }))
     .sort((a, b) => positionOf(a.group) - positionOf(b.group) || a.group.localeCompare(b.group));
 }
 
@@ -377,8 +466,20 @@ function slotsIn(group: string): number {
   return GEAR_SLOTS.filter((slot) => slotGroup(slot) === group).length;
 }
 
-function byAdoption(rows: readonly AdoptionRead[]): AdoptionRead[] {
-  return [...rows].sort((a, b) => b.rate - a.rate || a.variableKey.localeCompare(b.variableKey));
+/**
+ * Las filas de una familia, de más a menos llevada y con su variación.
+ *
+ * El orden sigue siendo el de la adopción de hoy y no el del movimiento: la
+ * lista contesta "qué se lleva en este tramo", y ordenarla por lo que más ha
+ * cambiado la convertiría en otra pregunta.
+ */
+function byAdoption(
+  rows: readonly AdoptionRead[],
+  before: ReadonlyMap<string, AdoptionRead>,
+): AdoptionRowView[] {
+  return [...rows]
+    .sort((a, b) => b.rate - a.rate || a.variableKey.localeCompare(b.variableKey))
+    .map((read) => ({ read, change: changeOf(read, before) }));
 }
 
 /** De la primera fila: todas las de una familia comparten el recuento de fuera. */

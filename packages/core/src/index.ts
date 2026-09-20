@@ -11,5 +11,6 @@ export * from "./standing";
 export * from "./player-gap";
 export * from "./aggregates";
 export * from "./differences";
+export * from "./trends";
 export * from "./routes";
 export * from "./gear";

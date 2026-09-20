@@ -1,4 +1,10 @@
-import { BRACKET_LABELS, BRACKET_SLUGS, MIN_SAMPLE_MEDIUM, specPath } from "@wowpvp/core";
+import {
+  BRACKET_LABELS,
+  BRACKET_SLUGS,
+  MIN_SAMPLE_HIGH,
+  MIN_SAMPLE_MEDIUM,
+  specPath,
+} from "@wowpvp/core";
 import Link from "next/link";
 
 import { classColor } from "../design/class-color";
@@ -21,10 +27,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from ".
  * que no hay. Cada fila sí enlaza a su spec, que es página desde #112, y la
  * barra lateral despliega las cuarenta.
  *
- * Tampoco está la columna «7 días» del mockup: la variación exige conservar la
- * serie de corridas y esa decisión todavía no está tomada. No se rellena con un
- * cero —sería una variación medida que nadie midió— y su ausencia se declara en
- * la nota, no se disimula.
+ * Tampoco está la columna «7 días» del mockup, y la razón ya no es la serie:
+ * desde el ADR 0019 se conserva entera. Lo que falta es muestra en el tramo
+ * alto, porque marcar una tendencia exige que su proporción acompañe (§17) y
+ * ninguna spec llega al umbral ahí arriba (ADR 0037). No se rellena con un cero
+ * —sería una variación que nadie midió— y su ausencia se declara en la nota,
+ * con la cifra que le falta.
  *
  * Sin scroll horizontal (§4 del sistema): en pantalla estrecha se retiran la
  * barra y las dos columnas del tramo alto, y lo que sostiene la fila —la
@@ -148,7 +156,9 @@ export function SpecRepresentationTable({
           {copy.highNote(count(MIN_SAMPLE_MEDIUM), highFloor)}
         </p>
         <p className="text-subtle-foreground max-w-measure text-sm">{copy.notSaid}</p>
-        <p className="text-subtle-foreground max-w-measure text-sm">{copy.trendPending}</p>
+        <p className="text-subtle-foreground max-w-measure text-sm">
+          {copy.trendPending(count(MIN_SAMPLE_HIGH), highFloor)}
+        </p>
         <p className="text-subtle-foreground max-w-measure text-sm">
           {copyFor(locale).spec.observedNote}
         </p>

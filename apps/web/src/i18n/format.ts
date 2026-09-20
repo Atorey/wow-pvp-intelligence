@@ -77,6 +77,32 @@ export function formatShare(value: number, locale: Locale): string {
 }
 
 /**
+ * Cuánto se ha movido una adopción, en puntos porcentuales y con signo.
+ *
+ * **Puntos y no porcentaje**, y la diferencia no es de estilo: del 45 % al 77 %
+ * son 31 puntos y también "un 68 % más", y las dos cifras describen el mismo
+ * hecho con tamaños distintos. La segunda infla los movimientos que parten de
+ * poco —del 1 % al 2 % es "el doble"— y aquí lo que se compara entre filas es
+ * cuánto se ha movido cada una sobre la misma escala.
+ *
+ * El signo lo pone `Intl` con el menos de cada lengua, que no es el guion del
+ * teclado. El más también va siempre: una subida sin signo se leería como el
+ * valor y no como la diferencia.
+ */
+export function formatPoints(delta: number, locale: Locale): string {
+  const points = delta * 100;
+  // Redondea a entero, salvo que el entero sea cero: un "+0 pts" diría que no
+  // se ha movido justo en la fila que se marca porque sí se ha movido. Hoy no
+  // puede pasar —con las bases que hay, lo mínimo que supera el ruido son diez
+  // puntos largos— pero depende del denominador, y el denominador crece.
+  const decimals = Math.abs(points) < 1 ? 1 : 0;
+  return new Intl.NumberFormat(locale, {
+    signDisplay: "always",
+    maximumFractionDigits: decimals,
+  }).format(points);
+}
+
+/**
  * Cuántas veces cabe una proporción en otra: "×1,3".
  *
  * Con el signo de multiplicar delante, y no con una "x" de teclado, porque es la
