@@ -4,7 +4,6 @@ import {
   formatSegment,
   methodologyPath,
   playerPath,
-  searchPath,
   type PlayerRoute,
 } from "@wowpvp/core";
 import Link from "next/link";
@@ -15,7 +14,7 @@ import { copyFor } from "../i18n/copy";
 import { formatCount, formatDate, formatPercentile, formatRating } from "../i18n/format";
 import { type Locale, localizedPathname } from "../i18n/locales";
 import { refreshPlayer } from "../server/actions";
-import type { PlayerProfile } from "../server/player";
+import type { PlayerAbsence, PlayerProfile } from "../server/player";
 import type { StandingView } from "../server/player-profile";
 import type { RefreshStatus } from "../server/refresh";
 import { CountRow, CountedFigure, DeclaredAbsence } from "./counted-figure";
@@ -256,38 +255,106 @@ export function PlayerPage({
 }
 
 /**
- * Un personaje del que no consta ninguna observación.
+ * Un personaje del que no consta ninguna observación, en sus dos formas: el que
+ * no está en la población y el que está y no le consta rating.
  *
- * No es un 404 y no se le pregunta a Blizzard desde aquí: esto es un `GET` y
- * una llamada colgada de un `GET` la dispara cualquier precarga (ADR 0024). Lo
- * que se ofrece es el camino que sí escribe, que es el buscador.
+ * Sigue sin preguntarle nada a Blizzard al pintarse —esto es un `GET`, y una
+ * llamada colgada de un `GET` la dispara cualquier precarga (ADR 0024)—, pero su
+ * acción sí pregunta, porque es un `POST`. Un `<Link>` al buscador no podía:
+ * `/search` resuelve contra la población antes de tocar la API, así que para un
+ * personaje que ya está en `characters` la rama que llama a Blizzard es
+ * inalcanzable y el perfil se quedaba en un callejón sin salida que no caducaba.
+ * El camino que escribe es el mismo "Actualizar" del perfil.
  */
-export function PlayerNotObserved({ locale, route }: { locale: Locale; route: PlayerRoute }) {
-  const copy = copyFor(locale).player;
+export function PlayerNotObserved({
+  locale,
+  route,
+  absence,
+  refresh,
+}: {
+  locale: Locale;
+  route: PlayerRoute;
+  absence: PlayerAbsence;
+  /** Resultado de la última pulsación del botón, si viene en la URL. */
+  refresh: RefreshStatus | null;
+}) {
+  const player = copyFor(locale).player;
+  const copy = player.absent;
+  const message = absence.state === "unknown" ? copy.unknown : copy.noRating;
 
   return (
     <main className="mx-auto flex max-w-measure flex-col gap-4 px-5 py-10">
-      <h1 className="text-foreground text-2xl">{route.nameSlug}</h1>
+      {/*
+       * La grafía de Blizzard cuando la tenemos y el slug cuando no: de un
+       * personaje que no está en la población no sabemos cómo escribe su nombre,
+       * y lo único nuestro es el de la URL (ADR 0017).
+       */}
+      <h1 className="text-foreground text-2xl">
+        {absence.state === "no-rating" ? absence.nameDisplay : route.nameSlug}
+      </h1>
       <p className="text-muted-foreground text-sm">
         {route.realmSlug} · {route.region.toUpperCase()}
       </p>
       <Card className="gap-3 p-5">
-        <h2 className="text-foreground text-lg">{copy.unknown.title}</h2>
-        <p className="text-muted-foreground text-base">{copy.unknown.body}</p>
-        <p className="text-sm">
-          <Link
-            href={localizedPathname(
-              searchPath({ realm: route.realmSlug, name: route.nameSlug }),
-              locale,
-            )}
-            className="text-primary underline"
-          >
-            {copy.unknown.action}
-          </Link>
-        </p>
+        <h2 className="text-foreground text-lg">{message.title}</h2>
+        <p className="text-muted-foreground text-base">{message.body}</p>
+        {/*
+         * El alcance del sitio, con la misma frase que el perfil usa en "otras
+         * modalidades" y no una variante suya: es la explicación de por qué a
+         * alguien con clasificación en 2v2 no le consta rating aquí, y dos
+         * redacciones de un mismo límite acabarían diciendo cosas distintas.
+         */}
+        {absence.state === "no-rating" && (
+          <p className="text-subtle-foreground text-sm">{player.brackets.none}</p>
+        )}
+        {/*
+         * Cuándo se le preguntó, que es lo que convierte "no le consta rating" en
+         * una afirmación fechada. Sin fila en la bitácora no se escribe nada: su
+         * identidad pudo entrar por el leaderboard, que no deja ninguna.
+         */}
+        {absence.state === "no-rating" && absence.askedAt !== null && (
+          <p className="text-subtle-foreground text-sm">
+            {copy.noRating.asked(formatDate(absence.askedAt, locale))}
+          </p>
+        )}
+        {refresh !== null && <AbsenceNotice locale={locale} status={refresh} />}
+        <RefreshForm locale={locale} route={route} label={copy.action} />
       </Card>
     </main>
   );
+}
+
+/**
+ * Qué pasó al pulsar el botón de esta pantalla.
+ *
+ * No reusa `RefreshNotice` por sus dos extremos. `updated` allí no dice nada —la
+ * ficha refrescada se ve sola— y aquí es el aviso que más falta hace: si después
+ * de preguntar seguimos en esta pantalla, es que Blizzard contestó y no traía
+ * rating. Y los avisos de "no se pudo preguntar" del perfil remontan con "lo de
+ * abajo es la última observación registrada", que aquí sería falso: abajo no hay
+ * ninguna.
+ */
+function AbsenceNotice({ locale, status }: { locale: Locale; status: RefreshStatus }) {
+  const copy = copyFor(locale);
+  const absent = copy.player.absent;
+
+  const text =
+    status === "updated"
+      ? absent.stillNoRating
+      : status === "cached"
+        ? // El mismo TTL que decidió no llamar (§28). Un personaje sin rating lo
+          // tiene igual: su frescura se mide sobre la bitácora, que es lo único
+          // que esa respuesta deja.
+          copy.player.refresh.fresh(String(getCharacterLookupTtlMinutes()))
+        : status === "unavailable"
+          ? absent.unavailable
+          : status === "rate-limited"
+            ? absent.rateLimited
+            : // "No existe" de alguien que sí teníamos: un borrado, un rename o
+              // un transfer entre aquella búsqueda y esta.
+              copy.search.notFound.body;
+
+  return <p className="text-muted-foreground text-sm">{text}</p>;
 }
 
 /**
@@ -447,6 +514,15 @@ function Standing({
   );
 }
 
+/**
+ * El `POST` que vuelve a preguntarle a Blizzard, con la identidad en campos
+ * ocultos.
+ *
+ * `spec` y `tab` son opcionales porque la pantalla de personaje sin
+ * observaciones no tiene ninguna de las dos: no hay spec observada que elegir ni
+ * pestaña que conservar. La acción ya sabe prescindir de ellas, y sin ellas la
+ * vuelta es el perfil limpio.
+ */
 function RefreshForm({
   locale,
   route,
@@ -456,8 +532,8 @@ function RefreshForm({
 }: {
   locale: Locale;
   route: PlayerRoute;
-  spec: string;
-  tab: PlayerTab;
+  spec?: string;
+  tab?: PlayerTab;
   label: string;
 }) {
   return (
@@ -466,8 +542,8 @@ function RefreshForm({
       <input type="hidden" name="region" value={route.region} />
       <input type="hidden" name="realm" value={route.realmSlug} />
       <input type="hidden" name="name" value={route.nameSlug} />
-      <input type="hidden" name="spec" value={spec} />
-      <input type="hidden" name="tab" value={tab} />
+      {spec !== undefined && <input type="hidden" name="spec" value={spec} />}
+      {tab !== undefined && <input type="hidden" name="tab" value={tab} />}
       <Button type="submit" variant="outline">
         {label}
       </Button>

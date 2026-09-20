@@ -97,8 +97,11 @@ export interface LookupDeps {
 /** Lo que sabemos de un personaje antes de preguntar a Blizzard. */
 interface ExistingCharacter {
   id: string;
-  /** Última captura de perfil (muestreo o búsqueda). null = solo lo hemos visto en leaderboard. */
-  lastProfileAt: Date | null;
+  /**
+   * Última vez que se le bajó el perfil a este personaje. null = nunca: solo lo
+   * hemos visto en el leaderboard, o no hemos llegado a mirarlo.
+   */
+  lastAskedAt: Date | null;
 }
 
 async function findExisting(
@@ -110,9 +113,32 @@ async function findExisting(
   // un snapshot de leaderboard trae rating y nada más, así que tenerlo reciente
   // no evita la llamada — seguirían faltando gear y talentos, que es a lo que
   // viene la búsqueda.
-  const { rows } = await pool.query<{ id: string; last_profile_at: Date | null }>(
+  //
+  // Y no solo sobre snapshots, porque hay una respuesta de Blizzard que no deja
+  // ninguno: la del personaje que existe y no tiene rating en ningún bracket.
+  // Medido únicamente por sus capturas, ese personaje está eternamente caducado
+  // y cada consulta suya vuelve a costar dos peticiones — que es exactamente el
+  // gasto que el TTL de §28 existe para no repetir. Lo que queda de esa
+  // respuesta es su fila en la bitácora, así que la frescura la mira también:
+  // es la misma lectura, y por el mismo motivo, que hace la caché de negativos
+  // (ADR 0030).
+  //
+  // Solo las filas que costaron una petición y trajeron respuesta del personaje:
+  // un 'cached' no es haber preguntado —contarlo dejaría el TTL renovándose con
+  // cada visita— y un 'not-found' sobre alguien que ya está en la población es
+  // un borrado, un rename o un transfer, y de esos el reintento es justo lo que
+  // puede cambiar la respuesta.
+  const { rows } = await pool.query<{ id: string; last_asked_at: Date | null }>(
     `select c.id,
-            max(s.captured_at) filter (where s.source in ('profile', 'search')) as last_profile_at
+            greatest(
+              max(s.captured_at) filter (where s.source in ('profile', 'search')),
+              (select max(l.requested_at)
+                 from character_lookups l
+                where l.region = c.region
+                  and l.realm_slug = c.realm_slug
+                  and l.name_slug = c.name_slug
+                  and l.outcome in ('ok', 'no-brackets'))
+            ) as last_asked_at
        from characters c
        left join character_snapshots s on s.character_id = c.id
       where c.region = $1 and c.realm_slug = $2 and c.name_slug = $3
@@ -121,7 +147,7 @@ async function findExisting(
   );
 
   const row = rows[0];
-  return row ? { id: row.id, lastProfileAt: row.last_profile_at } : null;
+  return row ? { id: row.id, lastAskedAt: row.last_asked_at } : null;
 }
 
 /**
@@ -331,7 +357,7 @@ export async function lookupCharacter(deps: LookupDeps, ref: CharacterRef): Prom
   result.characterId = existing?.id ?? null;
   result.newCharacter = existing === null;
 
-  if (!deps.force && isProfileFresh(existing?.lastProfileAt ?? null, now, deps.ttlMinutes)) {
+  if (!deps.force && isProfileFresh(existing?.lastAskedAt ?? null, now, deps.ttlMinutes)) {
     // Dentro del TTL no se llama a Blizzard (§28). Además de cuota, esto evita
     // que N búsquedas seguidas metan N snapshots casi idénticos: un histórico
     // append-only mide cambios, y una ráfaga de medidas iguales no mide nada.

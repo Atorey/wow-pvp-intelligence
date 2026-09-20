@@ -289,6 +289,69 @@ export async function readStanding(
 }
 
 /**
+ * La identidad que consta de un personaje, sin ninguna observación de por medio.
+ *
+ * Existe para una pregunta que `readLatestObservedSeason()` no puede contestar:
+ * cuando de alguien no consta ni un snapshot, ¿es que no lo conocemos o es que
+ * lo conocemos y no le consta rating? Las dos cosas se sirven hoy con el mismo
+ * texto y la segunda afirma algo falso —"nadie lo ha consultado aquí"— sobre un
+ * personaje del que sí hay constancia de haber preguntado.
+ *
+ * `lastAskedAt` sale de la bitácora de búsquedas y **solo** de las filas que
+ * costaron una petición: un acierto de caché no es haber preguntado, y contarlo
+ * aquí fecharía la respuesta de Blizzard en el momento en que alguien volvió a
+ * mirar. Es la misma lectura que ya hace la caché de negativos, y por el mismo
+ * motivo (ADR 0030).
+ *
+ * `null` en `lastAskedAt` es "no consta que se le haya preguntado": la identidad
+ * pudo entrar por el leaderboard, que no pasa por la bitácora.
+ */
+export interface CharacterIdentityRead {
+  characterId: string;
+  /** Cómo lo escribe Blizzard. Es lo único que sabemos escribir de él sin observaciones. */
+  nameDisplay: string;
+  realmSlug: string;
+  firstSeenAt: Date;
+  lastAskedAt: Date | null;
+}
+
+/** `null` es "no está en la población", que sigue sin ser "no existe". */
+export async function readCharacterIdentity(
+  db: Queryable,
+  key: CharacterKey,
+): Promise<CharacterIdentityRead | null> {
+  const { rows } = await db.query<{
+    id: string;
+    name_display: string;
+    realm_slug: string;
+    first_seen_at: Date;
+    last_asked_at: Date | null;
+  }>(
+    `select c.id, c.name_display, c.realm_slug, c.first_seen_at,
+            (select max(l.requested_at)
+               from character_lookups l
+              where l.region = c.region
+                and l.realm_slug = c.realm_slug
+                and l.name_slug = c.name_slug
+                and l.outcome in ('ok', 'no-brackets', 'error')) as last_asked_at
+       from characters c
+      where c.region = $1 and c.realm_slug = $2 and c.name_slug = $3`,
+    [key.region, key.realmSlug, key.nameSlug],
+  );
+
+  const row = rows[0];
+  if (!row) return null;
+
+  return {
+    characterId: row.id,
+    nameDisplay: row.name_display,
+    realmSlug: row.realm_slug,
+    firstSeenAt: row.first_seen_at,
+    lastAskedAt: row.last_asked_at,
+  };
+}
+
+/**
  * La temporada más reciente en la que hemos observado a un personaje.
  *
  * La web no puede preguntarle a Blizzard cuál es la temporada en curso —eso

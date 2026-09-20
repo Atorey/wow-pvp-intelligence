@@ -56,16 +56,18 @@ Es lo que **escribe** y lo que llama a Blizzard, junto con el botón "Actualizar
 - **"No existe" y "no se pudo mirar" son dos mensajes distintos** y no se pueden fundir: sin cuota o sin tiempo se responde lo segundo.
 - **El límite por IP** es un token bucket por conexión en Postgres ([ADR 0030](../../docs/decisions/0030-limite-por-ip-y-cache-de-negativos.md)): cinco envíos por minuto y sesenta por hora, sesenta sugerencias por minuto. Lo que se guarda es un HMAC de la dirección con `RATE_LIMIT_SALT`, nunca la dirección. Cuando falla la comprobación se deja pasar, porque el presupuesto de Blizzard vive en la misma base y es la segunda puerta; cuando falta la sal, en cambio, la web no arranca.
 - **Un 404 reciente no se vuelve a preguntar** durante `CHARACTER_NOT_FOUND_TTL_MINUTES`. El precio es que un personaje recién creado tarda hasta una hora en verse.
+- **`/search` sin `status` en la URL no es una ambigüedad.** Es un estado propio —nadie ha resuelto nada todavía— y no se presenta como «varios personajes casan con ese nombre», que era titular el resultado de una búsqueda que no se ha hecho ([ADR 0036](../../docs/decisions/0036-personaje-conocido-sin-rating.md)). El buscador de esa página llega con el reino y el nombre ya escritos, en todos sus estados.
 
 ## El perfil
 
-`/{locale}/player/{region}/{realm}/{name}` es la primera página que lee de Postgres. Cinco cosas que no se adivinan leyendo el componente:
+`/{locale}/player/{region}/{realm}/{name}` es la primera página que lee de Postgres. Seis cosas que no se adivinan leyendo el componente:
 
 - **La temporada es la última en la que consta ese personaje**, no la que Blizzard llame actual. Preguntárselo cuesta dos llamadas por visita, y lo que la página enseña es lo último que sabemos de él.
 - **La spec y la pestaña viajan en la query** (`?spec=`, `?tab=`), nunca como tramos de ruta: el recurso es el personaje y su URL canónica es la ruta a secas ([ADR 0020](../../docs/decisions/0020-mapa-de-rutas-del-sitio.md), decisión 7). La canónica que se anuncia no lleva query. Por defecto abre en la spec de mayor rating.
 - **El estado de la caja Player Gap lo decide `canShowComparison()` sobre el `gear_sample` del segmento objetivo**, nunca sobre su población (decisión 3 del [ADR 0010](../../docs/decisions/0010-cobertura-por-segmento.md)). Y hay una tercera causa de "sin comparación" que la §1.5 del brief no contempla: que el perfil que falte sea el del propio personaje.
 - **El item level sale de la observación que trajo el equipo**, no del snapshot más reciente. El leaderboard inserta filas sin gear cada vez que cambia el rating, así que el último snapshot casi siempre trae un null que se leería como "no lleva nada".
-- **"Actualizar" respeta el TTL** de la búsqueda y no lo fuerza: es la misma cuota compartida con el pipeline, y un botón que ignore la caché es un botón de gastar. Si el perfil está fresco, la página lo dice en vez de fingir que ha refrescado algo.
+- **"Actualizar" respeta el TTL** de la búsqueda y no lo fuerza: es la misma cuota compartida con el pipeline, y un botón que ignore la caché es un botón de gastar. Si el perfil está fresco, la página lo dice en vez de fingir que ha refrescado algo. De un personaje sin ninguna observación ese TTL no puede salir de sus snapshots, así que sale de `character_lookups` ([ADR 0036](../../docs/decisions/0036-personaje-conocido-sin-rating.md)).
+- **Un personaje sin observaciones tiene dos pantallas, no una**: «no está en la población» y «lo conocemos y no le consta rating», la segunda fechada con la última vez que se le preguntó a Blizzard. Y su acción es el mismo `POST` que "Actualizar", porque es el **único** camino de la web que vuelve a preguntar por alguien que ya está en `characters`: el buscador no puede, ya que resuelve contra la población antes de tocar la API.
 
 ## Las páginas de spec
 
