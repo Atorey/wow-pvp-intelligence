@@ -451,6 +451,13 @@ export interface SeedTalent {
   tree: "class" | "spec" | "hero" | "pvp";
   talentId: number;
   talentName: string | null;
+  /**
+   * El talento elegido en el nodo. Va en otro rango de ids a propósito: es otra
+   * cosa que el nodo (ADR 0035), y sembrarlo igual dejaría pasar un cruce que
+   * los confundiera. Aquí ningún nodo es de elección, así que la
+   * correspondencia es uno a uno.
+   */
+  selectedTalentId: number;
   rank: number | null;
 }
 
@@ -811,6 +818,13 @@ const PVP_TALENTS: readonly { name: string; base: number; drift: number }[] = [
 
 const HERO_TREES: readonly [string, string] = ["Spellslinger", "Frostfire"];
 
+/**
+ * Los ids de talento viven lejos de los de nodo. No es cosmético: el bug que
+ * justifica el catálogo del ADR 0035 es tratar uno por el otro, y con rangos
+ * solapados un cruce equivocado seguiría dando resultados en el dataset.
+ */
+const SELECTED_ID_BASE = 1_000_000;
+
 /** Ids estables por spec: dos specs distintas no comparten nodo, como en el juego. */
 function talentIdBase(specSlugId: string): number {
   let hash = 0;
@@ -841,6 +855,7 @@ function buildTalents(
       tree: i % 3 === 0 ? "class" : i % 3 === 1 ? "spec" : "hero",
       talentId: idBase + i,
       talentName: `Nodo ${specSlugId} ${i}`,
+      selectedTalentId: SELECTED_ID_BASE + idBase + i,
       rank: random() < 0.3 ? 2 : 1,
     });
   }
@@ -851,6 +866,7 @@ function buildTalents(
       tree: node.tree,
       talentId: idBase + CORE_NODE_COUNT + i,
       talentName: node.name,
+      selectedTalentId: SELECTED_ID_BASE + idBase + CORE_NODE_COUNT + i,
       rank: 1,
     });
   });
@@ -866,7 +882,14 @@ function buildTalents(
     .sort((a, b) => b.weight - a.weight)
     .slice(0, 3);
   for (const { talent, i } of chosen) {
-    talents.push({ tree: "pvp", talentId: idBase + 900 + i, talentName: talent.name, rank: null });
+    talents.push({
+      tree: "pvp",
+      talentId: idBase + 900 + i,
+      talentName: talent.name,
+      // En pvp el talento es el nodo: no hay elección que desambiguar.
+      selectedTalentId: idBase + 900 + i,
+      rank: null,
+    });
   }
 
   // Escorado y no al 50%: el árbol de héroe es la variable con menos

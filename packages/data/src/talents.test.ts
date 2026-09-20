@@ -16,7 +16,7 @@ const KEY = {
 function talentRow(overrides: Record<string, unknown> = {}) {
   return {
     tree: "spec",
-    talent_id: "99846",
+    node_id: 99846,
     talent_name: "Toque gélido",
     rank: 1,
     captured_at: CAPTURED_AT,
@@ -35,13 +35,23 @@ describe("readLatestTalents", () => {
     assert.match(db.calls[0]?.text ?? "", /exists \(select 1 from character_snapshot_talents/);
   });
 
-  it("convierte el talent_id de bigint a número", async () => {
-    // Es la clave con la que la fila se cruza contra el agregado: como texto no
-    // cruzaría con nada y la marca de "lo llevas" no aparecería nunca.
+  it("devuelve el nodo del catálogo como talentId, no la etiqueta", async () => {
+    // Es la clave con la que la fila se cruza contra el agregado, y desde el
+    // ADR 0035 la fila guarda el id de etiqueta: devolver ese en su lugar
+    // cruzaría contra nada y la marca de "lo llevas" no aparecería nunca.
     const db = fakeDb([talentRow()]);
     const read = await readLatestTalents(db, KEY);
 
     assert.equal(read?.nodes[0]?.talentId, 99846);
+  });
+
+  it("empareja cada etiqueta con su rango abriendo los dos arrays a la vez", async () => {
+    // Dos unnest separados harían el producto cartesiano de etiquetas y rangos,
+    // y el rango que le tocara a cada nodo dependería del planificador.
+    const db = fakeDb([talentRow()]);
+    await readLatestTalents(db, KEY);
+
+    assert.match(db.calls[1]?.text ?? db.calls[0]?.text ?? "", /unnest\(t\.label_ids, t\.ranks\)/);
   });
 
   it("un nodo sin nombre sigue siendo un nodo observado", async () => {

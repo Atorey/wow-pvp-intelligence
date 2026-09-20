@@ -304,6 +304,9 @@ async function archiveBatch(
       order by snapshot_id, slot`,
     [ids],
   );
+  // Lo que se sube son `label_ids`, no nombres (ADR 0035): este lote no se
+  // entiende sin `talent_labels`, que por eso no se poda nunca. Es la primera
+  // dependencia del archivo hacia una tabla viva.
   const { rows: talents } = await client.query<object>(
     `select * from character_snapshot_talents where snapshot_id = any($1::bigint[])
       order by snapshot_id`,
