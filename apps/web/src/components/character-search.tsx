@@ -64,26 +64,45 @@ import {
 const SEGMENT =
   "border-input bg-card text-foreground placeholder:text-subtle-foreground min-w-0 w-full border px-4 py-3 text-base focus-visible:relative focus-visible:z-10 sm:border-r-0";
 
-export function CharacterSearch({ locale, region }: { locale: Locale; region: Region }) {
+export function CharacterSearch({
+  locale,
+  region,
+  initial,
+}: {
+  locale: Locale;
+  region: Region;
+  /**
+   * Lo que se tecleó en un envío anterior, para la pantalla de /search. Llega
+   * **sin canonizar**: es lo que escribió quien buscó, que es lo que hay que
+   * poder corregir.
+   */
+  initial?: { realm: string; name: string };
+}) {
   const copy = copyFor(locale).search;
   const router = useRouter();
   const realmListId = useId();
   const nameListId = useId();
 
-  const [realm, setRealm] = useState("");
-  const [name, setName] = useState("");
+  const [realm, setRealm] = useState(initial?.realm ?? "");
+  const [name, setName] = useState(initial?.name ?? "");
   const [realmOpen, setRealmOpen] = useState(false);
   /*
-   * Haber cerrado el desplegable de nombres a mano —con Escape o pulsando
-   * fuera— es un estado aparte de "hay sugerencias que enseñar": sin él, el
-   * desplegable volvería a abrirse solo en cuanto llegara la siguiente
-   * respuesta, y cerrarlo no serviría de nada. Teclear otra vez lo reabre.
+   * El desplegable de nombres cerrado, que son dos cosas a la vez y las dos
+   * quieren lo mismo: haberlo cerrado a mano —con Escape o pulsando fuera— y no
+   * haber tecleado todavía nada. Lo primero es un estado aparte de "hay
+   * sugerencias que enseñar", porque sin él el desplegable volvería a abrirse
+   * solo en cuanto llegara la siguiente respuesta y cerrarlo no serviría de
+   * nada. Lo segundo es el campo que llega escrito desde la URL: abrirle un
+   * desplegable encima al cargar la página sería sugerirle algo a quien no ha
+   * tocado nada. Teclear reabre en los dos casos.
    */
-  const [namesDismissed, setNamesDismissed] = useState(false);
+  const [namesDismissed, setNamesDismissed] = useState(Boolean(initial?.name));
 
   const realms = useKnownRealms();
   const realmMatches = filterRealms(realms, realm);
-  const { suggestions, status, open } = useSuggestions(name, realm);
+  // Con el desplegable cerrado tampoco se pide la lista: es una consulta por
+  // carga de página para rellenar algo que no se va a ver.
+  const { suggestions, status, open } = useSuggestions(namesDismissed ? "" : name, realm);
 
   function pickRealm(slug: string): void {
     setRealm(slug);

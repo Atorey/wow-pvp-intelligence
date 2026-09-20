@@ -105,12 +105,19 @@ export default async function SearchPage({
 
   const realm = query.realm?.trim() ?? "";
   const name = query.name?.trim() ?? "";
-  const status: SearchStatus | "incomplete" =
+  /*
+   * Sin `status` la dirección **no** es una ambigüedad: es una consulta escrita a
+   * mano o un enlace viejo, y nadie ha resuelto nada todavía. Suponer
+   * `ambiguous` era lo que titulaba "varios personajes casan con ese nombre"
+   * sobre lo que la población devolviera —un solo candidato incluido—, o sea
+   * inventarse el resultado de una búsqueda que no se ha hecho.
+   */
+  const status: SearchStatus | "incomplete" | "unresolved" =
     !realm || !name
       ? "incomplete"
       : query.status && isSearchStatus(query.status)
         ? query.status
-        : "ambiguous";
+        : "unresolved";
 
   // Solo el caso de varios candidatos necesita releer, y se relee de la
   // población: los demás ya vienen resueltos en la URL. Es lo que hace que
@@ -122,6 +129,7 @@ export default async function SearchPage({
   // viaja en la URL, no un identificador.
   const MESSAGES = {
     incomplete: copy.incomplete,
+    unresolved: copy.unresolved,
     ambiguous: copy.ambiguous,
     "not-found": copy.notFound,
     unavailable: copy.unavailable,
@@ -147,9 +155,11 @@ export default async function SearchPage({
       {/*
        * El buscador vuelve a salir aquí, y no un enlace a la portada: quien ha
        * llegado a esta pantalla tiene algo que corregir, y mandarle atrás le
-       * hace teclearlo todo otra vez.
+       * hace teclearlo todo otra vez. Por eso llega con lo que se tecleó ya
+       * escrito: salir en blanco era esa misma vuelta a empezar, un campo más
+       * tarde.
        */}
-      <CharacterSearch locale={locale} region={getRegion()} />
+      <CharacterSearch locale={locale} region={getRegion()} initial={{ realm, name }} />
     </main>
   );
 }

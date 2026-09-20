@@ -127,6 +127,10 @@ export const es: Copy = {
       title: "Varios personajes casan con ese nombre",
       body: "Sus nombres solo se diferencian en los acentos, y son personajes distintos.",
     },
+    unresolved: {
+      title: "Todavía no se ha preguntado nada",
+      body: "Esta dirección lleva un reino y un nombre, no un resultado: quien le pregunta a Blizzard es el buscador de abajo, y ya los trae escritos.",
+    },
     notFound: {
       title: "Blizzard no conoce ese personaje",
       body: "El reino o el nombre pueden estar escritos de otra forma.",
@@ -151,10 +155,23 @@ export const es: Copy = {
     title: "Perfil de jugador",
     lead: "Rating, percentil, spec y actividad, y qué separa a este personaje del siguiente nivel.",
 
-    unknown: {
-      title: "Este personaje todavía no está en la población",
-      body: "Nadie lo ha consultado aquí y no se le ha visto en la ladder esta temporada. Una búsqueda le pregunta a Blizzard por él y lo añade.",
-      action: "Buscar este personaje",
+    absent: {
+      unknown: {
+        title: "Este personaje todavía no está en la población",
+        body: "Nadie lo ha consultado aquí y no se le ha visto en la ladder esta temporada. Lo que lo añade es preguntarle a Blizzard por él.",
+      },
+      noRating: {
+        title: "A este personaje no le consta rating",
+        body: "Está en la población: Blizzard contestó por él y no listó ningún Solo Shuffle con clasificación. La rotación, una vuelta y una temporada sin jugar con clasificación se ven así.",
+        asked: (when) => `La última vez que se le preguntó a Blizzard por él fue el ${when}.`,
+      },
+      action: "Preguntarle a Blizzard por él",
+      stillNoRating:
+        "Blizzard ha contestado y sigue sin constarle ningún Solo Shuffle con clasificación.",
+      unavailable:
+        "Ahora mismo no se ha podido preguntar a Blizzard. Nada de lo que consta de este personaje ha cambiado.",
+      rateLimited:
+        "Esta conexión ha gastado sus consultas por ahora. Nada de lo que consta de este personaje ha cambiado.",
     },
 
     refresh: {

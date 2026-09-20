@@ -10,7 +10,7 @@ import {
 import { alternatesFor } from "../../../../../../i18n/alternates";
 import { copyFor } from "../../../../../../i18n/copy";
 import { isLocale, localizedPathname } from "../../../../../../i18n/locales";
-import { cachedPlayerProfile } from "../../../../../../server/player";
+import { cachedPlayerProfile, loadPlayerAbsence } from "../../../../../../server/player";
 import { isRefreshStatus } from "../../../../../../server/refresh";
 import { robotsFor } from "../../../../../../seo/indexable";
 
@@ -110,12 +110,25 @@ export default async function PlayerRoutePage({
   const spec = first(query.spec);
 
   const profile = await cachedPlayerProfile(route.region, route.realmSlug, route.nameSlug, spec);
-  // Sin observaciones no hay perfil que pintar, y tampoco se le pregunta a
-  // Blizzard desde aquí: esto es un `GET` (ADR 0024, decisión 2).
-  if (!profile) return <PlayerNotObserved locale={locale} route={route} />;
-
   const tab = first(query.tab);
   const refresh = first(query.refresh);
+  const status = refresh && isRefreshStatus(refresh) ? refresh : null;
+
+  // Sin observaciones no hay perfil que pintar, y tampoco se le pregunta a
+  // Blizzard desde aquí: esto es un `GET` (ADR 0024, decisión 2). Lo que sí se
+  // lee es de cuál de las dos ausencias se trata, que es población y es gratis:
+  // "no lo conocemos" y "lo conocemos y no le consta rating" no se pueden servir
+  // con el mismo texto porque el segundo sería mentira.
+  if (!profile) {
+    return (
+      <PlayerNotObserved
+        locale={locale}
+        route={route}
+        absence={await loadPlayerAbsence(route)}
+        refresh={status}
+      />
+    );
+  }
 
   return (
     <PlayerPage
@@ -123,7 +136,7 @@ export default async function PlayerRoutePage({
       route={route}
       profile={profile}
       tab={tab && isPlayerTab(tab) ? tab : "summary"}
-      refresh={refresh && isRefreshStatus(refresh) ? refresh : null}
+      refresh={status}
     />
   );
 }

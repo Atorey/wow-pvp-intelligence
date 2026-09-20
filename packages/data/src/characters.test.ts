@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import { standingWithin } from "@wowpvp/core";
 import {
   readActivity,
+  readCharacterIdentity,
   readLatestObservedSeason,
   readLatestSnapshot,
   readPeakRating,
@@ -252,5 +253,53 @@ describe("readPeakRating", () => {
 
     assert.equal(peak, 2012);
     assert.match(db.calls[0]?.text ?? "", /max\(rating\)/);
+  });
+});
+
+describe("readCharacterIdentity", () => {
+  it("distingue al personaje que consta del que no, sin mirar observaciones", async () => {
+    const db = fakeDb([
+      {
+        id: "b325…",
+        name_display: "Nyurka",
+        realm_slug: "dun-modr",
+        first_seen_at: OBSERVED_AT,
+        last_asked_at: OBSERVED_AT,
+      },
+    ]);
+    const identity = await readCharacterIdentity(db, {
+      region: "eu",
+      realmSlug: "dun-modr",
+      nameSlug: "nyurka",
+    });
+
+    assert.ok(identity);
+    assert.equal(identity.nameDisplay, "Nyurka");
+    assert.equal(identity.lastAskedAt, OBSERVED_AT);
+    // No toca character_snapshots: la pregunta es por la identidad, y el caso que
+    // la motiva es justo el del personaje que no tiene ni una fila.
+    assert.doesNotMatch(db.calls[0]?.text ?? "", /character_snapshots/);
+  });
+
+  it("no cuenta como 'se le preguntó' un acierto de caché", async () => {
+    // Si 'cached' o 'not-found-cached' contaran, volver a mirar la ficha fecharía
+    // la respuesta de Blizzard en el momento de mirarla (ADR 0030).
+    const db = fakeDb([]);
+    await readCharacterIdentity(db, { region: "eu", realmSlug: "dun-modr", nameSlug: "nyurka" });
+
+    const text = db.calls[0]?.text ?? "";
+    assert.match(text, /outcome in \('ok', 'no-brackets', 'error'\)/);
+    assert.doesNotMatch(text, /'cached'/);
+  });
+
+  it("null es 'no está en la población'", async () => {
+    const db = fakeDb([]);
+    const identity = await readCharacterIdentity(db, {
+      region: "eu",
+      realmSlug: "sanguino",
+      nameSlug: "nadie",
+    });
+
+    assert.equal(identity, null);
   });
 });

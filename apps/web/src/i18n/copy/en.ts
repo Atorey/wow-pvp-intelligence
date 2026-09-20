@@ -220,6 +220,17 @@ export const en = {
       title: "Several characters match that name",
       body: "Their names differ only in their accents, and they are different characters.",
     },
+    /**
+     * Una dirección con reino y nombre y **sin** resultado dentro. No se
+     * presenta como ninguno de los otros estados, y en particular no como
+     * `ambiguous`: sin `status` nadie ha resuelto nada, así que titular "varios
+     * personajes casan" sobre lo que la población devuelva es inventarse el
+     * resultado de una búsqueda que no se ha hecho.
+     */
+    unresolved: {
+      title: "Nothing has been asked yet",
+      body: "This address carries a realm and a name, not a result: the search below is what asks Blizzard, and it already has them written in.",
+    },
     notFound: {
       title: "Blizzard doesn't know that character",
       body: "The realm or the name may be spelled another way.",
@@ -262,14 +273,46 @@ export const en = {
     lead: "Rating, percentile, spec and activity, and what separates this character from the next rung.",
 
     /**
-     * Un personaje del que no consta ni una observación. No es "no existe": por
-     * debajo del corte de 5.000 del leaderboard solo entra al dataset quien ha
-     * sido buscado, así que lo que falta es la búsqueda, no el personaje.
+     * Un personaje del que no consta ni una observación, que no es "no existe":
+     * por debajo del corte de 5.000 del leaderboard solo entra al dataset quien
+     * ha sido buscado, así que lo que falta es la búsqueda, no el personaje.
+     *
+     * Son **dos** estados y no uno porque afirman cosas distintas. `unknown` es
+     * el que no está en la población: de él no consta nada. `noRating` es el que
+     * está y no tiene rating —rotación, una vuelta, una temporada sin jugar con
+     * clasificación—, y de ese no se puede decir que nadie lo haya consultado:
+     * hay una fila en la bitácora que dice lo contrario.
+     *
+     * Lo que se nombra es el Solo Shuffle y no "PvP": es la única modalidad que
+     * el MVP modela (§25), así que de sus 2v2 o sus RBG no consta nada ni a
+     * favor ni en contra.
      */
-    unknown: {
-      title: "This character isn't in the population yet",
-      body: "Nobody has looked them up here, and they haven't been seen on the ladder this season. A search asks Blizzard about them and adds them.",
-      action: "Look this character up",
+    absent: {
+      unknown: {
+        title: "This character isn't in the population yet",
+        body: "Nobody has looked them up here, and they haven't been seen on the ladder this season. Asking Blizzard about them is what adds them.",
+      },
+      noRating: {
+        title: "No rating on record for this character",
+        body: "They are in the population: Blizzard answered about them and listed no rated Solo Shuffle. Rotation, a return, and a season without rated play all look like this.",
+        asked: (when: string) => `Blizzard was last asked about them on ${when}.`,
+      },
+      /**
+       * El botón es un `POST` y no un enlace: preguntarle a Blizzard escribe, y
+       * es la decisión de quien pulsa (ADR 0024, decisión 2).
+       */
+      action: "Ask Blizzard about them",
+      /** Se preguntó, contestó, y sigue sin haber rating. No es un fallo. */
+      stillNoRating: "Blizzard answered, and there is still no rated Solo Shuffle on record.",
+      /**
+       * Los dos que no pueden reusar el aviso del perfil: ahí la frase remata con
+       * "lo de abajo es la última observación registrada", y aquí abajo no hay
+       * ninguna.
+       */
+      unavailable:
+        "Blizzard couldn't be asked just now. Nothing on record about this character has changed.",
+      rateLimited:
+        "This connection has spent its lookups for the moment. Nothing on record about this character has changed.",
     },
 
     /**

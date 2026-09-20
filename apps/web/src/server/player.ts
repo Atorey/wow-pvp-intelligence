@@ -2,6 +2,7 @@ import type { PlayerRoute, Region } from "@wowpvp/core";
 import {
   GEAR_KINDS,
   readActivity,
+  readCharacterIdentity,
   readLatestGear,
   readLatestObservedSeason,
   readLatestSnapshotsByBracket,
@@ -133,6 +134,42 @@ export async function loadPlayerProfile(
     standing: view,
     gear,
   };
+}
+
+/**
+ * Por qué no hay perfil, que no es una sola cosa.
+ *
+ * `loadPlayerProfile()` devuelve `null` en dos situaciones que la pantalla tiene
+ * que contar de forma distinta: del personaje no consta nada, o consta su
+ * identidad y ninguna observación con rating. La segunda es el personaje que
+ * existe y no tiene rating esta temporada —rotación, una vuelta, un año sin
+ * jugar con clasificación— y de él sí hay constancia de haber preguntado a
+ * Blizzard, así que decirle "nadie lo ha consultado aquí" es afirmar algo falso
+ * sobre lo que tenemos.
+ */
+export type PlayerAbsence =
+  /** No está en la población: nadie lo ha buscado y no se le ha visto en la ladder. */
+  | { state: "unknown" }
+  /**
+   * Está en la población y no le consta rating. `askedAt` es la última vez que se
+   * le preguntó a Blizzard, `null` si no consta ninguna: su identidad pudo entrar
+   * por el leaderboard, que no pasa por la bitácora.
+   */
+  | { state: "no-rating"; nameDisplay: string; askedAt: Date | null };
+
+/**
+ * Cuál de las dos ausencias es. Se pide **solo** cuando ya se sabe que no hay
+ * perfil: una consulta más en la única página que no tiene nada que pintar.
+ */
+export async function loadPlayerAbsence(route: PlayerRoute): Promise<PlayerAbsence> {
+  const identity = await readCharacterIdentity(getDb(), {
+    region: route.region,
+    realmSlug: route.realmSlug,
+    nameSlug: route.nameSlug,
+  });
+  if (!identity) return { state: "unknown" };
+
+  return { state: "no-rating", nameDisplay: identity.nameDisplay, askedAt: identity.lastAskedAt };
 }
 
 /**
