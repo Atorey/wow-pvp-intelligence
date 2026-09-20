@@ -130,6 +130,49 @@ export function isHighRating(segmentMin: number, floor: number = HIGH_RATING_FLO
   return segmentMin >= floor;
 }
 
+/** Cuánta población se ha observado en un tramo, identificado por su suelo. */
+export interface SegmentWeight {
+  segmentMin: number;
+  population: number;
+}
+
+/**
+ * El tramo donde la población acumulada cruza la mitad: la mediana de una
+ * distribución de rating contada por tramos.
+ *
+ * Es un **tramo** y no un rating a propósito. La mediana de la spec entera no
+ * se deduce de las medianas de cada escalón —son medianas de subconjuntos, y
+ * promediarlas no da la del conjunto—, pero la población acumulada sí dice en
+ * qué escalón cae la persona de en medio, que es lo que se quiere saber.
+ *
+ * Vive aquí y no en quien la pinta porque la piden dos páginas: la de spec, que
+ * la enseña en su cabecera, y la del meta, que la enseña por fila. Dos
+ * acumulados calculados aparte discrepan en un borde —el `>=` contra el `>` de
+ * la mitad exacta— y no lo nota nadie hasta que las dos páginas dicen tramos
+ * distintos de la misma spec.
+ *
+ * `null` es que no hay a quien contar. Los tramos sin población se descartan
+ * antes de acumular: uno vacío nunca es la mediana de nadie.
+ */
+export function medianSegmentOf(
+  weights: readonly SegmentWeight[],
+  scale: SegmentScale = DEFAULT_SEGMENT_SCALE,
+): RatingSegment | null {
+  const ascending = weights
+    .filter((weight) => weight.population > 0)
+    .sort((a, b) => a.segmentMin - b.segmentMin);
+
+  const count = ascending.reduce((sum, weight) => sum + weight.population, 0);
+  if (count === 0) return null;
+
+  let cumulative = 0;
+  for (const weight of ascending) {
+    cumulative += weight.population;
+    if (cumulative * 2 >= count) return segmentFor(weight.segmentMin, scale);
+  }
+  return null;
+}
+
 /**
  * Todos los tramos de una escala, de menor a mayor, incluido el abierto de
  * arriba. Útil para recorrer agregados sin dejarse ninguno fuera.

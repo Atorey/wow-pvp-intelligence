@@ -5,6 +5,7 @@ import {
   allSegments,
   formatSegment,
   isHighRating,
+  medianSegmentOf,
   nextSegment,
   previousSegment,
   segmentFor,
@@ -94,4 +95,50 @@ test("está en el tramo alto quien abre en el suelo o por encima", () => {
   assert.equal(isHighRating(2400), true);
   assert.equal(isHighRating(3000), true);
   assert.equal(isHighRating(2200), false);
+});
+
+test("la mediana es el tramo donde la población acumulada cruza la mitad", () => {
+  // 100 personas: la de en medio cae en 1600-1800, donde el acumulado llega a 60.
+  const weights = [
+    { segmentMin: 1200, population: 10 },
+    { segmentMin: 1400, population: 20 },
+    { segmentMin: 1600, population: 30 },
+    { segmentMin: 1800, population: 40 },
+  ];
+  assert.equal(medianSegmentOf(weights)?.id, "1600-1800");
+});
+
+test("la mediana no depende del orden en que lleguen los tramos", () => {
+  // Una corrida los devuelve ordenados; quien los reagrupe puede no hacerlo.
+  const weights = [
+    { segmentMin: 1800, population: 40 },
+    { segmentMin: 1200, population: 10 },
+    { segmentMin: 1600, population: 30 },
+    { segmentMin: 1400, population: 20 },
+  ];
+  assert.equal(medianSegmentOf(weights)?.id, "1600-1800");
+});
+
+test("con la mitad exacta la mediana es el tramo que la completa, no el siguiente", () => {
+  // 50 y 50: la persona de en medio es la última del primer tramo.
+  const weights = [
+    { segmentMin: 1400, population: 50 },
+    { segmentMin: 1600, population: 50 },
+  ];
+  assert.equal(medianSegmentOf(weights)?.id, "1400-1600");
+});
+
+test("un tramo vacío no es la mediana de nadie", () => {
+  const weights = [
+    { segmentMin: 1400, population: 0 },
+    { segmentMin: 1600, population: 5 },
+  ];
+  assert.equal(medianSegmentOf(weights)?.id, "1600-1800");
+  assert.equal(medianSegmentOf([{ segmentMin: 1400, population: 0 }]), null);
+  assert.equal(medianSegmentOf([]), null);
+});
+
+test("el tramo abierto de arriba sale como abierto y no con un máximo inventado", () => {
+  const weights = [{ segmentMin: 3000, population: 7 }];
+  assert.equal(Number.isFinite(medianSegmentOf(weights)?.max ?? 0), false);
 });

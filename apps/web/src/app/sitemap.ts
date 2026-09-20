@@ -1,10 +1,12 @@
+import { BRACKET_SLUGS, metaPath } from "@wowpvp/core";
 import type { MetadataRoute } from "next";
 import { connection } from "next/server";
 
-import { indexableSpecRoutes } from "../seo/indexable";
+import { indexableSpecRoutes, type IndexableRoute } from "../seo/indexable";
 import { cachedSegmentSamples } from "../server/aggregate-cache";
 import { getDb } from "../server/db";
 import "../server/env";
+import { loadMetaData } from "../server/meta";
 import { sitemapEntries } from "../seo/sitemap";
 import { siteUrl } from "../site";
 
@@ -25,5 +27,26 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   return sitemapEntries({
     base: siteUrl(process.env),
     specRoutes: indexableSpecRoutes(samples),
+    metaRoutes: await metaRoutes(),
   });
+}
+
+/**
+ * Las páginas de meta que tienen reparto que enseñar.
+ *
+ * La condición es la misma que decide su `robots`, y por el mismo motivo por el
+ * que las de spec comparten lectura con el sitemap: si la página y el sitemap
+ * decidieran cada uno por su cuenta, Google vería URL anunciadas que dicen
+ * `noindex`. La fecha es la de la corrida, que es de cuando son sus cifras.
+ *
+ * No añade consulta: `loadMetaData` lee la población de la corrida, que la caché
+ * de proceso ya tiene desde la primera página servida (ADR 0031).
+ */
+async function metaRoutes(): Promise<IndexableRoute[]> {
+  const routes: IndexableRoute[] = [];
+  for (const bracket of BRACKET_SLUGS) {
+    const { board } = await loadMetaData(bracket);
+    if (board) routes.push({ path: metaPath(bracket), lastModified: board.computedAt });
+  }
+  return routes;
 }

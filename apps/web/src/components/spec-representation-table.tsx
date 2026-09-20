@@ -3,6 +3,7 @@ import {
   BRACKET_SLUGS,
   MIN_SAMPLE_HIGH,
   MIN_SAMPLE_MEDIUM,
+  formatSegment,
   specPath,
 } from "@wowpvp/core";
 import Link from "next/link";
@@ -18,21 +19,25 @@ import { Card } from "./ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
 
 /**
- * Las specs más observadas de la modalidad, con qué parte de la ladder son y
- * qué parte del tramo alto.
+ * Las specs de la modalidad, con qué parte de la ladder son y qué parte del
+ * tramo alto.
  *
- * Es el subconjunto de portada de la página `/meta`, que no existe: por eso la
- * tabla **no enlaza a "las 40 specs"** como el mockup. Una ruta declarada y sin
- * código (ADR 0020, decisión 5) sería un enlace a un 404, que promete un dato
- * que no hay. Cada fila sí enlaza a su spec, que es página desde #112, y la
- * barra lateral despliega las cuarenta.
+ * La pintan las dos páginas que reparten la modalidad: la portada con sus ocho
+ * filas y `/meta` con las cuarenta (ADR 0038). Es el mismo cálculo y las mismas
+ * notas, así que es un solo componente con un solo copy — el día que difieran
+ * será porque alguien lo ha decidido, no porque una de las dos se quedara sin
+ * enterarse.
  *
- * Tampoco está la columna «7 días» del mockup, y la razón ya no es la serie:
- * desde el ADR 0019 se conserva entera. Lo que falta es muestra en el tramo
- * alto, porque marcar una tendencia exige que su proporción acompañe (§17) y
- * ninguna spec llega al umbral ahí arriba (ADR 0037). No se rellena con un cero
- * —sería una variación que nadie midió— y su ausencia se declara en la nota,
- * con la cifra que le falta.
+ * Lo único que cambia entre las dos es el tramo mediano, que solo sale en la
+ * página: en la portada serían ocho columnas en una tabla que ya se queda sin
+ * ancho, y el bloque de portada contesta "qué se juega", no "cómo se reparte".
+ *
+ * No está la columna «7 días» del mockup, y la razón ya no es la serie: desde
+ * el ADR 0019 se conserva entera. Lo que falta es muestra en el tramo alto,
+ * porque marcar una tendencia exige que su proporción acompañe (§17) y ninguna
+ * spec llega al umbral ahí arriba (ADR 0037). No se rellena con un cero —sería
+ * una variación que nadie midió— y su ausencia se declara en la nota, con la
+ * cifra que le falta.
  *
  * Sin scroll horizontal (§4 del sistema): en pantalla estrecha se retiran la
  * barra y las dos columnas del tramo alto, y lo que sostiene la fila —la
@@ -41,11 +46,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from ".
 export function SpecRepresentationTable({
   locale,
   board,
+  showMedian = false,
 }: {
   locale: Locale;
   board: RepresentationBoard;
+  /** Si la fila enseña su tramo mediano: la página sí, la portada no. */
+  showMedian?: boolean;
 }) {
-  const copy = copyFor(locale).home.meta.table;
+  const copy = copyFor(locale).meta.table;
   const [bracket] = BRACKET_SLUGS;
   const count = (value: number): string => formatCount(value, locale);
   const share = (value: number): string => formatShare(value, locale);
@@ -69,6 +77,17 @@ export function SpecRepresentationTable({
             <TableHead className="text-subtle-foreground text-right whitespace-normal">
               {copy.observed}
             </TableHead>
+            {/*
+             * El tramo mediano va detrás de los observados y no al final de la
+             * fila: las dos últimas columnas son las que se caen juntas cuando
+             * una spec no tiene muestra arriba, y se pintan con un `colSpan`
+             * que dejaría de cuadrar con una columna detrás.
+             */}
+            {showMedian && (
+              <TableHead className="text-subtle-foreground hidden text-right whitespace-normal md:table-cell">
+                {copy.medianSegment}
+              </TableHead>
+            )}
             <TableHead className="text-subtle-foreground hidden text-right whitespace-normal md:table-cell">
               {copy.ofLadder}
             </TableHead>
@@ -99,14 +118,19 @@ export function SpecRepresentationTable({
                   </Link>
                   {/*
                    * Lo que en pantalla ancha son columnas: la proporción de la
-                   * spec y, si la tiene, su índice. La proporción del tramo
-                   * alto no baja aquí porque el índice ya la resume y la fila
-                   * se leería como cuatro cifras seguidas sin encabezado.
+                   * spec, su índice si lo tiene y, en la página, su tramo
+                   * mediano. La proporción del tramo alto no baja aquí porque
+                   * el índice ya la resume, y la fila se leería como cuatro
+                   * cifras seguidas sin encabezado.
                    */}
                   <span className="text-subtle-foreground block text-xs md:hidden">
-                    {row.high === null
-                      ? share(row.share)
-                      : `${share(row.share)} · ${formatIndex(row.high.index, locale)}`}
+                    {[
+                      share(row.share),
+                      row.high && formatIndex(row.high.index, locale),
+                      showMedian && row.medianSegment && formatSegment(row.medianSegment),
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
                   </span>
                 </TableCell>
                 <TableCell className="hidden lg:table-cell">
@@ -115,6 +139,16 @@ export function SpecRepresentationTable({
                 <TableCell className="text-foreground text-right text-base">
                   {count(row.observed)}
                 </TableCell>
+                {showMedian && (
+                  <TableCell className="text-muted-foreground hidden text-right whitespace-nowrap md:table-cell">
+                    {/*
+                     * Sin tramo no se escribe un guion: la celda se queda vacía
+                     * porque no hay nada que decir de una spec que la corrida no
+                     * reparte, y un guion se lee como una cifra que da cero.
+                     */}
+                    {row.medianSegment && formatSegment(row.medianSegment)}
+                  </TableCell>
+                )}
                 <TableCell className="text-muted-foreground hidden text-right md:table-cell">
                   {share(row.share)}
                 </TableCell>
@@ -155,10 +189,21 @@ export function SpecRepresentationTable({
         <p className="text-muted-foreground max-w-measure text-sm">
           {copy.highNote(count(MIN_SAMPLE_MEDIUM), highFloor)}
         </p>
+        {showMedian && (
+          <p className="text-muted-foreground max-w-measure text-sm">{copy.medianNote}</p>
+        )}
         <p className="text-subtle-foreground max-w-measure text-sm">{copy.notSaid}</p>
         <p className="text-subtle-foreground max-w-measure text-sm">
           {copy.trendPending(count(MIN_SAMPLE_HIGH), highFloor)}
         </p>
+        {/*
+         * La quinta señal de la §17 se declara solo en la página: la portada
+         * nunca prometió las cinco, y una ausencia declarada donde nadie
+         * esperaba la cifra es ruido.
+         */}
+        {showMedian && (
+          <p className="text-subtle-foreground max-w-measure text-sm">{copy.activityPending}</p>
+        )}
         <p className="text-subtle-foreground max-w-measure text-sm">
           {copyFor(locale).spec.observedNote}
         </p>

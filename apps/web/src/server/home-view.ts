@@ -1,25 +1,42 @@
 import {
+  ALL_SPECS,
   HIGH_RATING_FLOOR,
   canShowComparison,
   isHighRating,
+  medianSegmentOf,
   parseShuffleBracket,
+  type RatingSegment,
   type SpecEntry,
 } from "@wowpvp/core";
 import type { BracketPopulation, RunPopulationRead } from "@wowpvp/data";
 
 /**
- * Qué enseña el bloque «Qué se juega ahora» de la portada, decidido sin tocar
- * la base de datos.
+ * Qué enseñan el bloque «Qué se juega ahora» de la portada y la página del
+ * meta, decidido sin tocar la base de datos.
  *
  * Separado de la lectura por lo mismo que `spec-view.ts`: aquí no puede fallar
  * la SQL, puede fallar el denominador. Todas las proporciones de este bloque se
  * calculan sobre la misma corrida y sobre las specs del catálogo, y el corte de
  * quién publica su peso arriba es `canShowComparison()` y no un `if` (regla 2
  * del proyecto).
+ *
+ * Las dos vistas comparten cálculo y solo se diferencian en el recorte
+ * (ADR 0038, consecuencia primera): la portada enseña ocho filas y `/meta` las
+ * cuarenta. Si cada una repartiera la modalidad por su cuenta, el día que
+ * discreparan la portada diría un porcentaje y su propio enlace otro.
  */
 
 /** Cuántas specs entran en la portada. */
 export const TOP_SPECS = 8;
+
+/**
+ * Cuántas caben en `/meta`: todas las del catálogo.
+ *
+ * Es el catálogo y no un número escrito porque el recorte tiene que dejar de
+ * recortar solo. Una spec nueva en `ALL_SPECS` entra en la página sin que nadie
+ * se acuerde de subir un límite.
+ */
+export const ALL_SPEC_ROWS = ALL_SPECS.length;
 
 /** El peso de una spec en la modalidad, y qué parte de ese peso está arriba. */
 export interface SpecRepresentation {
@@ -47,6 +64,15 @@ export interface SpecRepresentation {
      */
     index: number;
   } | null;
+  /**
+   * El tramo donde cae la persona de en medio de esta spec: `rating_distribution`
+   * de la §17 dicha en una celda.
+   *
+   * Es `null` cuando la corrida no reparte a nadie por tramos, que con población
+   * observada no debería pasar, pero la lectura no lo garantiza y un tramo
+   * inventado sería peor que una celda vacía.
+   */
+  medianSegment: RatingSegment | null;
 }
 
 export interface RepresentationBoard {
@@ -59,7 +85,7 @@ export interface RepresentationBoard {
   highObserved: number;
   /** El suelo del tramo alto, para escribirlo donde se nombra. */
   highFloor: number;
-  /** De mayor a menor población, recortadas a las que caben en la portada. */
+  /** De mayor a menor población, recortadas a las que quepan donde se pinten. */
   rows: SpecRepresentation[];
   /** Cuántas specs trae la corrida: las filas son un recorte de estas. */
   specs: number;
@@ -114,21 +140,19 @@ function representationOf(
   const observed = entry.population;
   const share = observed / bases.observed;
   const high = highPopulationOf(entry);
+  // La mediana se calcula fuera del umbral del tramo alto: describe a toda la
+  // población de la spec, no a la de arriba, así que no se cae con ella.
+  const row = { spec, observed, share, medianSegment: medianSegmentOf(entry.segments) };
 
   // El umbral se pregunta por la muestra de **esta** spec arriba, que es sobre
   // quien se calcularía la cifra. Con el total de la modalidad se publicarían
   // proporciones de specs con cuatro personajes observados en el tramo.
   if (!canShowComparison(high) || bases.highObserved === 0) {
-    return { spec, observed, share, high: null };
+    return { ...row, high: null };
   }
 
   const highShare = high / bases.highObserved;
-  return {
-    spec,
-    observed,
-    share,
-    high: { observed: high, share: highShare, index: highShare / share },
-  };
+  return { ...row, high: { observed: high, share: highShare, index: highShare / share } };
 }
 
 /** Lo observado de un bracket a partir del suelo del tramo alto. */

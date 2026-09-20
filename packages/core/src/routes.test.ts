@@ -9,7 +9,9 @@ import {
   METHODOLOGY_SECTIONS,
   SEARCH_PATH,
   isSearchStatus,
+  metaPath,
   methodologyPath,
+  resolveMetaRoute,
   searchPath,
   parseSegmentSlug,
   playerPath,
@@ -231,4 +233,24 @@ test("el resultado de un envío viaja en la URL, no se vuelve a averiguar", () =
   assert.ok(isSearchStatus("unavailable"));
   assert.ok(isSearchStatus("rate-limited"));
   assert.ok(!isSearchStatus("not_found"));
+});
+
+test("la ruta del meta lleva la modalidad como tramo, no como query", () => {
+  const [bracket] = BRACKET_SLUGS;
+  assert.equal(metaPath(bracket), "/meta/solo-shuffle");
+});
+
+test("el meta resuelve su modalidad y corrige la caja sin adivinar la que no está", () => {
+  const resolved = resolveMetaRoute({ bracket: "solo-shuffle" });
+  assert.equal(resolved.status, "canonical");
+  assert.equal(resolved.status === "canonical" && resolved.route.bracket, "solo-shuffle");
+
+  // La caja sí se corrige: la forma canónica es única y conocida.
+  const written = resolveMetaRoute({ bracket: "Solo-Shuffle" });
+  assert.equal(written.status, "redirect");
+  assert.equal(written.status === "redirect" && written.path, "/meta/solo-shuffle");
+
+  // Una modalidad que no publicamos no redirige a la que sí: diría cifras de
+  // Solo Shuffle bajo una dirección que promete otra cosa.
+  assert.equal(resolveMetaRoute({ bracket: "3v3" }).status, "unknown");
 });

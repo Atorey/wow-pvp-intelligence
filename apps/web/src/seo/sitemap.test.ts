@@ -56,6 +56,25 @@ describe("sitemapEntries", () => {
     assert.ok(all.includes("https://onerung.io/es/spec/frost-mage"));
   });
 
+  it("el meta entra con la fecha de su corrida, y solo si se le pasa", () => {
+    const computedAt = new Date("2026-09-20T04:00:00Z");
+    const entries = sitemapEntries({
+      base: BASE,
+      metaRoutes: [{ path: "/meta/solo-shuffle", lastModified: computedAt }],
+    });
+
+    const es = entries.find((entry) => entry.url.endsWith("/es/meta/solo-shuffle"));
+    assert.ok(entries.find((entry) => entry.url.endsWith("/en/meta/solo-shuffle")));
+    assert.equal(es?.lastModified, computedAt);
+
+    // Sin reparto la página no tiene contenido, así que no se anuncia: es la
+    // misma condición con la que ella misma dice `noindex`.
+    assert.equal(
+      urls(sitemapEntries({ base: BASE })).some((url) => url.includes("/meta/")),
+      false,
+    );
+  });
+
   it("el origen sale del entorno, no del dominio de producción", () => {
     // Un preview que se anunciara como onerung.io erosionaría el dominio (§39).
     const preview = new URL("https://deploy-preview-26--onerung.netlify.app");
