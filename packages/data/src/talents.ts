@@ -70,7 +70,7 @@ export async function readLatestTalents(
      )
      select t.tree, lab.node_id, lab.name as talent_name, sel.rank, l.captured_at, l.source
        from latest_with_talents l
-       join character_snapshot_talents t on t.snapshot_id = l.id
+       join character_snapshot_talent_trees t on t.snapshot_id = l.id
        -- Los dos arrays se abren en el mismo unnest y no en dos: es lo que los
        -- empareja posición a posición, que es la única relación que hay entre
        -- una etiqueta y su rango. En 'pvp' ranks es null entero y esta forma

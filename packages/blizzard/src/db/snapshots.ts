@@ -108,41 +108,8 @@ export async function insertProfileSnapshot(
     snapshotId = existing.rows[0]?.id ?? null;
   }
 
-  // Un INSERT multi-fila, no un unnest en bloque: enchantment_ids, gem_item_ids
-  // y bonus_list son int[], y unnest sobre un array de arrays los aplanaría en
-  // una sola dimensión, mezclando las gemas de un item con las del siguiente.
-  // Con una tupla de parámetros por slot cada array sigue siendo un parámetro
-  // suyo y llega intacto, y el personaje entero paga una latencia de red en vez
-  // de las dieciséis que costaba una consulta por slot.
   if (snapshotId && input.gear.length > 0) {
-    const params: unknown[] = [snapshotId];
-    const tuples = input.gear.map((item) => {
-      const start = params.length;
-      params.push(
-        item.slot,
-        item.itemId,
-        item.itemName,
-        item.itemLevel,
-        item.quality,
-        item.enchantmentIds,
-        item.enchantmentNames,
-        item.gemItemIds,
-        item.gemItemNames,
-        item.bonusList,
-      );
-      // $1 es el snapshot_id, compartido por todas las filas.
-      const slots = Array.from({ length: 10 }, (_, i) => `$${start + 1 + i}`);
-      return `($1, ${slots.join(", ")})`;
-    });
-
-    await client.query(
-      `insert into character_snapshot_gear
-         (snapshot_id, slot, item_id, item_name, item_level, quality,
-          enchantment_ids, enchantment_names, gem_item_ids, gem_item_names, bonus_list)
-       values ${tuples.join(", ")}
-       on conflict (snapshot_id, slot) do nothing`,
-      params,
-    );
+    await writeGear(client, snapshotId, input.gear);
   }
 
   if (snapshotId && input.talents.length > 0) {
@@ -153,8 +120,9 @@ export async function insertProfileSnapshot(
 }
 
 /**
- * Las selecciones de talento de un snapshot: una fila por árbol, con las
- * etiquetas por referencia al catálogo (ADR 0035).
+ * Las selecciones de talento de un snapshot: las etiquetas por referencia a
+ * `talent_labels` (ADR 0035) y cada árbol por referencia a `talent_sets` (ADR
+ * 0040), porque el mismo árbol elegido se repite entre personajes y perfiles.
  *
  * Son dos viajes y no uno porque el alta del catálogo no devuelve el id de lo
  * que ya estaba: un `do update` sin condición sí lo devolvería, pero escribiría
@@ -222,21 +190,153 @@ async function writeTalents(
 
   if (byTree.size === 0) return;
 
-  // Un INSERT multi-fila y no un unnest en bloque, por lo mismo que el de gear:
-  // cada árbol tiene su número de nodos, y las matrices de Postgres son
-  // rectangulares. Un array de arrays de largos distintos ni siquiera llega.
-  const params: unknown[] = [snapshotId];
-  const tuples = [...byTree.entries()].map(([tree, { labelIds, ranks }]) => {
-    const start = params.length;
+  await writeByReference(
+    client,
+    snapshotId,
+    TALENT_SETS,
     // null entero en 'pvp', que no tiene rangos (ADR 0026).
-    params.push(tree, labelIds, tree === "pvp" ? null : ranks);
-    return `($1, $${start + 1}, $${start + 2}::int[], $${start + 3}::smallint[])`;
-  });
-
-  await client.query(
-    `insert into character_snapshot_talents (snapshot_id, tree, label_ids, ranks)
-     values ${tuples.join(", ")}
-     on conflict (snapshot_id, tree) do nothing`,
-    params,
+    [...byTree.entries()].map(([tree, { labelIds, ranks }]) => [
+      tree,
+      labelIds,
+      tree === "pvp" ? null : ranks,
+    ]),
   );
+}
+
+/**
+ * El equipo de un snapshot: una fila con referencias a `gear_pieces` (ADR 0040).
+ * La pieza se da de alta si no existía; casi siempre existe, porque solo una de
+ * cada diez filas de slot observadas era distinta de todas las demás.
+ */
+async function writeGear(
+  client: pg.PoolClient,
+  snapshotId: string,
+  gear: readonly GearRow[],
+): Promise<void> {
+  await writeByReference(
+    client,
+    snapshotId,
+    GEAR_PIECES,
+    gear.map((item) => [
+      item.slot,
+      item.itemId,
+      item.itemName,
+      item.itemLevel,
+      item.quality,
+      item.enchantmentIds,
+      item.enchantmentNames,
+      item.gemItemIds,
+      item.gemItemNames,
+      item.bonusList,
+    ]),
+  );
+}
+
+/**
+ * Un catálogo de contenido y la tabla de observación que lo apunta (ADR 0040).
+ * Las columnas van en el orden de los argumentos de la función de huella.
+ */
+export interface ContentCatalog {
+  table: string;
+  columns: readonly string[];
+  /** El tipo de cada columna: las tuplas del `values` que se cruzan no tienen un insert que se lo dé. */
+  types: readonly string[];
+  fingerprint: string;
+  observation: string;
+  refs: string;
+}
+
+export const GEAR_PIECES: ContentCatalog = {
+  table: "gear_pieces",
+  columns: [
+    "slot",
+    "item_id",
+    "item_name",
+    "item_level",
+    "quality",
+    "enchantment_ids",
+    "enchantment_names",
+    "gem_item_ids",
+    "gem_item_names",
+    "bonus_list",
+  ],
+  types: ["text", "bigint", "text", "int", "text", "int[]", "text[]", "int[]", "text[]", "int[]"],
+  fingerprint: "gear_piece_fingerprint",
+  observation: "character_snapshot_gear",
+  refs: "piece_ids",
+};
+
+export const TALENT_SETS: ContentCatalog = {
+  table: "talent_sets",
+  columns: ["tree", "label_ids", "ranks"],
+  types: ["text", "int[]", "smallint[]"],
+  fingerprint: "talent_set_fingerprint",
+  observation: "character_snapshot_talents",
+  refs: "set_ids",
+};
+
+/**
+ * Escribe un contenido por referencia: alta de lo que falte en el catálogo y una
+ * fila de observación con los ids de todo.
+ *
+ * Son dos viajes por lo mismo que las etiquetas de talento: el `on conflict do
+ * nothing` no devuelve el id de lo que ya estaba, y un `do update` para
+ * conseguirlo reescribiría una fila del catálogo en cada perfil. La resolución
+ * cruza por la huella, que calcula Postgres con la misma función que la columna
+ * generada: si la calculara este código, una diferencia de un carácter al
+ * escribir el JSON dejaría piezas sin resolver.
+ *
+ * Un INSERT multi-fila y no un unnest en bloque: las columnas son arrays de
+ * largo variable, y unnest sobre un array de arrays los aplanaría.
+ */
+async function writeByReference(
+  client: pg.PoolClient,
+  snapshotId: string,
+  catalog: ContentCatalog,
+  rows: readonly (readonly unknown[])[],
+): Promise<void> {
+  const values = (offset: number): { sql: string; params: unknown[] } => {
+    const params: unknown[] = [];
+    const tuples = rows.map((row) => {
+      const cells = row.map((value, i) => {
+        params.push(value);
+        return `$${offset + params.length}::${catalog.types[i]}`;
+      });
+      return `(${cells.join(", ")})`;
+    });
+    return { sql: tuples.join(", "), params };
+  };
+
+  const columns = catalog.columns.join(", ");
+  const insert = values(0);
+  await client.query(
+    `insert into ${catalog.table} (${columns})
+     values ${insert.sql}
+     on conflict (fingerprint) do nothing`,
+    insert.params,
+  );
+
+  // $1 es el snapshot_id; las tuplas empiezan en $2.
+  const resolve = values(1);
+  const { rows: written } = await client.query<{ refs: number }>(
+    `insert into ${catalog.observation} (snapshot_id, ${catalog.refs})
+     select $1, array_agg(c.id order by c.id)
+       from (values ${resolve.sql}) as v(${columns})
+       join ${catalog.table} c
+         on c.fingerprint = ${catalog.fingerprint}(${catalog.columns.map((col) => `v.${col}`).join(", ")})
+     on conflict (snapshot_id) do nothing
+     returning cardinality(${catalog.refs}) as refs`,
+    [snapshotId, ...resolve.params],
+  );
+
+  // Sin fila devuelta es que el snapshot ya tenía su contenido: la reanudación
+  // de una corrida. Con fila y menos referencias que entradas, algo no se
+  // resolvió, y guardarlo así sería afirmar un equipo al que le falta una pieza.
+  const refs = written[0]?.refs;
+  if (refs !== undefined && refs !== rows.length) {
+    throw new Error(
+      `${catalog.observation}: ${rows.length} entradas y ${refs} resueltas contra ` +
+        `${catalog.table} para el snapshot ${snapshotId}.`,
+    );
+  }
 }

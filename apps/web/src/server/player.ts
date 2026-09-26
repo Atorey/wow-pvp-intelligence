@@ -19,6 +19,7 @@ import {
 import { cache } from "react";
 import { cachedAdoptionFor, cachedBracketSegments } from "./aggregate-cache";
 import { getDb } from "./db";
+import { loadClosedSeason, type ClosedSeasonView } from "./rating-history";
 import "./env";
 import {
   gapFor,
@@ -154,8 +155,17 @@ export type PlayerAbsence =
    * Está en la población y no le consta rating. `askedAt` es la última vez que se
    * le preguntó a Blizzard, `null` si no consta ninguna: su identidad pudo entrar
    * por el leaderboard, que no pasa por la bitácora.
+   *
+   * `closedSeason` es la última temporada cerrada en la que sí consta, leída de
+   * Storage porque ya no está en Postgres (ADR 0042). `null` si no consta en
+   * ninguna o si Storage no contestó: en los dos casos no se afirma nada de ella.
    */
-  | { state: "no-rating"; nameDisplay: string; askedAt: Date | null };
+  | {
+      state: "no-rating";
+      nameDisplay: string;
+      askedAt: Date | null;
+      closedSeason: ClosedSeasonView | null;
+    };
 
 /**
  * Cuál de las dos ausencias es. Se pide **solo** cuando ya se sabe que no hay
@@ -169,7 +179,12 @@ export async function loadPlayerAbsence(route: PlayerRoute): Promise<PlayerAbsen
   });
   if (!identity) return { state: "unknown" };
 
-  return { state: "no-rating", nameDisplay: identity.nameDisplay, askedAt: identity.lastAskedAt };
+  return {
+    state: "no-rating",
+    nameDisplay: identity.nameDisplay,
+    askedAt: identity.lastAskedAt,
+    closedSeason: await loadClosedSeason(identity.characterId),
+  };
 }
 
 /**

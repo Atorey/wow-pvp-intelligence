@@ -2,7 +2,7 @@
  * La serie de rating de un personaje, en la forma en que sobrevive al archivado
  * (ADR 0039).
  *
- * `character_snapshots` solo guarda 14 días (ADR 0034), y el archivo de Storage
+ * `character_snapshots` solo guarda 3 días (ADR 0034 y 0041), y el archivo de Storage
  * son lotes por fecha con la población entera dentro: leer de él la temporada
  * de **una** persona obligaría a bajarse todos. Así que el archivado deja además
  * un índice por personaje, con lo único que pinta el histórico —cuándo y qué
@@ -217,4 +217,41 @@ export function parseRatingHistoryShard(text: string): RatingHistoryShard {
     series.set(key, mergeRatingPoints(read));
   }
   return { seasonId: json.season, shard: json.shard, series };
+}
+
+/** Lo que queda de un personaje en un bracket de una temporada cerrada (ADR 0042). */
+export interface ClosedSeasonStanding {
+  bracket: string;
+  /** La última observación de la temporada: el rating con el que se le vio por última vez. */
+  last: RatingPoint;
+  /** El máximo observado, no el máximo alcanzado: entre dos observaciones pudo subir más. */
+  peak: number;
+}
+
+/**
+ * Las series de un personaje en un shard, resumidas en su último punto y su
+ * máximo, de mayor a menor rating final.
+ *
+ * Es lo que una ficha puede decir de una temporada que ya no está en Postgres:
+ * el shard del índice guarda la serie entera, pero ni equipo, ni talentos, ni
+ * partidas, así que esto es todo lo que hay y todo lo que se enseña.
+ */
+export function standingsInShard(
+  shard: RatingHistoryShard,
+  characterId: string,
+): ClosedSeasonStanding[] {
+  const prefix = seriesKey(characterId, "");
+  const standings: ClosedSeasonStanding[] = [];
+  for (const [key, points] of shard.series) {
+    const last = points.at(-1);
+    if (!key.startsWith(prefix) || !last) continue;
+    standings.push({
+      bracket: key.slice(prefix.length),
+      last,
+      peak: Math.max(...points.map((point) => point.rating)),
+    });
+  }
+  return standings.sort(
+    (a, b) => b.last.rating - a.last.rating || a.bracket.localeCompare(b.bracket),
+  );
 }

@@ -2,7 +2,7 @@
  * El vocabulario de slots de equipo, en el orden en que se enseña.
  *
  * Los nombres son los de Blizzard tal cual llegan en `item.slot.type` y tal cual
- * se guardan en `character_snapshot_gear.slot`: no se traducen ni se renombran
+ * se guardan en `gear_pieces.slot`: no se traducen ni se renombran
  * aquí, porque son la clave con la que se cuenta el `adoption_rate` por slot y
  * dos vocabularios para lo mismo acabarían contando dos poblaciones distintas.
  * Cómo se escribe cada uno en pantalla es copy, y vive en los diccionarios de la

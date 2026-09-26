@@ -13,12 +13,16 @@ interface Recorded {
  * Cliente de mentira que solo apunta lo que se le pide: lo que se prueba aquí es
  * cuántas consultas salen y con qué parámetros, no lo que Postgres responde.
  */
-function fakeClient(queries: Recorded[]): pg.PoolClient {
+function fakeClient(
+  queries: Recorded[],
+  respond: (sql: string) => object[] | undefined = () => undefined,
+): pg.PoolClient {
   return {
     query(sql: string, params: unknown[] = []) {
       queries.push({ sql, params });
-      // Solo el insert del snapshot devuelve id; el resto no se lee.
-      const rows = sql.includes("into character_snapshots") ? [{ id: "snap-1" }] : [];
+      // El insert del snapshot devuelve id; el resto, lo que diga el test o nada.
+      const rows =
+        respond(sql) ?? (sql.includes("into character_snapshots") ? [{ id: "snap-1" }] : []);
       return Promise.resolve({ rows, rowCount: rows.length });
     },
   } as unknown as pg.PoolClient;
@@ -78,21 +82,30 @@ function input(gear: readonly GearRow[]): ProfileSnapshotInput {
   };
 }
 
-function gearQuery(queries: Recorded[]): Recorded[] {
+function catalogInsert(queries: Recorded[]): Recorded[] {
+  return queries.filter((q) => q.sql.includes("into gear_pieces"));
+}
+
+function gearInsert(queries: Recorded[]): Recorded[] {
   return queries.filter((q) => q.sql.includes("into character_snapshot_gear"));
 }
 
-test("el gear de un personaje se escribe en una sola consulta", async () => {
+test("el gear de un personaje son dos consultas: alta de piezas y fila del snapshot", async () => {
   const queries: Recorded[] = [];
   const gear = Array.from({ length: 16 }, (_, i) => gearRow(`SLOT_${i}`));
 
   await insertProfileSnapshot(fakeClient(queries), input(gear));
 
-  const inserts = gearQuery(queries);
-  assert.equal(inserts.length, 1);
-  // 16 tuplas de 10 parámetros más el snapshot_id, compartido por todas.
-  assert.equal(inserts[0]?.params.length, 16 * 10 + 1);
-  assert.match(inserts[0]?.sql ?? "", /on conflict \(snapshot_id, slot\) do nothing/);
+  const [pieces] = catalogInsert(queries);
+  const [observation] = gearInsert(queries);
+  assert.ok(pieces && observation);
+  // Las 16 piezas en una sola tupla cada una, y la fila del snapshot con las
+  // mismas 16 más su id delante.
+  assert.equal(pieces.params.length, 16 * 10);
+  assert.match(pieces.sql, /on conflict \(fingerprint\) do nothing/);
+  assert.equal(observation.params.length, 16 * 10 + 1);
+  assert.equal(observation.params[0], "snap-1");
+  assert.match(observation.sql, /gear_piece_fingerprint\(v\.slot, v\.item_id/);
 });
 
 test("cada array de un item viaja como parámetro suyo, sin aplanarse con el siguiente", async () => {
@@ -102,16 +115,24 @@ test("cada array de un item viaja como parámetro suyo, sin aplanarse con el sig
 
   await insertProfileSnapshot(fakeClient(queries), input([head, neck]));
 
-  const insert = gearQuery(queries)[0];
-  assert.ok(insert);
-  // Los diez parámetros de cada item van seguidos tras el snapshot_id: si los
-  // rangos se solaparan, un item heredaría las gemas del otro.
-  assert.equal(insert.params[0], "snap-1");
-  assert.deepEqual(insert.params.slice(1, 11), columnsOf(head));
-  assert.deepEqual(insert.params.slice(11, 21), columnsOf(neck));
-  assert.match(
-    insert.sql,
-    /values \(\$1, \$2, \$3, \$4, \$5, \$6, \$7, \$8, \$9, \$10, \$11\), \(\$1, \$12, \$13, \$14, \$15, \$16, \$17, \$18, \$19, \$20, \$21\)/,
+  const [pieces] = catalogInsert(queries);
+  assert.ok(pieces);
+  // Los diez parámetros de cada item van seguidos: si los rangos se solaparan,
+  // una pieza heredaría las gemas de la otra y sería otra pieza.
+  assert.deepEqual(pieces.params.slice(0, 10), columnsOf(head));
+  assert.deepEqual(pieces.params.slice(10, 20), columnsOf(neck));
+  assert.match(pieces.sql, /values \(\$1::text, \$2::bigint, .*\$10::int\[\]\), \(\$11::text/);
+});
+
+test("un equipo al que le falta una pieza por resolver no se guarda", async () => {
+  const queries: Recorded[] = [];
+  const client = fakeClient(queries, (sql) =>
+    sql.includes("into character_snapshot_gear") ? [{ refs: 1 }] : undefined,
+  );
+
+  await assert.rejects(
+    insertProfileSnapshot(client, input([gearRow("HEAD"), gearRow("NECK")])),
+    /2 entradas y 1 resueltas/,
   );
 });
 
@@ -120,5 +141,5 @@ test("un personaje sin gear no manda ninguna consulta de gear", async () => {
 
   await insertProfileSnapshot(fakeClient(queries), input([]));
 
-  assert.equal(gearQuery(queries).length, 0);
+  assert.equal(catalogInsert(queries).length + gearInsert(queries).length, 0);
 });

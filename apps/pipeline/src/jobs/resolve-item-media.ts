@@ -150,6 +150,8 @@ interface PendingRow {
  *
  * Gemas e items de equipo salen de la misma consulta porque son la misma cosa
  * —una gema es un item, con su `item_id` y su icono— y comparten catálogo.
+ * Salen de `gear_pieces` (ADR 0040): cada item observado está ahí una vez por
+ * pieza, en vez de una vez por slot de cada snapshot.
  */
 export async function loadPending(
   pool: pg.Pool,
@@ -158,9 +160,9 @@ export async function loadPending(
 ): Promise<PendingItem[]> {
   const { rows } = await pool.query<PendingRow>(
     `with used as (
-       select item_id from character_snapshot_gear
+       select item_id from gear_pieces
        union
-       select gem::bigint from character_snapshot_gear, unnest(gem_item_ids) as gem
+       select gem::bigint from gear_pieces, unnest(gem_item_ids) as gem
      )
      select u.item_id, (m.item_id is null) as is_new
        from used u
@@ -178,9 +180,9 @@ export async function loadPending(
 export async function countPending(pool: pg.Pool, cutoff: Date): Promise<number> {
   const { rows } = await pool.query<{ pending: string }>(
     `with used as (
-       select item_id from character_snapshot_gear
+       select item_id from gear_pieces
        union
-       select gem::bigint from character_snapshot_gear, unnest(gem_item_ids) as gem
+       select gem::bigint from gear_pieces, unnest(gem_item_ids) as gem
      )
      select count(*) as pending
        from used u

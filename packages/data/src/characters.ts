@@ -393,6 +393,22 @@ export async function readLatestObservedSeason(
 }
 
 /**
+ * Las temporadas cerradas que ya no están en Postgres, de la más reciente a la
+ * más antigua (ADR 0042).
+ *
+ * `readLatestObservedSeason` no las ve: de quien solo jugó una de ellas no
+ * queda ni una fila en `character_snapshots`, y su ficha tiene que saber en qué
+ * temporadas buscarle en el índice de rating de Storage.
+ */
+export async function readArchivedSeasons(db: Queryable, limit: number): Promise<number[]> {
+  const { rows } = await db.query<{ season_id: number }>(
+    "select season_id from archived_seasons order by season_id desc limit $1",
+    [limit],
+  );
+  return rows.map((row) => row.season_id);
+}
+
+/**
  * El rating más alto que le hemos visto a un personaje en un bracket.
  *
  * Es "el más alto observado", no "el más alto que alcanzó": desde el ADR 0009
@@ -420,7 +436,7 @@ export async function readPeakRating(
  *
  * Es solo la mitad caliente: lo archivado está en el índice de Storage (ADR
  * 0039) y quien pinta la serie une las dos con `mergeRatingPoints()`. Lo que se
- * queda aquí más allá de los 14 días —el ancla, el pico, el último gear— sale
+ * queda aquí más allá de los 3 días —el ancla, el pico, el último gear— sale
  * también, y la unión lo cuenta una vez aunque esté en los dos sitios.
  *
  * Entran todos los orígenes, `search` incluido: la exclusión de los agregados

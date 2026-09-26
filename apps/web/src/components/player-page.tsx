@@ -3,6 +3,7 @@ import {
   BRACKET_LABELS,
   formatSegment,
   methodologyPath,
+  parseShuffleBracket,
   playerPath,
   type PlayerRoute,
 } from "@wowpvp/core";
@@ -300,7 +301,13 @@ export function PlayerNotObserved({
 }) {
   const player = copyFor(locale).player;
   const copy = player.absent;
-  const message = absence.state === "unknown" ? copy.unknown : copy.noRating;
+  const closed = absence.state === "no-rating" ? absence.closedSeason : null;
+  const message =
+    absence.state === "unknown"
+      ? copy.unknown
+      : closed
+        ? { title: copy.closedSeason.title(closed.seasonId), body: copy.closedSeason.body }
+        : copy.noRating;
 
   return (
     <main className="mx-auto flex max-w-measure flex-col gap-4 px-5 py-10">
@@ -318,6 +325,29 @@ export function PlayerNotObserved({
       <Card className="gap-3 p-5">
         <h2 className="text-foreground text-lg">{message.title}</h2>
         <p className="text-muted-foreground text-base">{message.body}</p>
+        {/*
+         * Lo único que queda de una temporada cerrada (ADR 0042): por spec, el
+         * último rating y el máximo, sin fecha de la temporada vigente al lado
+         * porque no la hay.
+         */}
+        {closed && (
+          <ul className="flex flex-col gap-1">
+            {closed.standings.map((standing) => (
+              <li key={standing.bracket} className="text-sm">
+                <span className="text-foreground">
+                  {parseShuffleBracket(standing.bracket)?.label ?? standing.bracket}
+                </span>
+                <span className="text-muted-foreground">
+                  {" · "}
+                  {copy.closedSeason.standing(
+                    formatRating(standing.last.rating, locale),
+                    formatRating(standing.peak, locale),
+                  )}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
         {/*
          * El alcance del sitio, con la misma frase que el perfil usa en "otras
          * modalidades" y no una variante suya: es la explicación de por qué a

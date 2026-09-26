@@ -352,6 +352,18 @@ export const en = {
         asked: (when: string) => `Blizzard was last asked about them on ${when}.`,
       },
       /**
+       * Solo consta en una temporada cerrada, que ya no está en Postgres (ADR
+       * 0042). De ella queda la serie de rating del índice de Storage y nada más,
+       * y se dice qué falta en vez de dejar que el hueco se lea como "no llevaba
+       * nada".
+       */
+      closedSeason: {
+        title: (season: number) => `Last seen in season ${season}`,
+        body: "That season is over. What stays here is the rating we observed; their gear, talents and activity from then are archived.",
+        standing: (last: string, peak: string) =>
+          `last observed rating ${last} · highest observed ${peak}`,
+      },
+      /**
        * El botón es un `POST` y no un enlace: preguntarle a Blizzard escribe, y
        * es la decisión de quien pulsa (ADR 0024, decisión 2).
        */

@@ -38,3 +38,7 @@ jobs:
       # Sin `db:migrate`: esto no escribe nada y no tiene por qué poder hacerlo.
       # Un vigilante que migra es un vigilante que puede romper lo que vigila.
       - run: npm run pipeline -- check-freshness
+      # Independiente del paso anterior: un agregado viejo no dice nada de la
+      # cuota, y un fallo de uno no debe esconder el otro.
+      - if: ${{ !cancelled() }}
+        run: npm run pipeline -- db-size

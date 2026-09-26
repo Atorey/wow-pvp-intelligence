@@ -178,6 +178,11 @@ export const es: Copy = {
         body: "Está en la población: Blizzard contestó por él y no listó ningún Solo Shuffle con clasificación. La rotación, una vuelta y una temporada sin jugar con clasificación se ven así.",
         asked: (when) => `La última vez que se le preguntó a Blizzard por él fue el ${when}.`,
       },
+      closedSeason: {
+        title: (season) => `Visto por última vez en la temporada ${season}`,
+        body: "Esa temporada ha terminado. Aquí queda el rating que le observamos; su equipo, sus talentos y su actividad de entonces están archivados.",
+        standing: (last, peak) => `último rating observado ${last} · máximo observado ${peak}`,
+      },
       action: "Preguntarle a Blizzard por él",
       stillNoRating:
         "Blizzard ha contestado y sigue sin constarle ningún Solo Shuffle con clasificación.",

@@ -238,7 +238,7 @@ async function loadPopulation(
     item_name: string | null;
   }>(
     `select g.snapshot_id, g.slot, g.item_id, g.item_name
-       from character_snapshot_gear g
+       from character_snapshot_gear_slots g
        join character_snapshots s on s.id = g.snapshot_id
       where s.source = 'profile' and s.bracket = $1 and s.captured_at = $2
       order by g.snapshot_id, g.slot`,
