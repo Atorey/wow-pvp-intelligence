@@ -69,7 +69,7 @@ export function AdoptionList({
  * barra y la fracción.
  *
  * **El hueco del icono se reserva siempre** que la fila es de equipo (§4.5 del
- * brief), también en los encantamientos, que casi nunca lo tienen: la fila
+ * brief), también en los encantamientos, que no lo tienen nunca (ADR 0022): la fila
  * conserva su forma en vez de recolocarse, porque el nombre es la información y
  * el icono solo acompaña.
  */
