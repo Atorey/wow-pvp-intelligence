@@ -16,11 +16,13 @@ import { type Locale, localizedPathname } from "../i18n/locales";
 import { refreshPlayer } from "../server/actions";
 import type { PlayerAbsence, PlayerProfile } from "../server/player";
 import type { StandingView } from "../server/player-profile";
+import type { RatingHistoryView } from "../server/rating-history-view";
 import type { RefreshStatus } from "../server/refresh";
 import { CountRow, CountedFigure, DeclaredAbsence } from "./counted-figure";
 import { FigureCard } from "./figure-card";
 import { GearList } from "./gear-list";
 import { PlayerGapBox } from "./player-gap-box";
+import { RatingHistory } from "./rating-history";
 import { SectionCard } from "./section-card";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
@@ -37,10 +39,10 @@ import { Separator } from "./ui/separator";
  * leería como un fallo. Al revés, la caja declara lo que no hay y lo de debajo
  * se lee como lo que es: lo que sí se puede decir mientras tanto.
  */
-export type PlayerTab = "summary" | "gear";
+export type PlayerTab = "summary" | "gear" | "history";
 
 export function isPlayerTab(value: string): value is PlayerTab {
-  return value === "summary" || value === "gear";
+  return value === "summary" || value === "gear" || value === "history";
 }
 
 export function PlayerPage({
@@ -48,12 +50,18 @@ export function PlayerPage({
   route,
   profile,
   tab,
+  history,
   refresh,
 }: {
   locale: Locale;
   route: PlayerRoute;
   profile: PlayerProfile;
   tab: PlayerTab;
+  /**
+   * La serie de rating, cargada solo cuando la pestaña es la de histórico: el
+   * resumen no la enseña y no tiene por qué pagar su viaje a Storage.
+   */
+  history: RatingHistoryView | null;
   /** Resultado de la última pulsación de "Actualizar", si viene en la URL. */
   refresh: RefreshStatus | null;
 }) {
@@ -73,7 +81,8 @@ export function PlayerPage({
     // Solo se escribe lo que no es el defecto: así el enlace de la spec
     // principal y el de la pestaña de resumen son la ruta limpia.
     if (spec !== profile.specs[0]?.slug) query.set("spec", spec);
-    if ((params.tab ?? tab) === "gear") query.set("tab", "gear");
+    const target = params.tab ?? tab;
+    if (target !== "summary") query.set("tab", target);
     const path = localizedPathname(playerPath(route), locale);
     return query.size > 0 ? `${path}?${query.toString()}` : path;
   };
@@ -134,10 +143,9 @@ export function PlayerPage({
       {/*
        * Las pestañas son enlaces y no un componente con estado: se sirven ya
        * decididas desde el servidor, funcionan sin JavaScript y cada vista tiene
-       * su propia dirección. Talentos e Histórico no están porque todavía no
-       * tienen nada que enseñar: de los talentos hay nodos agregados por
-       * segmento pero no comparación, y del histórico no hay serie. Una pestaña
-       * vacía es un "coming soon".
+       * su propia dirección. Talentos no está porque todavía no tiene nada que
+       * enseñar: hay nodos agregados por segmento pero no comparación, y una
+       * pestaña vacía es un "coming soon".
        */}
       <nav aria-label={copy.tabs.label} className="border-border flex gap-1 border-b">
         <Tab href={href({ tab: "summary" })} current={tab === "summary"} accent={color.border}>
@@ -145,6 +153,9 @@ export function PlayerPage({
         </Tab>
         <Tab href={href({ tab: "gear" })} current={tab === "gear"} accent={color.border}>
           {copy.tabs.gear}
+        </Tab>
+        <Tab href={href({ tab: "history" })} current={tab === "history"} accent={color.border}>
+          {copy.tabs.history}
         </Tab>
       </nav>
 
@@ -243,12 +254,21 @@ export function PlayerPage({
             </p>
           </aside>
         </div>
-      ) : (
+      ) : tab === "gear" ? (
         <GearList
           locale={locale}
           items={profile.gear?.items ?? []}
           observedAt={profile.gear?.provenance.observedAt ?? snapshot.provenance.observedAt}
         />
+      ) : (
+        history && (
+          <RatingHistory
+            locale={locale}
+            spec={active.spec.label}
+            color={color.text}
+            history={history}
+          />
+        )
       )}
     </main>
   );

@@ -1,0 +1,16 @@
+{
+  "name": "@wowpvp/storage",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Supabase Storage, compartido entre pipeline y web: el cliente REST y el índice por personaje del histórico de rating (ADR 0039).",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./fake-storage": "./src/fake-storage.ts"
+  },
+  "dependencies": {
+    "@wowpvp/core": "*"
+  }
+}

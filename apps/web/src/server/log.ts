@@ -32,7 +32,13 @@ export type ServerEvent =
    */
   | "home-data-unavailable"
   /** No se pudo preguntar a Blizzard: sin cuota o sin presupuesto de tiempo. */
-  | "blizzard-unavailable";
+  | "blizzard-unavailable"
+  /**
+   * La pestaña de histórico no pudo leer lo archivado: Storage sin configurar,
+   * caído o lento (ADR 0039). La página lo declara, así que sin esta línea el
+   * fallo solo lo vería quien estuviera mirando esa ficha.
+   */
+  | "rating-history-unavailable";
 
 /**
  * Campos admitidos. Primitivos y nada más: un objeto anidado invita a meter

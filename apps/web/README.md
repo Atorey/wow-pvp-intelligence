@@ -21,6 +21,7 @@ La búsqueda de personaje, el perfil y las páginas de spec ya funcionan de punt
 | **Sí** | La búsqueda de personaje: autocompletado sobre la población y llamada a Blizzard si no la tenemos ([ADR 0024](../../docs/decisions/0024-busqueda-de-personaje-en-la-web.md)).                                                                               |
 | **Sí** | Postgres, por el pooler y una conexión por invocación ([ADR 0013](../../docs/decisions/0013-web-serverless-y-cuota-en-postgres.md), decisión 10). Lo usan el buscador, el perfil y las páginas de spec.                                                     |
 | **Sí** | El perfil de personaje: identidad, cifras propias, caja Player Gap, posición en la spec y equipamiento observado ([§2 del brief](../../docs/design/brief.md#2-la-página-fuera-de-cobertura)).                                                               |
+| **Sí** | El histórico de rating del perfil, en su pestaña: la serie de la temporada unida desde Postgres y el índice de Storage ([ADR 0039](../../docs/decisions/0039-el-historico-de-rating-se-lee-de-un-indice-en-storage.md)).                                    |
 | **Sí** | La medición de la North Star, emitida por la propia caja Player Gap, y la política de privacidad ([ADR 0028](../../docs/decisions/0028-medicion-de-primera-parte-y-sin-banner.md)). No hay banner de cookies porque no hay cookies.                         |
 | **Sí** | La página de metodología: de dónde salen los datos, qué es la población observada, cómo se forman los tramos y qué significa cada nivel de confianza (§24 del [plan](../../docs/product-plan.md)).                                                          |
 | **Sí** | `robots.txt`, `sitemap.xml` y la regla que decide si una página entra en el índice ([ADR 0029](../../docs/decisions/0029-que-se-indexa-y-que-no.md)).                                                                                                       |
@@ -63,13 +64,14 @@ Es lo que **escribe** y lo que llama a Blizzard, junto con el botón "Actualizar
 
 ## El perfil
 
-`/{locale}/player/{region}/{realm}/{name}` es la primera página que lee de Postgres. Seis cosas que no se adivinan leyendo el componente:
+`/{locale}/player/{region}/{realm}/{name}` es la primera página que lee de Postgres. Siete cosas que no se adivinan leyendo el componente:
 
 - **La temporada es la última en la que consta ese personaje**, no la que Blizzard llame actual. Preguntárselo cuesta dos llamadas por visita, y lo que la página enseña es lo último que sabemos de él.
 - **La spec y la pestaña viajan en la query** (`?spec=`, `?tab=`), nunca como tramos de ruta: el recurso es el personaje y su URL canónica es la ruta a secas ([ADR 0020](../../docs/decisions/0020-mapa-de-rutas-del-sitio.md), decisión 7). La canónica que se anuncia no lleva query. Por defecto abre en la spec de mayor rating.
 - **El estado de la caja Player Gap lo decide `canShowComparison()` sobre el `gear_sample` del segmento objetivo**, nunca sobre su población (decisión 3 del [ADR 0010](../../docs/decisions/0010-cobertura-por-segmento.md)). Y hay una tercera causa de "sin comparación" que la §1.5 del brief no contempla: que el perfil que falte sea el del propio personaje.
 - **El item level sale de la observación que trajo el equipo**, no del snapshot más reciente. El leaderboard inserta filas sin gear cada vez que cambia el rating, así que el último snapshot casi siempre trae un null que se leería como "no lleva nada".
 - **"Actualizar" respeta el TTL** de la búsqueda y no lo fuerza: es la misma cuota compartida con el pipeline, y un botón que ignore la caché es un botón de gastar. Si el perfil está fresco, la página lo dice en vez de fingir que ha refrescado algo. De un personaje sin ninguna observación ese TTL no puede salir de sus snapshots, así que sale de `character_lookups` ([ADR 0036](../../docs/decisions/0036-personaje-conocido-sin-rating.md)).
+- **La pestaña de histórico es la única lectura que sale de Postgres** ([ADR 0039](../../docs/decisions/0039-el-historico-de-rating-se-lee-de-un-indice-en-storage.md)). Lo de más de 14 días está en un índice por personaje en Storage, y solo se va a buscarlo desde esa pestaña, cuando `archived_observations` dice que hay algo y con un tope de 3 s. Necesita `SUPABASE_SERVICE_ROLE_KEY` en el sitio. Sin ella la web arranca igual y la pestaña dice cuántas observaciones no ha podido leer: una línea que empieza a mitad de temporada no puede pasar por la temporada entera. El gráfico es SVG y HTML servidos sin JavaScript, y su gemelo es la tabla de observaciones.
 - **Un personaje sin observaciones tiene dos pantallas, no una**: «no está en la población» y «lo conocemos y no le consta rating», la segunda fechada con la última vez que se le preguntó a Blizzard. Y su acción es el mismo `POST` que "Actualizar", porque es el **único** camino de la web que vuelve a preguntar por alguien que ya está en `characters`: el buscador no puede, ya que resuelve contra la población antes de tocar la API.
 
 ## Las páginas de spec
@@ -161,7 +163,7 @@ Las variables están documentadas en el [`.env.example`](../../.env.example) de 
 
 ## Despliegue
 
-[`netlify.toml`](../../netlify.toml), en la raíz del repo, es la configuración entera. La base del build es la raíz y no `apps/web`: la web depende de `@wowpvp/core` y `@wowpvp/data` por workspaces, y una instalación hecha dentro de `apps/web` no los ve.
+[`netlify.toml`](../../netlify.toml), en la raíz del repo, es la configuración entera. La base del build es la raíz y no `apps/web`: la web depende de `@wowpvp/core`, `@wowpvp/data` y `@wowpvp/storage` por workspaces, y una instalación hecha dentro de `apps/web` no los ve.
 
 Queda pendiente conectar el repositorio a un sitio de Netlify; el `netlify.toml` no se ha ejecutado nunca contra un build real.
 

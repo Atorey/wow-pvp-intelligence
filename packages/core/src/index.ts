@@ -14,3 +14,4 @@ export * from "./differences";
 export * from "./trends";
 export * from "./routes";
 export * from "./gear";
+export * from "./rating-history";

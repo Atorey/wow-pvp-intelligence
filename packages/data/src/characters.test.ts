@@ -7,6 +7,7 @@ import {
   readLatestObservedSeason,
   readLatestSnapshot,
   readPeakRating,
+  readRatingPoints,
   readStanding,
 } from "./characters";
 import { fakeDb } from "./fake-db";
@@ -107,6 +108,7 @@ describe("readActivity", () => {
         evidence: "first-seen",
         last_played: 212,
         observations: 1,
+        archived_observations: 0,
         first_seen_at: OBSERVED_AT,
         last_seen_at: OBSERVED_AT,
         computed_at: OBSERVED_AT,
@@ -253,6 +255,29 @@ describe("readPeakRating", () => {
 
     assert.equal(peak, 2012);
     assert.match(db.calls[0]?.text ?? "", /max\(rating\)/);
+  });
+});
+
+describe("readRatingPoints", () => {
+  it("devuelve la serie caliente en orden y sin filtrar por origen", async () => {
+    const earlier = new Date("2026-09-14T10:00:00Z");
+    const db = fakeDb([
+      { captured_at: earlier, rating: 1790 },
+      { captured_at: OBSERVED_AT, rating: 1834 },
+    ]);
+    const points = await readRatingPoints(db, {
+      characterId: "0f1c…",
+      bracket: "shuffle-priest-holy",
+      seasonId: 42,
+    });
+
+    assert.deepEqual(points, [
+      { at: earlier, rating: 1790 },
+      { at: OBSERVED_AT, rating: 1834 },
+    ]);
+    // El rating del propio personaje no es una muestra: `search` también cuenta.
+    assert.doesNotMatch(db.calls[0]?.text ?? "", /source/);
+    assert.match(db.calls[0]?.text ?? "", /order by captured_at/);
   });
 });
 

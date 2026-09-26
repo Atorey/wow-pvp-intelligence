@@ -11,6 +11,7 @@ import { alternatesFor } from "../../../../../../i18n/alternates";
 import { copyFor } from "../../../../../../i18n/copy";
 import { isLocale, localizedPathname } from "../../../../../../i18n/locales";
 import { cachedPlayerProfile, loadPlayerAbsence } from "../../../../../../server/player";
+import { loadRatingHistory } from "../../../../../../server/rating-history";
 import { isRefreshStatus } from "../../../../../../server/refresh";
 import { robotsFor } from "../../../../../../seo/indexable";
 
@@ -130,12 +131,28 @@ export default async function PlayerRoutePage({
     );
   }
 
+  const view = tab && isPlayerTab(tab) ? tab : "summary";
+  // La serie solo se lee para su pestaña: es la única lectura del perfil que
+  // puede salir de Postgres y viajar a Storage (ADR 0039).
+  const history =
+    view === "history"
+      ? await loadRatingHistory(
+          {
+            characterId: profile.snapshot.characterId,
+            bracket: profile.active.bracket,
+            seasonId: profile.seasonId,
+          },
+          profile.activity?.archivedObservations ?? 0,
+        )
+      : null;
+
   return (
     <PlayerPage
       locale={locale}
       route={route}
       profile={profile}
-      tab={tab && isPlayerTab(tab) ? tab : "summary"}
+      tab={view}
+      history={history}
       refresh={status}
     />
   );
