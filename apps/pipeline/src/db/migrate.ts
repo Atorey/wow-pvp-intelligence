@@ -54,6 +54,9 @@ export function parseRehearse(args: readonly string[]): boolean {
  */
 async function rehearseMigrations(pool: pg.Pool): Promise<void> {
   const client = await pool.connect();
+  // Mismo motivo que en applyMigrations: un corte de red se trata en la consulta
+  // que lo sufre, no tumbando el proceso.
+  client.on("error", () => {});
   try {
     // Se avisa antes de cada espera y no solo al acabar: una migración que
     // reescribe una tabla tarda minutos, y en ese rato una terminal en blanco no
@@ -180,18 +183,28 @@ export async function applyMigrations(pool: pg.Pool): Promise<void> {
   // parece idempotente y no lo es bajo concurrencia: dos sesiones creando la
   // misma tabla a la vez chocan en el catálogo de Postgres. Pasa en cuanto dos
   // tests de integración arrancan en paralelo, y pasaría igual con dos runners.
-  const lock = await pool.connect();
+  //
+  // El candado y las migraciones van por la **misma** conexión, como en el
+  // ensayo. Con una aparte para el candado, esa se quedaba ociosa mientras la
+  // otra reescribía una tabla: aplicando la 0022, que tarda un minuto, la
+  // conexión se cortó (ECONNRESET), y el error de una conexión prestada sin
+  // oyente tumbó el proceso entero. El ensayo, con una sola, aguantó lo mismo.
+  const client = await pool.connect();
+  client.on("error", () => {
+    // El fallo llega también como rechazo de la consulta en curso, que es donde
+    // se trata; sin este oyente, además, Node lo relanza y mata el proceso.
+  });
   try {
-    await lock.query("select pg_advisory_lock(hashtext('wowpvp:migrations'))");
-    await runPending(pool);
+    await client.query("select pg_advisory_lock(hashtext('wowpvp:migrations'))");
+    await runPending(client);
   } finally {
-    await lock.query("select pg_advisory_unlock(hashtext('wowpvp:migrations'))");
-    lock.release();
+    await client.query("select pg_advisory_unlock(hashtext('wowpvp:migrations'))").catch(() => {});
+    client.release();
   }
 }
 
-async function runPending(pool: pg.Pool): Promise<void> {
-  await pool.query(`
+async function runPending(client: pg.PoolClient): Promise<void> {
+  await client.query(`
     create table if not exists schema_migrations (
       filename    text primary key,
       applied_at  timestamptz not null default now()
@@ -199,7 +212,7 @@ async function runPending(pool: pg.Pool): Promise<void> {
   `);
 
   const applied = new Set(
-    (await pool.query<{ filename: string }>("select filename from schema_migrations")).rows.map(
+    (await client.query<{ filename: string }>("select filename from schema_migrations")).rows.map(
       (r) => r.filename,
     ),
   );
@@ -218,7 +231,7 @@ async function runPending(pool: pg.Pool): Promise<void> {
 
   for (const file of pending) {
     const sql = fs.readFileSync(path.join(MIGRATIONS_DIR, file), "utf-8");
-    const client = await pool.connect();
+    console.log(`… ${file}`);
     try {
       await client.query("begin");
       await client.query(sql);
@@ -226,10 +239,8 @@ async function runPending(pool: pg.Pool): Promise<void> {
       await client.query("commit");
       console.log(`✅ ${file}`);
     } catch (err) {
-      await client.query("rollback");
+      await client.query("rollback").catch(() => {});
       throw new Error(`Falló la migración ${file}: ${err instanceof Error ? err.message : err}`);
-    } finally {
-      client.release();
     }
   }
 
