@@ -15,7 +15,7 @@ Producto de analítica PvP de WoW. La feature central, y la única razón de ser
 - `docs/decisions` — ADRs. Si una decisión de arquitectura se revisa, se añade un ADR nuevo.
 - `docs/design` — decisiones de pantalla, jerarquía y estados ([brief](docs/design/brief.md)) y el sistema visual: tokens, escala y componentes ([system](docs/design/system.md)). Lo que se ve no va a un ADR salvo que sea estructural.
 
-Fase actual: **Phase 0 (Data Feasibility)**, casi cerrada. La web existe como andamiaje —rutas, sistema visual y copy— y todavía no lee de Postgres.
+Fase actual: **Phase 2 (MVP)**, con lo imprescindible construido. La web lee de Postgres y tiene búsqueda, perfil con Player Gap e histórico de rating, páginas de spec y de meta. Lo que falta antes de la beta cerrada que decide el GO de la fase es operativo, no de pantalla: la web no está desplegada todavía y la base está por encima de la cuota de Supabase.
 
 ## Reglas del proyecto
 
