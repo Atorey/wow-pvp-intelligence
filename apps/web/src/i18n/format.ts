@@ -125,3 +125,11 @@ export function formatIndex(value: number, locale: Locale): string {
 export function formatDate(value: Date, locale: Locale): string {
   return new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(value);
 }
+
+/**
+ * Día y mes, sin año: la marca de un eje que abarca una temporada. El año lo
+ * dice la temporada, y repetirlo en cada marca no cabe en el ancho de un móvil.
+ */
+export function formatDayMonth(value: Date, locale: Locale): string {
+  return new Intl.DateTimeFormat(locale, { day: "numeric", month: "short" }).format(value);
+}

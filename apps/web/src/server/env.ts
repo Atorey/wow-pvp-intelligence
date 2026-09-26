@@ -1,5 +1,6 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { DEFAULT_ARCHIVE_BUCKET, supabaseUrlFrom, type StorageConfig } from "@wowpvp/storage";
 import dotenv from "dotenv";
 
 import type { RateLimitRules } from "./rate-limit";
@@ -53,6 +54,32 @@ export function getRateLimitSalt(): string {
     );
   }
   return value;
+}
+
+/**
+ * Dónde leer el índice del histórico de rating (ADR 0039), o `null` si este
+ * despliegue no puede.
+ *
+ * Es la misma configuración con la que el pipeline lo escribe, y al revés que la
+ * base, **no** falla si falta: sin ella la web sigue sirviendo todo lo demás, y
+ * la pestaña de histórico declara que no puede leer lo archivado en vez de
+ * pintar una temporada a medias. En local, con el dataset sembrado, nunca se
+ * archiva nada y no hace falta.
+ *
+ * La clave de servicio en la web no abre nada que `DATABASE_URL` no abra ya: las
+ * dos son del mismo proyecto y las dos se quedan en el servidor.
+ */
+export function getHistoryStorage(): StorageConfig | null {
+  const serviceKey = process.env["SUPABASE_SERVICE_ROLE_KEY"];
+  const databaseUrl = process.env["DATABASE_URL"];
+  const url = process.env["SUPABASE_URL"] || (databaseUrl ? supabaseUrlFrom(databaseUrl) : null);
+  if (!serviceKey || !url) return null;
+
+  return {
+    url: url.replace(/\/+$/, ""),
+    serviceKey,
+    bucket: process.env["ARCHIVE_BUCKET"] || DEFAULT_ARCHIVE_BUCKET,
+  };
 }
 
 const MINUTE = 60;

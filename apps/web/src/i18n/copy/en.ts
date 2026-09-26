@@ -413,6 +413,7 @@ export const en = {
       label: "Profile sections",
       summary: "Summary",
       gear: "Gear",
+      history: "History",
     },
 
     /**
@@ -649,6 +650,51 @@ export const en = {
         SHIRT: "Shirt",
         TABARD: "Tabard",
       } satisfies Record<GearSlot, string>,
+    },
+
+    /**
+     * La pestaña de histórico (ADR 0039). Describe lo que hemos visto y cuándo,
+     * nunca por qué se movió: una subida al lado de un cambio de equipo se leería
+     * como su causa, y eso es justo lo que la regla 3 no deja escribir.
+     */
+    history: {
+      title: (spec: string) => `Observed rating · ${spec}`,
+      /**
+       * Etiqueta delante y cifra detrás, por lo mismo que `record`: este
+       * diccionario no tiene plurales que dependan de la cantidad.
+       */
+      observations: "Observations this season",
+      first: "First observation",
+      highest: "Highest observed",
+      latest: "Latest observation",
+      at: (rating: string, when: string) => `${rating} · ${when}`,
+      /**
+       * Un punto no es una evolución. Se dice el dato en vez de dibujar un
+       * gráfico con un solo punto, que se leería como un eje vacío.
+       */
+      single: (rating: string, when: string) =>
+        `There is a single observation of this spec this season: ${rating}, on ${when}. One point has no evolution to draw.`,
+      /**
+       * La línea es la parte del gráfico que no es un dato, y se dice (ADR 0009:
+       * solo se guarda la observación que cambia, y entre dos puede haber
+       * subidas y bajadas que nadie vio).
+       */
+      line: "Each dot is one of our observations. The line only joins them: between two, the rating may have moved without us seeing it.",
+      /**
+       * Lo que falta de la temporada, con su recuento. Sin él, una línea que
+       * empieza a mitad de temporada se leería como el principio.
+       */
+      gap: {
+        unreadable: (missing: string) =>
+          `Archived observations that couldn't be read just now: ${missing}. The line isn't the whole season.`,
+        unindexed: (missing: string) =>
+          `Archived observations not yet in the history index: ${missing}. The line isn't the whole season.`,
+      },
+      table: {
+        toggle: (count: string) => `All observations (${count})`,
+        date: "Date",
+        rating: "Rating",
+      },
     },
 
     methodology: "How we count this → Methodology",

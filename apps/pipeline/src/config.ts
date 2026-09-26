@@ -1,7 +1,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import dotenv from "dotenv";
-import { supabaseUrlFrom, type StorageConfig } from "./storage";
+import { DEFAULT_ARCHIVE_BUCKET, supabaseUrlFrom, type StorageConfig } from "@wowpvp/storage";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
@@ -113,6 +113,6 @@ export function getArchiveStorage(): StorageConfig {
       "SUPABASE_SERVICE_ROLE_KEY",
       "Supabase → Project Settings → API keys → la clave secreta (service_role).",
     ),
-    bucket: process.env["ARCHIVE_BUCKET"] || "snapshot-archive",
+    bucket: process.env["ARCHIVE_BUCKET"] || DEFAULT_ARCHIVE_BUCKET,
   };
 }

@@ -218,6 +218,7 @@ export const es: Copy = {
       label: "Secciones del perfil",
       summary: "Resumen",
       gear: "Equipamiento",
+      history: "Histórico",
     },
 
     gap: {
@@ -370,6 +371,29 @@ export const es: Copy = {
         OFF_HAND: "Off hand",
         SHIRT: "Camisa",
         TABARD: "Tabardo",
+      },
+    },
+
+    history: {
+      title: (spec) => `Rating observado · ${spec}`,
+      observations: "Observaciones esta temporada",
+      first: "Primera observación",
+      highest: "Máximo observado",
+      latest: "Última observación",
+      at: (rating, when) => `${rating} · ${when}`,
+      single: (rating, when) =>
+        `De esta spec consta una sola observación esta temporada: ${rating}, el ${when}. Con un punto no hay evolución que dibujar.`,
+      line: "Cada punto es una observación nuestra. La línea solo las une: entre dos, el rating pudo moverse sin que lo viéramos.",
+      gap: {
+        unreadable: (missing) =>
+          `Observaciones archivadas que no se han podido leer ahora: ${missing}. La línea no es la temporada entera.`,
+        unindexed: (missing) =>
+          `Observaciones archivadas que aún no están en el índice del histórico: ${missing}. La línea no es la temporada entera.`,
+      },
+      table: {
+        toggle: (count) => `Todas las observaciones (${count})`,
+        date: "Fecha",
+        rating: "Rating",
       },
     },
 

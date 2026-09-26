@@ -2,7 +2,9 @@ import type pg from "pg";
 import { ACTIVITY_WINDOWS } from "@wowpvp/core";
 import { getArchiveStorage } from "../config";
 import { createPool } from "../db/pool";
-import { encodeRows, ensureBucket, uploadObject, type StorageConfig } from "../storage";
+import { ensureBucket, uploadObject, type StorageConfig } from "@wowpvp/storage";
+import { encodeRows } from "../storage";
+import { indexRatingHistory, toObservation, type RatingRow } from "./rating-history";
 
 /**
  * Archivado del histórico frío de `character_snapshots` (ADR 0034).
@@ -28,6 +30,11 @@ import { encodeRows, ensureBucket, uploadObject, type StorageConfig } from "../s
  * Y solo se archiva lo que `character_activity` ya había visto —filas anteriores
  * al último cálculo de su serie—, porque desde aquí la actividad hereda de esa
  * fila lo que ya no puede leer (`withArchivedActivity` en core).
+ *
+ * Lo que se archiva deja además su rating en el índice por personaje del
+ * histórico (ADR 0039), antes del primer borrado: el archivo son lotes por
+ * fecha con la población entera, y la web no puede leer de ahí la temporada de
+ * una sola persona.
  *
  * Cada lote es autónomo: se sube y **después** se borra, en ese orden. Si algo
  * falla entre medias, lo peor que queda es un lote subido dos veces; el archivo
@@ -175,6 +182,8 @@ export interface ArchiveReport {
   gearRows: number;
   talentRows: number;
   bytes: number;
+  /** Objetos del índice de rating reescritos antes de borrar (ADR 0039). */
+  historyObjects: number;
 }
 
 export async function archiveSnapshots(args: string[] = []): Promise<void> {
@@ -239,10 +248,27 @@ export async function archive(
       gearRows: 0,
       talentRows: 0,
       bytes: 0,
+      historyObjects: 0,
     };
 
     if (!storage || report.candidates === 0) return report;
     await ensureBucket(storage);
+
+    // El índice del histórico de rating va **antes** que el primer borrado: es
+    // la única copia que la web puede leer de estas filas (ADR 0039). Si falla
+    // aquí no se ha borrado nada; si falla después, las filas indexadas siguen
+    // calientes y la web las une sin contarlas dos veces.
+    const { rows: ratings } = await client.query<RatingRow>(
+      `select s.character_id, s.bracket, s.season_id, s.captured_at, s.rating
+         from character_snapshots s
+         join archive_candidates c on c.id = s.id`,
+    );
+    const indexed = await indexRatingHistory(storage, ratings.map(toObservation));
+    report.historyObjects = indexed.objects;
+    console.log(
+      `  Índice de rating: ${fmt(ratings.length)} observaciones en ${fmt(indexed.objects)} ` +
+        `objetos (${mb(indexed.bytes)})`,
+    );
 
     for (;;) {
       // Siempre desde el principio: cada lote se borra de la tabla temporal al

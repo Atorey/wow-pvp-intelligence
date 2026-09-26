@@ -1,5 +1,11 @@
 import { standingWithin } from "@wowpvp/core";
-import type { ActivityEvidence, Region, SnapshotSource, Standing } from "@wowpvp/core";
+import type {
+  ActivityEvidence,
+  RatingPoint,
+  Region,
+  SnapshotSource,
+  Standing,
+} from "@wowpvp/core";
 import type { ObservationProvenance } from "./provenance";
 import type { Queryable } from "./queryable";
 
@@ -167,6 +173,12 @@ export interface ActivityRead {
   lastPlayed: number | null;
   /** Cuántas observaciones sostienen esta fila. */
   observations: number;
+  /**
+   * Cuántas de ellas ya no están en `character_snapshots` porque se archivaron
+   * (ADR 0034). Es lo que dice si la serie de rating tiene que ir a buscar
+   * puntos al índice de Storage, y cuántos tiene que encontrar allí (ADR 0039).
+   */
+  archivedObservations: number;
   firstSeenAt: Date;
   lastSeenAt: Date;
   /** Cuándo se materializó la fila. `refresh-activity` la reconstruye entera. */
@@ -178,6 +190,7 @@ interface ActivityRow {
   evidence: ActivityEvidence;
   last_played: number | null;
   observations: number;
+  archived_observations: number;
   first_seen_at: Date;
   last_seen_at: Date;
   computed_at: Date;
@@ -195,7 +208,7 @@ export async function readActivity(
   key: { characterId: string; bracket: string; seasonId: number },
 ): Promise<ActivityRead | null> {
   const { rows } = await db.query<ActivityRow>(
-    `select last_active_at, evidence, last_played, observations,
+    `select last_active_at, evidence, last_played, observations, archived_observations,
             first_seen_at, last_seen_at, computed_at
        from character_activity
       where character_id = $1 and bracket = $2 and season_id = $3`,
@@ -210,6 +223,7 @@ export async function readActivity(
     evidence: row.evidence,
     lastPlayed: row.last_played,
     observations: row.observations,
+    archivedObservations: row.archived_observations,
     firstSeenAt: row.first_seen_at,
     lastSeenAt: row.last_seen_at,
     computedAt: row.computed_at,
@@ -399,4 +413,31 @@ export async function readPeakRating(
   );
 
   return rows[0]?.peak ?? null;
+}
+
+/**
+ * Los puntos de la serie de rating que siguen en Postgres.
+ *
+ * Es solo la mitad caliente: lo archivado está en el índice de Storage (ADR
+ * 0039) y quien pinta la serie une las dos con `mergeRatingPoints()`. Lo que se
+ * queda aquí más allá de los 14 días —el ancla, el pico, el último gear— sale
+ * también, y la unión lo cuenta una vez aunque esté en los dos sitios.
+ *
+ * Entran todos los orígenes, `search` incluido: la exclusión de los agregados
+ * (ADR 0007, punto 8) protege la muestra de la población, y esto no es una
+ * muestra, es el rating del propio personaje.
+ */
+export async function readRatingPoints(
+  db: Queryable,
+  key: { characterId: string; bracket: string; seasonId: number },
+): Promise<RatingPoint[]> {
+  const { rows } = await db.query<{ captured_at: Date; rating: number }>(
+    `select captured_at, rating
+       from character_snapshots
+      where character_id = $1 and bracket = $2 and season_id = $3
+      order by captured_at`,
+    [key.characterId, key.bracket, key.seasonId],
+  );
+
+  return rows.map((row) => ({ at: row.captured_at, rating: row.rating }));
 }
