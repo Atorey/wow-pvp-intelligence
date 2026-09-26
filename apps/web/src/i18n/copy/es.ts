@@ -46,6 +46,38 @@ export const es: Copy = {
     system: "Sistema",
   },
 
+  meta: {
+    title: (bracket) => `Qué se juega en ${bracket}`,
+    lead: "Todas las specs de la modalidad, por los personajes que hemos observado en la corrida más reciente.",
+    empty: (bracket) =>
+      `La corrida de agregados más reciente no tiene a nadie observado en ${bracket}, así que no hay reparto que enseñar.`,
+    table: {
+      rank: "#",
+      spec: "Spec",
+      weight: "Peso relativo",
+      observed: "Observados",
+      ofLadder: "De la ladder",
+      ofHigh: (rating) => `De ${rating}+`,
+      index: "Índice",
+      medianSegment: "Tramo mediano",
+      noHigh: (needed) => `menos de ${needed} observados`,
+      shareNote: (observed, bracket, specs) =>
+        `Las proporciones son sobre los ${observed} personajes observados en ${bracket} en esta corrida, repartidos entre sus ${specs} specs.`,
+      indexNote: (rating) =>
+        `El índice es la proporción de una spec en ${rating}+ dividida por su proporción en toda la modalidad: un ×1,9 dice que arriba pesa casi el doble que en el conjunto. No es una medida de lo fuerte que sea.`,
+      highNote: (needed, rating) =>
+        `Una spec con menos de ${needed} personajes observados por encima de ${rating} no publica ni su proporción de ahí arriba ni su índice: con esa muestra, una proporción describe a un puñado de personas.`,
+      medianNote:
+        "El tramo mediano es aquel en el que la población acumulada pasa de la mitad: la mitad de los personajes observados de esa spec están por debajo de él. No es el rating medio de la spec.",
+      notSaid:
+        "Representación no es rendimiento. El leaderboard no publica resultados por partida, así que de aquí no sale qué spec gana más: una spec puede estar sobrerrepresentada por ser popular o fácil de jugar.",
+      trendPending: (needed, rating) =>
+        `La variación semana a semana todavía no se publica: marcar una spec como tendencia exige que su proporción por encima de ${rating} se mueva en la misma dirección, y ninguna llega todavía a los ${needed} observados ahí arriba que pide una tendencia.`,
+      activityPending:
+        "El volumen de partidas tampoco: los observados ya cuentan a quien ha estado activo en la ventana, y el contador por partida no es comparable entre el leaderboard y el perfil, así que los dos no se pueden sumar en una sola cifra.",
+    },
+  },
+
   home: {
     title: {
       lead: "Lleva tu personaje al",
@@ -63,26 +95,7 @@ export const es: Copy = {
       title: "Qué se juega ahora",
       empty: "La corrida de agregados más reciente no tiene a nadie observado en Solo Shuffle.",
       unavailable: "Estas cifras no se han podido leer ahora mismo. El buscador sigue funcionando.",
-      table: {
-        rank: "#",
-        spec: "Spec",
-        weight: "Peso relativo",
-        observed: "Observados",
-        ofLadder: "De la ladder",
-        ofHigh: (rating) => `De ${rating}+`,
-        index: "Índice",
-        noHigh: (needed) => `menos de ${needed} observados`,
-        shareNote: (observed, bracket, specs) =>
-          `Las proporciones son sobre los ${observed} personajes observados en ${bracket} en esta corrida, repartidos entre sus ${specs} specs.`,
-        indexNote: (rating) =>
-          `El índice es la proporción de una spec en ${rating}+ dividida por su proporción en toda la modalidad: un ×1,9 dice que arriba pesa casi el doble que en el conjunto. No es una medida de lo fuerte que sea.`,
-        highNote: (needed, rating) =>
-          `Una spec con menos de ${needed} personajes observados por encima de ${rating} no publica ni su proporción de ahí arriba ni su índice: con esa muestra, una proporción describe a un puñado de personas.`,
-        notSaid:
-          "Representación no es rendimiento. El leaderboard no publica resultados por partida, así que de aquí no sale qué spec gana más: una spec puede estar sobrerrepresentada por ser popular o fácil de jugar.",
-        trendPending: (needed, rating) =>
-          `La variación semana a semana todavía no se publica: marcar una spec como tendencia exige que su proporción por encima de ${rating} se mueva en la misma dirección, y ninguna llega todavía a los ${needed} observados ahí arriba que pide una tendencia.`,
-      },
+      allSpecs: (specs) => `Ver las ${specs} specs`,
     },
 
     population: {

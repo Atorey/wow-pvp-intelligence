@@ -1,5 +1,12 @@
-import { BRACKET_LABELS, BRACKET_SLUGS, HOME_PATH, type ActivityWindowDays } from "@wowpvp/core";
+import {
+  BRACKET_LABELS,
+  BRACKET_SLUGS,
+  HOME_PATH,
+  metaPath,
+  type ActivityWindowDays,
+} from "@wowpvp/core";
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 
@@ -11,7 +18,7 @@ import { Card } from "../../components/ui/card";
 import { copyFor } from "../../i18n/copy";
 import { alternatesFor } from "../../i18n/alternates";
 import { formatCount, formatRating } from "../../i18n/format";
-import { isLocale, type Locale } from "../../i18n/locales";
+import { isLocale, localizedPathname, type Locale } from "../../i18n/locales";
 import { loadHomeData, type HomeScope } from "../../server/home";
 
 export async function generateMetadata({
@@ -133,7 +140,20 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
       <section className="flex flex-col gap-3">
         <SectionHeading title={copy.home.meta.title} scope={metaScope(scope, locale)} />
         {meta.state === "listed" ? (
-          <SpecRepresentationTable locale={locale} board={meta.board} />
+          <>
+            <SpecRepresentationTable locale={locale} board={meta.board} />
+            {/*
+             * El enlace que el mockup pedía y que hasta el ADR 0038 no tenía a
+             * dónde ir. Dice cuántas specs hay detrás, no "ver más": lo que la
+             * portada recorta es justo eso, ocho de cuarenta.
+             */}
+            <Link
+              href={localizedPathname(metaPath(BRACKET_SLUGS[0]), locale)}
+              className="text-primary self-start text-sm underline"
+            >
+              {copy.home.meta.allSpecs(formatCount(meta.board.specs, locale))}
+            </Link>
+          </>
         ) : (
           <MissingCard>
             {meta.state === "empty" ? copy.home.meta.empty : copy.home.meta.unavailable}

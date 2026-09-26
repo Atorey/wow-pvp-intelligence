@@ -227,6 +227,23 @@ export function specPath(spec: SpecEntry, bracket?: BracketSlug, segment?: Ratin
 }
 
 /**
+ * `/meta/solo-shuffle`: el reparto de una modalidad entre sus cuarenta specs
+ * (ADR 0038).
+ *
+ * La modalidad es un tramo de ruta y no una query porque es lo que la página
+ * es: cada modalidad tiene su población, su tramo alto y su reparto, y una
+ * `?bracket=` dejaría el contenido colgando de un parámetro que los rastreadores
+ * tratan como la misma URL. `/meta` a secas **no existe** mientras haya una sola
+ * modalidad publicada: sería una segunda dirección con el mismo contenido, que
+ * es lo que la decisión 7 del ADR 0020 evita.
+ */
+export const META_PATH = "/meta";
+
+export function metaPath(bracket: BracketSlug): string {
+  return `${META_PATH}/${bracket}`;
+}
+
+/**
  * Qué hace la web con lo que venga en los tramos dinámicos de una ruta.
  *
  * Son tres respuestas y no dos porque "esto no existe" y "esto existe, pero
@@ -297,6 +314,31 @@ export function resolvePlayerRoute(params: PlayerRouteParams): RouteResolution<P
   return asWritten
     ? { status: "canonical", route }
     : { status: "redirect", path: playerPath(route) };
+}
+
+export interface MetaRouteParams {
+  bracket: string;
+}
+
+export interface MetaRoute {
+  bracket: BracketSlug;
+}
+
+/**
+ * Resuelve el único tramo de `/meta/{modalidad}`.
+ *
+ * Una modalidad que no publicamos es 404 y no una redirección a la que sí:
+ * adivinar aquí llevaría a quien pide `/meta/3v3` a una página de Solo Shuffle
+ * que afirma cifras de otra cosa (ADR 0020, decisión 7).
+ */
+export function resolveMetaRoute(params: MetaRouteParams): RouteResolution<MetaRoute> {
+  const written = decodeRouteSegment(params.bracket);
+  const input = written.trim().toLowerCase();
+  if (!isBracketSlug(input)) return { status: "unknown" };
+
+  return input === written
+    ? { status: "canonical", route: { bracket: input } }
+    : { status: "redirect", path: metaPath(input) };
 }
 
 export interface SpecRouteParams {

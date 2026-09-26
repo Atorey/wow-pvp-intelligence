@@ -26,15 +26,17 @@ La búsqueda de personaje, el perfil y las páginas de spec ya funcionan de punt
 | **Sí** | `robots.txt`, `sitemap.xml` y la regla que decide si una página entra en el índice ([ADR 0029](../../docs/decisions/0029-que-se-indexa-y-que-no.md)).                                                                                                       |
 | **Sí** | Las páginas de spec y de tramo: la tabla por tramo de rating, y el gear y los talentos de cada tramo con su base declarada.                                                                                                                                 |
 | **Sí** | La portada: el bloque «Qué se juega ahora», con el reparto de Solo Shuffle entre sus specs y qué parte del tramo alto es cada una.                                                                                                                          |
+| **Sí** | La página del meta, `/meta/solo-shuffle`: las cuarenta specs con su reparto, su peso en el tramo alto, su índice y su tramo mediano ([ADR 0038](../../docs/decisions/0038-la-pagina-de-meta-publica-lo-que-la-muestra-sostiene.md)).                        |
 | **Sí** | La portada: el bloque «Cuánta gente hay en cada modalidad», con los personajes distintos observados en la ventana de actividad y las cuatro modalidades que el pipeline no ingiere diciéndolo.                                                              |
 
 ## Rutas
 
 El mapa entero, con sus reglas y sus porqués, está en el [ADR 0020](../../docs/decisions/0020-mapa-de-rutas-del-sitio.md). Lo que hay que saber para tocar una página:
 
-- **Las rutas se construyen y se parsean en `@wowpvp/core`**, sin prefijo de idioma: `playerPath()`, `specPath()`, `resolvePlayerRoute()`, `resolveSpecRoute()`. Aquí solo se les antepone el locale con `localizedPathname()`. Ninguna página monta una ruta concatenando strings.
+- **Las rutas se construyen y se parsean en `@wowpvp/core`**, sin prefijo de idioma: `playerPath()`, `specPath()`, `metaPath()`, `resolvePlayerRoute()`, `resolveSpecRoute()`, `resolveMetaRoute()`. Aquí solo se les antepone el locale con `localizedPathname()`. Ninguna página monta una ruta concatenando strings.
 - **Cada página resuelve sus tramos y hace una de tres cosas**: servir, `permanentRedirect()` a la forma canónica, o `notFound()`. Lo que no está en el catálogo es 404, nunca una redirección adivinada.
 - **El copy está en `src/i18n/copy`**, dos diccionarios y ninguna librería. El inglés define la forma: una clave que falte en español rompe el `typecheck`.
+- **De las cinco rutas que el ADR 0020 dejó declaradas y sin código, quedan tres.** `/privacy` la abrió el [ADR 0028](../../docs/decisions/0028-medicion-de-primera-parte-y-sin-banner.md) y `/meta/{modalidad}` el [ADR 0038](../../docs/decisions/0038-la-pagina-de-meta-publica-lo-que-la-muestra-sostiene.md); `/compare`, `/rankings` y `/trends` siguen sin página, y abrir una es un ADR, no un `page.tsx`.
 - **`/search` y `/api/search` no están en el catálogo del ADR 0020 y no se indexan.** La primera enseña lo que un envío no pudo resolver; la segunda alimenta el autocompletado y va sin prefijo de idioma, porque devuelve identidades y son las mismas en las dos lenguas.
 
 ## Qué se indexa
@@ -44,6 +46,7 @@ Las reglas y sus porqués están en el [ADR 0029](../../docs/decisions/0029-que-
 - **Ninguna página escribe su `robots` a mano: se pide a `robotsFor()`.** Multiplica por el entorno, y esa es toda su razón de ser — el `robots` de una página pisa el del layout, así que un `index: true` suelto publicaría cada preview de Netlify en Google.
 - **Una página se indexa cuando tiene contenido propio y comparable**, con el umbral de §13.4 y a través de `canShowComparison()` / `isComparable()`. La población de un escalón no basta: mide cuánta gente hay, no de cuánta sabemos algo (#76).
 - **Las páginas de spec se indexan ruta a ruta, con la misma lista que publica el sitemap** (`isSpecPathIndexable` en [`src/seo/indexable.ts`](src/seo/indexable.ts)): un tramo entra si alguna de sus tres bases llega al umbral, y la spec y su modalidad si entra alguno de sus tramos. `SPEC_PAGES_PUBLISHED` quedó encendido con #99 y es el interruptor que habría que apagar si volvieran a quedarse sin contenido.
+- **La página del meta se indexa si la corrida trae reparto**, que es la misma condición con la que se pinta: sin cifras no hay contenido. No hay regla de muestra por spec, porque lo que esa página enseña es el reparto entero y un umbral por fila dejaría fuera a las que son contexto de las demás.
 - **El sitemap se recorre, no se escribe.** Sale del catálogo de `@wowpvp/core` filtrado por la muestra de cada escalón, y su `lastModified` es el `computed_at` del dato. Los perfiles no entran nunca: son miles de rutas dinámicas contra Postgres y se descubren por enlace.
 
 ## La búsqueda
@@ -81,6 +84,18 @@ Es lo que **escribe** y lo que llama a Blizzard, junto con el botón "Actualizar
 - **Las listas largas se pliegan con `<details>`, no se cortan**, y no con el `Collapsible` de shadcn: lo plegado tiene que estar en el HTML que se indexa y abrirse sin JavaScript.
 - **Los dos primeros niveles de la miga de pan son texto**: la ruta de clase todavía no está decidida (#98).
 
+## La página del meta
+
+`/meta/{modalidad}` reparte una modalidad entre sus cuarenta specs ([ADR 0038](../../docs/decisions/0038-la-pagina-de-meta-publica-lo-que-la-muestra-sostiene.md)). Lo que no se adivina leyendo el componente:
+
+- **Es el mismo cálculo que la portada, con otro recorte.** `representationFor()` lo hace una vez y `ALL_SPEC_ROWS` —que es `ALL_SPECS.length`, no un número escrito— dice que aquí no se recorta. Una spec nueva en el catálogo entra sola.
+- **Lo que añade sobre la portada es el tramo mediano**, que es la `rating_distribution` de la §17 por fila. Lo calcula `medianSegmentOf()` en `@wowpvp/core`, compartido con la cabecera de la página de spec: dos acumulados calculados aparte discrepan en el borde de la mitad exacta y no lo nota nadie.
+- **La tabla no se ordena por el índice, ni ahora ni nunca.** El orden es la población y los empates los deshace la etiqueta. Ordenar por el índice convertiría una proporción descriptiva en un ranking de lo bueno que es algo, que es lo primero que la §17 prohíbe.
+- **Aquí el fallo de lectura no se atrapa**, al revés que en la portada: allí lo que hay encima del bloque es el buscador y es lo caro de perder, y aquí la lectura **es** la página. Sube al `error.tsx` de la rama.
+- **Faltan dos de las cinco señales y las dos lo dicen, cada una con su razón.** La tendencia, porque ninguna spec llega a los cien observados por encima de 2400 que pide declararla (#126); el volumen de partidas, porque «Observados» ya cuenta a quien estuvo activo en la ventana y el contador por partida no es comparable entre fuentes (#127, [ADR 0008](../../docs/decisions/0008-ventana-de-actividad-por-partidas-jugadas.md)).
+- **El tope de 5.000 se dice al pie**, con la misma frase que la tabla por tramo y el bloque de posición del perfil. Hoy no aprieta; cuando apriete sesgará el reparto a la baja justo en las specs más jugadas (#128).
+- **No añade consulta**: `readRunPopulation` es la que ya piden las páginas de spec y la portada, por la caché de proceso.
+
 ## La portada
 
 Encima de todo va el buscador, que es la única puerta al producto (§23 del plan) y no necesita Postgres. Debajo, dos bloques: «Qué se juega ahora» lee el reparto de la modalidad entre sus specs, y «Cuánta gente hay en cada modalidad» cuenta la población dentro de la ventana de actividad. Lo que no se adivina leyendo los componentes:
@@ -88,12 +103,12 @@ Encima de todo va el buscador, que es la única puerta al producto (§23 del pla
 - **El reparto es la lectura que ya piden las páginas de spec**: `readRunPopulation` por la caché de proceso. No añadió consulta ninguna; lo que añadió fue el desglose por tramo de esa lectura, del que sale «De 2400+».
 - **El fallo de lectura se atrapa aquí y en ninguna otra página.** Una excepción tumbaría también el buscador, que es lo caro de perder; el bloque dice que no se ha podido leer, que es distinto de que no haya nadie, y la línea `home-data-unavailable` deja constancia.
 - **El corte del tramo alto es de producto y vive en `@wowpvp/core`** (`HIGH_RATING_FLOOR`). Una spec sin muestra suficiente ahí arriba no publica ni su proporción ni su índice, y lo decide `canShowComparison()`.
-- **El índice es la cifra más fácil de leer mal**: es la proporción de arriba dividida por la del conjunto, y su nota termina diciendo qué no es. No hay columna de variación semanal porque exige conservar la serie de corridas (#27), y su ausencia se declara en vez de rellenarse con un cero.
-- **No hay enlace a «las 40 specs»**: `/meta` está declarada y sin código (ADR 0020, decisión 5). Cada fila enlaza a su spec, y la barra lateral despliega las cuarenta.
+- **El índice es la cifra más fácil de leer mal**: es la proporción de arriba dividida por la del conjunto, y su nota termina diciendo qué no es. No hay columna de variación semanal, y el motivo **no** es la retención: desde el [ADR 0019](../../docs/decisions/0019-retencion-de-agregados.md) la serie se conserva entera, que fue la razón de no podarla. Lo que falta es muestra en el tramo alto, porque marcar una tendencia exige que su proporción acompañe (§17) y ninguna spec llega al umbral ahí arriba ([ADR 0037](../../docs/decisions/0037-la-tendencia-se-mide-contra-el-ruido-de-su-propia-base.md), #126). Su ausencia se declara en vez de rellenarse con un cero.
+- **El enlace a «las 40 specs» lleva a `/meta/solo-shuffle`**, que el [ADR 0038](../../docs/decisions/0038-la-pagina-de-meta-publica-lo-que-la-muestra-sostiene.md) abrió. La portada es el recorte de esa página y las dos comparten cálculo y copy: ocho filas aquí, cuarenta allí.
 - **La población de la ventana no sale de sumar escalones, y por eso es una consulta propia** (`readActiveCharacters`). `population_segments` cuenta cada escalón con **su** ventana —7 días o 14, según le llegara la muestra— y un personaje que juega varias specs está en varios escalones. Medido el 18 de septiembre de 2026: 38.015 personajes distintos frente a 43.578 de suma de escalones. La cifra sale de `character_activity`, nunca de contar filas de `character_snapshots`, que desde el ADR 0009 solo guarda las que cambian.
 - **La ventana se ancla al `computed_at` de la corrida, no al reloj de la visita.** `refresh-aggregates` reconstruye `character_activity` al empezar y escribe los escalones después con el mismo instante, así que los 7 días anteriores a esa fecha son los que la tabla tiene contados. Con `Date.now()` la cifra se movería entre dos visitas sin dato nuevo y no casaría con la fecha que el propio bloque declara debajo.
 - **Las cinco modalidades se pintan y cuatro dicen que no tienen dato.** El pipeline solo ingiere Solo Shuffle (#34 y #37 traerían las demás): esconderlas dejaría el titular —«cada modalidad»— prometiendo cinco con una sola fila a la vista, y lo que falta se dice con palabras (§1.5 del brief). Sus nombres viven en [`src/components/brackets.ts`](src/components/brackets.ts), compartidos con la barra lateral.
-- **El desglose de evidencia va pegado a la cifra.** Parte de la población entra por `played-delta` —le hemos visto subir el contador— y parte por `first-seen`, que solo sostiene que jugó antes de nuestra primera observación. Un recuento sin ese reparto promete más de lo que aguanta (§27 del plan). La variación semanal sigue sin publicarse, por lo mismo que en la tabla de arriba (#27).
+- **El desglose de evidencia va pegado a la cifra.** Parte de la población entra por `played-delta` —le hemos visto subir el contador— y parte por `first-seen`, que solo sostiene que jugó antes de nuestra primera observación. Un recuento sin ese reparto promete más de lo que aguanta (§27 del plan). La variación semanal sigue sin publicarse, y aquí por una razón propia: esta cifra cuenta personajes distintos y `character_activity` guarda una fila por personaje con su última observación —clave `(character_id, bracket, season_id)`—, así que recontar hoy la ventana anterior dejaría fuera justo a quien siguió jugando.
 
 ## La medición y la privacidad
 

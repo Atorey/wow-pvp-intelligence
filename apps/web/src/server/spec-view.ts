@@ -5,6 +5,7 @@ import {
   adoptionChange,
   canShowComparison,
   confidenceFor,
+  medianSegmentOf,
   parseShuffleBracket,
   slotGroup,
   type AdoptionChange,
@@ -118,19 +119,18 @@ export function specOverviewFor(input: {
  * la contiene sí, y con exactitud, contando de abajo arriba hasta pasar la
  * mitad. Con un total par se toma la mediana baja, que cae dentro de un tramo
  * en vez de entre dos.
+ *
+ * El recuento en sí es de `medianSegmentOf`, en core, porque la página del meta
+ * necesita la misma cifra por fila y a partir de otra lectura (ADR 0038): aquí
+ * solo se traduce la forma de esta tabla a la que aquella función entiende.
  */
 export function medianSegment(segments: readonly SegmentRead[]): RatingSegment | null {
-  const ascending = segments
-    .filter((row) => row.population.sampleSize > 0)
-    .sort((a, b) => a.segment.min - b.segment.min);
-  const count = total(ascending.map((row) => row.population.sampleSize));
-
-  let cumulative = 0;
-  for (const row of ascending) {
-    cumulative += row.population.sampleSize;
-    if (cumulative * 2 >= count) return row.segment;
-  }
-  return null;
+  return medianSegmentOf(
+    segments.map((row) => ({
+      segmentMin: row.segment.min,
+      population: row.population.sampleSize,
+    })),
+  );
 }
 
 /**

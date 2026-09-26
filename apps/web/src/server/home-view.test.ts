@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { HIGH_RATING_FLOOR, MIN_SAMPLE_MEDIUM } from "@wowpvp/core";
+import { ALL_SPECS, HIGH_RATING_FLOOR, MIN_SAMPLE_MEDIUM } from "@wowpvp/core";
 import type { BracketPopulation, RunPopulationRead } from "@wowpvp/data";
 
-import { representationFor } from "./home-view";
+import { ALL_SPEC_ROWS, representationFor } from "./home-view";
 
 const COMPUTED_AT = new Date("2026-09-18T04:00:00Z");
 
@@ -134,6 +134,53 @@ describe("representationFor", () => {
 
     assert.equal(board?.rows.length, 1);
     assert.equal(board?.specs, 1);
+  });
+
+  it("el tramo mediano es el de la población acumulada, no el más poblado", () => {
+    const board = representationFor(
+      run([
+        {
+          bracket: "shuffle-mage-frost",
+          population: 100,
+          segments: [
+            { segmentMin: 1400, population: 45 },
+            { segmentMin: 1600, population: 10 },
+            { segmentMin: 1800, population: 45 },
+          ],
+        },
+      ]),
+    );
+
+    // 1600-1800 tiene diez personas y es donde cae la de en medio: el acumulado
+    // pasa de la mitad ahí. El tramo más poblado empata en 45 y no decide nada.
+    assert.equal(board?.rows[0]?.medianSegment?.id, "1600-1800");
+  });
+
+  it("el tramo mediano sigue saliendo aunque la spec no tenga muestra arriba", () => {
+    const board = representationFor(
+      run([bracketOf("shuffle-mage-frost", 300, MIN_SAMPLE_MEDIUM - 1)]),
+    );
+
+    // Las dos cifras del tramo alto se caen juntas; la mediana no cuelga de esa
+    // base, describe a toda la población de la spec.
+    assert.equal(board?.rows[0]?.high, null);
+    assert.equal(board?.rows[0]?.medianSegment?.id, "1800-2000");
+  });
+
+  it("el recorte de la página del meta no deja fuera ninguna spec del catálogo", () => {
+    // Es el catálogo y no un número escrito: una spec nueva entra sola.
+    assert.equal(ALL_SPEC_ROWS, ALL_SPECS.length);
+
+    const board = representationFor(
+      run([
+        bracketOf("shuffle-mage-frost", 500, 0),
+        bracketOf("shuffle-priest-holy", 400, 0),
+        bracketOf("shuffle-warrior-arms", 300, 0),
+      ]),
+      { limit: ALL_SPEC_ROWS },
+    );
+
+    assert.equal(board?.rows.length, 3);
   });
 
   it("sin corrida, y con una corrida sin nadie, no hay reparto", () => {

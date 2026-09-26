@@ -69,6 +69,81 @@ export const en = {
     system: "System",
   },
 
+  /**
+   * La página del meta y la tabla que comparte con la portada (ADR 0038).
+   *
+   * Está fuera de `home` porque las dos la pintan: la portada enseña ocho filas
+   * y `/meta` las cuarenta, con las mismas columnas y las mismas notas. Dejarla
+   * colgando de la portada obligaría a la página propia a leer su copy de la
+   * sección de otra.
+   */
+  meta: {
+    title: (bracket: string) => `What's being played in ${bracket}`,
+    lead: "Every spec in the bracket, by how many characters we've observed in the most recent run.",
+    /**
+     * Sin reparto no hay página. Se dice con palabras y no con una tabla vacía,
+     * que se leería como que la modalidad no tiene a nadie por un motivo nuestro.
+     */
+    empty: (bracket: string) =>
+      `The most recent aggregate run has nobody observed in ${bracket}, so there is no split to show.`,
+    table: {
+      rank: "#",
+      spec: "Spec",
+      weight: "Relative weight",
+      observed: "Observed",
+      ofLadder: "Of the ladder",
+      ofHigh: (rating: string) => `Of ${rating}+`,
+      index: "Index",
+      /** Dónde cae la persona de en medio de esa spec. */
+      medianSegment: "Median segment",
+      /**
+       * Lo que se escribe donde iría la proporción de una spec arriba cuando
+       * su muestra no llega. Dice la cifra que falta, no un guion: un hueco
+       * se lee como un cero.
+       */
+      noHigh: (needed: string) => `fewer than ${needed} observed`,
+      shareNote: (observed: string, bracket: string, specs: string) =>
+        `Shares are over the ${observed} characters observed in ${bracket} in this run, across its ${specs} specs.`,
+      /**
+       * El índice es la cifra más fácil de leer mal, así que su nota dice qué
+       * división es y termina diciendo qué no es (§3.8 del brief).
+       */
+      indexNote: (rating: string) =>
+        `The index is a spec's share of ${rating}+ divided by its share of the whole bracket: ×1.9 means it weighs almost twice as much up there as it does overall. It is not a measure of how strong it is.`,
+      highNote: (needed: string, rating: string) =>
+        `A spec with fewer than ${needed} characters observed above ${rating} publishes neither its share up there nor its index: at that size a share describes a handful of people.`,
+      /**
+       * Qué es el tramo mediano y qué no: no es el rating medio de la spec, que
+       * no se deduce de las medianas de cada tramo.
+       */
+      medianNote:
+        "The median segment is the one where the running population count passes halfway: half the characters observed of that spec are below it. It is not the spec's average rating.",
+      /** La caja «lo que esta tabla no dice» del mockup de /meta, en una línea. */
+      notSaid:
+        "Representation is not performance. The leaderboard publishes no per-match result, so nothing here says which spec wins more: a spec can be overrepresented for being popular or easy to play.",
+      /**
+       * La columna de variación semanal del mockup no está, y se dice por qué
+       * en vez de dejar la tabla como si nunca hubiera tenido una.
+       *
+       * El porqué **no** es la retención: desde el ADR 0019 la serie se
+       * conserva entera —`population_segments` no se poda nunca, y esa fue la
+       * razón de no podarla—. Lo que falta es muestra arriba: marcar una
+       * tendencia exige que la proporción del tramo alto acompañe (§17), y
+       * esa es la cifra que no llega (ADR 0037).
+       */
+      trendPending: (needed: string, rating: string) =>
+        `Week-on-week variation isn't published yet: marking a spec as trending requires its share above ${rating} to move in the same direction, and no spec yet reaches the ${needed} observed up there that a trend needs.`,
+      /**
+       * La quinta señal de la §17 tampoco está, y su ausencia no se parece a la
+       * de la tendencia: aquí no falta muestra, falta la cifra. «Observados» ya
+       * cuenta a quien ha estado activo en la ventana, y presentarla como
+       * volumen de partidas sería llamar a dos cosas por el mismo nombre.
+       */
+      activityPending:
+        "Neither is match volume: the observed count already covers who was active in the window, and the per-match counter can't be compared between the leaderboard and the profile, so the two can't be added up into one figure.",
+    },
+  },
+
   home: {
     /**
      * El titular, partido en dos porque su segunda mitad se pinta en el acento.
@@ -114,46 +189,12 @@ export const en = {
        */
       empty: "The most recent aggregate run has nobody observed in Solo Shuffle.",
       unavailable: "These figures couldn't be read right now. Search still works.",
-      table: {
-        rank: "#",
-        spec: "Spec",
-        weight: "Relative weight",
-        observed: "Observed",
-        ofLadder: "Of the ladder",
-        ofHigh: (rating: string) => `Of ${rating}+`,
-        index: "Index",
-        /**
-         * Lo que se escribe donde iría la proporción de una spec arriba cuando
-         * su muestra no llega. Dice la cifra que falta, no un guion: un hueco
-         * se lee como un cero.
-         */
-        noHigh: (needed: string) => `fewer than ${needed} observed`,
-        shareNote: (observed: string, bracket: string, specs: string) =>
-          `Shares are over the ${observed} characters observed in ${bracket} in this run, across its ${specs} specs.`,
-        /**
-         * El índice es la cifra más fácil de leer mal, así que su nota dice qué
-         * división es y termina diciendo qué no es (§3.8 del brief).
-         */
-        indexNote: (rating: string) =>
-          `The index is a spec's share of ${rating}+ divided by its share of the whole bracket: ×1.9 means it weighs almost twice as much up there as it does overall. It is not a measure of how strong it is.`,
-        highNote: (needed: string, rating: string) =>
-          `A spec with fewer than ${needed} characters observed above ${rating} publishes neither its share up there nor its index: at that size a share describes a handful of people.`,
-        /** La caja «lo que esta tabla no dice» del mockup de /meta, en una línea. */
-        notSaid:
-          "Representation is not performance. The leaderboard publishes no per-match result, so nothing here says which spec wins more: a spec can be overrepresented for being popular or easy to play.",
-        /**
-         * La columna de variación semanal del mockup no está, y se dice por qué
-         * en vez de dejar la tabla como si nunca hubiera tenido una.
-         *
-         * El porqué **no** es la retención: desde el ADR 0019 la serie se
-         * conserva entera —`population_segments` no se poda nunca, y esa fue la
-         * razón de no podarla—. Lo que falta es muestra arriba: marcar una
-         * tendencia exige que la proporción del tramo alto acompañe (§17), y
-         * esa es la cifra que no llega (ADR 0037).
-         */
-        trendPending: (needed: string, rating: string) =>
-          `Week-on-week variation isn't published yet: marking a spec as trending requires its share above ${rating} to move in the same direction, and no spec yet reaches the ${needed} observed up there that a trend needs.`,
-      },
+      /**
+       * El enlace a la página entera, que el mockup pedía y que hasta el
+       * ADR 0038 no tenía a dónde ir. Dice cuántas specs hay detrás porque lo
+       * que la portada recorta es justo eso: ocho de cuarenta.
+       */
+      allSpecs: (specs: string) => `See all ${specs} specs`,
     },
 
     population: {

@@ -24,18 +24,22 @@ const STATIC_ROUTES: readonly IndexableRoute[] = [
 /**
  * El sitemap entero, a partir de las rutas que ya se sabe que son indexables.
  *
- * Recibe las rutas de spec en vez de leerlas: lo que decide qué se publica es
- * `indexableSpecRoutes`, y lo que hace esta función es traducir esa lista a las
- * dos lenguas. Los perfiles no entran nunca —son miles de rutas dinámicas contra
- * Postgres y se descubren por enlace (ADR 0029, decisión 4)—, así que no hay
- * parámetro por el que pudieran colarse.
+ * Recibe las rutas en vez de leerlas: lo que decide qué se publica es
+ * `indexableSpecRoutes` para las de spec y la existencia del reparto para la del
+ * meta, y lo que hace esta función es traducir esas listas a las dos lenguas.
+ * Los perfiles no entran nunca —son miles de rutas dinámicas contra Postgres y
+ * se descubren por enlace (ADR 0029, decisión 4)—, así que no hay parámetro por
+ * el que pudieran colarse.
  */
 export function sitemapEntries({
   base,
   specRoutes = [],
+  metaRoutes = [],
 }: {
   base: URL;
   specRoutes?: readonly IndexableRoute[];
+  /** `/meta/{modalidad}`, cuando la corrida trae reparto que enseñar (ADR 0038). */
+  metaRoutes?: readonly IndexableRoute[];
 }): MetadataRoute.Sitemap {
   const entries: MetadataRoute.Sitemap = [];
 
@@ -54,6 +58,7 @@ export function sitemapEntries({
 
   publish({ path: HOME_PATH });
   for (const route of STATIC_ROUTES) publish(route);
+  for (const route of metaRoutes) publish(route);
   for (const route of specRoutes) publish(route);
 
   return entries;
