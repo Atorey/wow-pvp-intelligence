@@ -32,7 +32,7 @@ import { createPool } from "../db/pool";
  *
  * La tabla es derivada, así que aquí sí se hace `update` sin romper el ADR 0002,
  * que protege las observaciones y no los cálculos sobre ellas. Pero desde el ADR
- * 0034 **ya no se reconstruye desde cero**: el histórico de más de 14 días está
+ * 0034 **ya no se reconstruye desde cero**: el histórico de más de 3 días (ADR 0041) está
  * archivado en Storage, y lo que se sabía de él —la fecha de arranque, una subida
  * vieja del contador, cuántas observaciones había— vive solo en la fila anterior
  * de esta misma tabla. Cada recálculo parte de ella (`withArchivedActivity`), y

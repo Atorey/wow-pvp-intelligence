@@ -474,7 +474,7 @@ async function loadProfiles(
   }>(
     `select g.snapshot_id, g.slot, g.item_id, g.item_name,
             g.gem_item_ids, g.gem_item_names, g.enchantment_ids, g.enchantment_names
-       from character_snapshot_gear g
+       from character_snapshot_gear_slots g
       where g.snapshot_id = any($1::bigint[])`,
     [snapshots.map((row) => row.id)],
   );
@@ -491,7 +491,7 @@ async function loadProfiles(
     talent_name: string | null;
   }>(
     `select t.snapshot_id, t.tree, lab.node_id, lab.name as talent_name
-       from character_snapshot_talents t
+       from character_snapshot_talent_trees t
        cross join lateral unnest(t.label_ids) as sel(label_id)
        join talent_labels lab on lab.id = sel.label_id
       where t.snapshot_id = any($1::bigint[])`,

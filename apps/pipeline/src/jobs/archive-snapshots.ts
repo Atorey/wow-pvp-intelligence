@@ -1,13 +1,21 @@
 import type pg from "pg";
-import { ACTIVITY_WINDOWS } from "@wowpvp/core";
-import { getArchiveStorage } from "../config";
+import { getArchiveStorage, getLeaderboardRetentionDays } from "../config";
 import { createPool } from "../db/pool";
 import { ensureBucket, uploadObject, type StorageConfig } from "@wowpvp/storage";
 import { encodeRows } from "../storage";
+import {
+  archiveRunStamp,
+  archiveSeasonTables,
+  countSeasonTables,
+  findClosedSeasons,
+  seasonListSql,
+  type SeasonTablesReport,
+} from "./closed-seasons";
 import { indexRatingHistory, toObservation, type RatingRow } from "./rating-history";
 
 /**
- * Archivado del histórico frío de `character_snapshots` (ADR 0034).
+ * Archivado del histórico frío de `character_snapshots` (ADR 0034, con la
+ * ventana del ADR 0041).
  *
  * Lo anterior a la ventana se vuelca a Supabase Storage y se borra de Postgres,
  * con sus filas de gear y talentos, que caen por cascada. Revisa el ADR 0002 sin
@@ -31,6 +39,10 @@ import { indexRatingHistory, toObservation, type RatingRow } from "./rating-hist
  * al último cálculo de su serie—, porque desde aquí la actividad hereda de esa
  * fila lo que ya no puede leer (`withArchivedActivity` en core).
  *
+ * Nada de lo anterior aplica a una **temporada cerrada** (ADR 0042): nadie lee
+ * ya su ancla ni su pico desde Postgres, así que sale entera, y detrás de sus
+ * snapshots salen sus tablas derivadas (`closed-seasons.ts`).
+ *
  * Lo que se archiva deja además su rating en el índice por personaje del
  * histórico (ADR 0039), antes del primer borrado: el archivo son lotes por
  * fecha con la población entera, y la web no puede leer de ahí la temporada de
@@ -47,8 +59,16 @@ const DEFAULT_BATCH = 20_000;
 
 const MS_PER_DAY = 86_400_000;
 
+/**
+ * Días que se quedan en Postgres (ADR 0041). No es la ventana de los agregados:
+ * todo lo que la agregación lee de una serie es su última fila de cada origen, y
+ * esa se queda siempre, caliente o como ancla. Lo que fija el número es la caché
+ * de JSON del leaderboard, por debajo.
+ */
+export const DEFAULT_HOT_DAYS = 3;
+
 export interface Options {
-  /** Días que se quedan en Postgres. Nunca menos que la ventana de los agregados. */
+  /** Días que se quedan en Postgres. Nunca menos que la caché de JSON del leaderboard. */
   days: number;
   /** Snapshots por lote subido. */
   batch: number;
@@ -56,9 +76,13 @@ export interface Options {
   dryRun: boolean;
 }
 
-export function parseOptions(args: string[]): Options {
+export function parseOptions(
+  args: string[],
+  leaderboardCacheDays: number = getLeaderboardRetentionDays(),
+): Options {
+  const minDays = Math.max(1, Math.ceil(leaderboardCacheDays));
   const options: Options = {
-    days: ACTIVITY_WINDOWS.fallback,
+    days: Math.max(DEFAULT_HOT_DAYS, minDays),
     batch: DEFAULT_BATCH,
     dryRun: false,
   };
@@ -82,13 +106,14 @@ export function parseOptions(args: string[]): Options {
     throw new Error(`Opción desconocida: ${flag}. Disponibles: --days, --batch, --dry-run.`);
   }
 
-  // La ventana más larga con la que se agrega es la de 14 días (§13.4): con
-  // menos, el siguiente `refresh-aggregates --window 14` contaría una población
-  // a la que le falta parte sin que nada lo avisara.
-  if (options.days < ACTIVITY_WINDOWS.fallback) {
+  // Mientras un JSON del leaderboard siga en la caché se puede reingerir, y lo
+  // que impide que eso duplique observaciones es el índice único de captura, que
+  // solo ve lo que sigue en Postgres. Archivar antes de que caduque el fichero
+  // dejaría reingerir como nueva una observación que ya está en el archivo.
+  if (options.days < minDays) {
     throw new Error(
-      `--days=${options.days} deja fuera parte de la ventana de actividad de ` +
-        `${ACTIVITY_WINDOWS.fallback} días con la que se calculan los agregados.`,
+      `--days=${options.days} archivaría filas cuyo JSON sigue en la caché del ` +
+        `leaderboard (${minDays} días, LEADERBOARD_RETENTION_DAYS): reingerirlo las duplicaría.`,
     );
   }
 
@@ -97,11 +122,7 @@ export function parseOptions(args: string[]): Options {
 
 /** Carpeta de un lote dentro del bucket. Sin `:`, que Storage no admite en una clave. */
 export function batchPrefix(runStartedAt: Date, index: number): string {
-  const run = runStartedAt
-    .toISOString()
-    .replace(/\.\d{3}Z$/, "Z")
-    .replace(/:/g, "-");
-  return `${run}/${String(index + 1).padStart(4, "0")}`;
+  return `${archiveRunStamp(runStartedAt)}/${String(index + 1).padStart(4, "0")}`;
 }
 
 /**
@@ -115,8 +136,11 @@ export function batchPrefix(runStartedAt: Date, index: number): string {
  * El `join` con `character_activity` es la segunda condición de
  * `withArchivedActivity`: una fila que el último cálculo de su serie no vio se
  * queda hasta el siguiente, o lo que dijera de la actividad se perdería con ella.
+ *
+ * Las temporadas cerradas entran enteras y sin esa condición: su actividad no
+ * se va a recalcular, y su fila se archiva tal cual detrás de los snapshots.
  */
-function candidatesSql(cutoff: Date): string {
+function candidatesSql(cutoff: Date, closedSeasons: readonly number[]): string {
   return `
   create temp table archive_candidates as
   with old as (
@@ -157,6 +181,12 @@ function candidatesSql(cutoff: Date): string {
       on a.character_id = o.character_id and a.bracket = o.bracket
      and a.season_id = o.season_id and a.computed_at > o.captured_at
    where not exists (select 1 from keep k where k.id = o.id)
+  ${
+    closedSeasons.length === 0
+      ? ""
+      : `union
+  select id from character_snapshots where season_id in (${seasonListSql(closedSeasons)})`
+  }
 `;
 }
 
@@ -184,6 +214,11 @@ export interface ArchiveReport {
   bytes: number;
   /** Objetos del índice de rating reescritos antes de borrar (ADR 0039). */
   historyObjects: number;
+  /** Temporadas cerradas que salen enteras (ADR 0042), y cuántos snapshots les quedaban. */
+  closedSeasons: number[];
+  closedSnapshots: number;
+  /** Sus tablas derivadas: lo movido, o lo que se movería en dry-run. */
+  seasonTables: SeasonTablesReport[];
 }
 
 export async function archiveSnapshots(args: string[] = []): Promise<void> {
@@ -217,7 +252,8 @@ export async function archive(
     // pooler de Supabase no llega a terminar.
     await client.query("set statement_timeout = 0");
     await client.query("drop table if exists archive_candidates");
-    await client.query(candidatesSql(cutoff));
+    const closedSeasons = await findClosedSeasons(client, now);
+    await client.query(candidatesSql(cutoff, closedSeasons));
     await client.query("create index on archive_candidates (id)");
 
     const { rows: counts } = await client.query<{
@@ -237,6 +273,10 @@ export async function archive(
               ) as unseen`,
       [cutoff],
     );
+    const { rows: closedCount } = await client.query<{ n: string }>(
+      "select count(*) as n from character_snapshots where season_id = any($1::int[])",
+      [closedSeasons],
+    );
 
     const report: ArchiveReport = {
       cutoff,
@@ -249,9 +289,18 @@ export async function archive(
       talentRows: 0,
       bytes: 0,
       historyObjects: 0,
+      closedSeasons,
+      closedSnapshots: Number(closedCount[0]?.n ?? 0),
+      seasonTables: [],
     };
 
-    if (!storage || report.candidates === 0) return report;
+    if (!storage) {
+      for (const seasonId of closedSeasons) {
+        report.seasonTables.push(await countSeasonTables(client, seasonId));
+      }
+      return report;
+    }
+    if (report.candidates === 0 && closedSeasons.length === 0) return report;
     await ensureBucket(storage);
 
     // El índice del histórico de rating va **antes** que el primer borrado: es
@@ -298,6 +347,16 @@ export async function archive(
       );
     }
 
+    // Después de los snapshots y no antes: cada lote suma a la actividad de su
+    // serie las observaciones que archiva, y la fila de actividad que se sube
+    // tiene que llevar esa cuenta completa.
+    for (const seasonId of closedSeasons) {
+      const moved = await archiveSeasonTables(client, storage, now, seasonId);
+      report.seasonTables.push(moved);
+      report.bytes += moved.bytes;
+      console.log(`  temporada ${seasonId}: ${describeSeasonTables(moved)} (${mb(moved.bytes)})`);
+    }
+
     return report;
   } finally {
     await client.query("drop table if exists archive_candidates").catch(() => {});
@@ -325,17 +384,20 @@ async function archiveBatch(
     `select * from character_snapshots where id = any($1::bigint[]) order by id`,
     [ids],
   );
+  // El gear sale de la vista por slot y no de la tabla de referencias (ADR
+  // 0040): el lote conserva la forma de siempre y se lee sin `gear_pieces`.
   const { rows: gear } = await client.query<object>(
-    `select * from character_snapshot_gear where snapshot_id = any($1::bigint[])
+    `select * from character_snapshot_gear_slots where snapshot_id = any($1::bigint[])
       order by snapshot_id, slot`,
     [ids],
   );
-  // Lo que se sube son `label_ids`, no nombres (ADR 0035): este lote no se
-  // entiende sin `talent_labels`, que por eso no se poda nunca. Es la primera
-  // dependencia del archivo hacia una tabla viva.
+  // Los talentos salen por árbol, con la forma del ADR 0035, pero lo que se sube
+  // son `label_ids` y no nombres: este lote no se entiende sin `talent_labels`,
+  // que por eso no se poda nunca. Es la única dependencia del archivo hacia una
+  // tabla viva.
   const { rows: talents } = await client.query<object>(
-    `select * from character_snapshot_talents where snapshot_id = any($1::bigint[])
-      order by snapshot_id`,
+    `select * from character_snapshot_talent_trees where snapshot_id = any($1::bigint[])
+      order by snapshot_id, tree`,
     [ids],
   );
 
@@ -428,6 +490,16 @@ function printReport(report: ArchiveReport, options: Options): void {
     );
   }
 
+  if (report.closedSeasons.length > 0) {
+    console.log(
+      `\nTemporadas cerradas que salen enteras (ADR 0042): ${report.closedSeasons.join(", ")}, ` +
+        `con ${fmt(report.closedSnapshots)} snapshots incluidos en los archivables.`,
+    );
+    for (const season of report.seasonTables) {
+      console.log(`  temporada ${season.seasonId}: ${describeSeasonTables(season)}`);
+    }
+  }
+
   if (options.dryRun) {
     console.log("\n--dry-run: no se ha subido ni borrado nada.");
     return;
@@ -443,4 +515,10 @@ function printReport(report: ArchiveReport, options: Options): void {
         "archivado grande hace falta un VACUUM FULL manual para que baje la cuota (ADR 0034).",
     );
   }
+}
+
+function describeSeasonTables(season: SeasonTablesReport): string {
+  return Object.entries(season.rows)
+    .map(([table, rows]) => `${fmt(rows)} ${table}`)
+    .join(", ");
 }

@@ -310,9 +310,25 @@ Lo que cubre, y por qué está cada cosa, se imprime al arrancar. En resumen: do
 | `--seed S`          | Semilla del generador.                                                                                                                                                  |
 | `--skip-aggregates` | No encadena `refresh-aggregates` al terminar.                                                                                                                           |
 
+### `db-size`
+
+Qué ocupa la base frente a la cuota de 500 MB del plan gratuito de Supabase: total, reparto por esquema, tablas con heap, TOAST e índices por separado, tuplas muertas, índices con sus lecturas y migraciones aplicadas. Solo lee, dentro de una transacción `read only`.
+
+Corre a diario detrás de `check-freshness` en el workflow `Freshness` y **falla por encima de `--alert-mb`** (400 por defecto): el correo de GitHub es el aviso. Los MB son de 1024 × 1024, los de `pg_size_pretty`, porque así se midieron todas las cifras anteriores de la cuota.
+
+Con `--detail` añade lo que decide un recorte, y recorre las tablas de observación enteras, así que se lanza a mano: filas calientes y conservadas por temporada y origen, series por bracket, cuántas piezas de gear y conjuntos de talentos distintos sostienen cuántas referencias ([ADR 0040](../../docs/decisions/0040-gear-y-talentos-por-referencia-a-contenido.md)) y, si está `pgstattuple`, el espacio que solo devolvería un `VACUUM FULL`.
+
+### `compact`
+
+`VACUUM FULL` de las tablas de `public` que pasan de 5 MB (o de las de `--tables`), de la más pequeña a la más grande, con el antes y el después de cada una. La cuota mide ficheros: lo que borran el archivado o una temporada cerrada no baja de la cuota hasta que esto reescribe la tabla.
+
+**No corre en ningún workflow.** Bloquea cada tabla mientras la copia, y necesita sitio para la copia antes de soltar la original. Se lanza a mano después de un archivado grande y fuera de la hora de los workflows; `--dry-run` enseña qué tocaría.
+
 ### `migrate`
 
 Aplica las migraciones pendientes de `db/migrations/`. Ver [db/README.md](../../db/README.md).
+
+**Cada workflow ejecuta `db:migrate` antes de su trabajo**, así que una migración que llega a `main` se aplica sola en producción con la próxima corrida. Las que reescriben tablas enteras se ensayan antes con `--rehearse`: aplica lo pendiente en una sola transacción, imprime el antes y el después de cada tabla y el pico mientras corre, y deshace. Mientras dura, la migración tiene sus bloqueos, así que conviene lanzarlo fuera de la hora de los workflows.
 
 ## Cómo añadir un job nuevo
 

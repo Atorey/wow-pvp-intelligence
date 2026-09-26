@@ -3,7 +3,9 @@ import { archiveSnapshots } from "./jobs/archive-snapshots";
 import { backfillNameFold } from "./jobs/backfill-name-fold";
 import { backfillRatingHistory } from "./jobs/rating-history";
 import { checkFreshness } from "./jobs/check-freshness";
+import { compact } from "./jobs/compact";
 import { coverage } from "./jobs/coverage";
+import { dbSize } from "./jobs/db-size";
 import { fetchLeaderboards } from "./jobs/fetch-leaderboard";
 import { ingestLeaderboards } from "./jobs/ingest-leaderboard";
 import { lookupCharacters } from "./jobs/lookup-character";
@@ -66,7 +68,7 @@ const COMMANDS: Record<string, { run: (args: string[]) => Promise<void>; help: s
   },
   "archive-snapshots": {
     run: archiveSnapshots,
-    help: "Archiva en Supabase Storage los snapshots de más de 14 días que nadie lee [--days --dry-run]",
+    help: "Archiva en Supabase Storage los snapshots de más de 3 días que nadie lee [--days --dry-run]",
   },
   "backfill-rating-history": {
     run: backfillRatingHistory,
@@ -75,6 +77,14 @@ const COMMANDS: Record<string, { run: (args: string[]) => Promise<void>; help: s
   "check-freshness": {
     run: checkFreshness,
     help: "Falla si los agregados que sirve la web son de una corrida perdida [--all-regions]",
+  },
+  compact: {
+    run: compact,
+    help: "VACUUM FULL de las tablas grandes para que lo borrado baje la cuota; bloquea [--tables --min-mb --dry-run]",
+  },
+  "db-size": {
+    run: dbSize,
+    help: "Qué ocupa la base frente a la cuota de Supabase; falla por encima del aviso [--detail --alert-mb]",
   },
   coverage: {
     run: coverage,
@@ -94,7 +104,7 @@ const COMMANDS: Record<string, { run: (args: string[]) => Promise<void>; help: s
   },
   migrate: {
     run: migrate,
-    help: "Aplica las migraciones pendientes de db/migrations/",
+    help: "Aplica las migraciones pendientes de db/migrations/ [--rehearse: aplica, mide y deshace]",
   },
 };
 
@@ -126,11 +136,18 @@ function printHelp(): void {
   console.log("  --min-users N  usuarios mínimos para conservar una fila no vigente (default 5)");
   console.log("  --dry-run      cuenta lo que borraría, sin borrar");
   console.log("\nOpciones de archive-snapshots:");
-  console.log("  --days N       días que se quedan en Postgres (default y mínimo 14)");
+  console.log(
+    "  --days N       días que se quedan en Postgres (default 3; mínimo, la caché del leaderboard)",
+  );
   console.log("  --batch N      snapshots por lote subido (default 20000)");
   console.log("  --dry-run      cuenta lo que archivaría, sin subir ni borrar");
   console.log("\nOpciones de backfill-rating-history:");
   console.log("  --dry-run      lee los lotes del archivo y cuenta, sin escribir el índice");
+  console.log("\nOpciones de db-size (solo lectura):");
+  console.log("  --alert-mb N   falla por encima de N MB (default 400, sobre una cuota de 500)");
+  console.log(
+    "  --detail       añade repetición de gear y talentos, filas por temporada y hinchazón",
+  );
   console.log("\nOpciones de coverage:");
   console.log("  --runs N       corridas de la serie histórica (default 7)");
   console.log("\nOpciones de lookup-character:");

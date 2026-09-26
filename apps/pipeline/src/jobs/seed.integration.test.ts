@@ -332,7 +332,7 @@ describe("lecturas de @wowpvp/data contra el schema real", { skip }, () => {
     async function seededGems(): Promise<Set<number>> {
       const { rows } = await pool.query<{ gem: string }>(
         `select distinct gem::bigint as gem
-           from character_snapshot_gear, unnest(gem_item_ids) as gem`,
+           from character_snapshot_gear_slots, unnest(gem_item_ids) as gem`,
       );
       return new Set(rows.map((row) => Number(row.gem)));
     }
@@ -360,7 +360,7 @@ describe("lecturas de @wowpvp/data contra el schema real", { skip }, () => {
 
     it("cuenta lo que falta y lo que ha caducado, con lo nuevo primero", async () => {
       const { rows } = await pool.query<{ item_id: string }>(
-        "select distinct item_id from character_snapshot_gear order by item_id limit 2",
+        "select distinct item_id from character_snapshot_gear_slots order by item_id limit 2",
       );
       const [nuevo, caducado] = rows.map((row) => Number(row.item_id));
       assert.ok(nuevo !== undefined && caducado !== undefined);

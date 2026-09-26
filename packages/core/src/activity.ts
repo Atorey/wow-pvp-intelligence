@@ -152,7 +152,7 @@ export function deriveActivity(
 /**
  * La parte de la serie que ya no está en Postgres (ADR 0034).
  *
- * El histórico de más de 14 días se archiva en Storage y deja de poder leerse,
+ * El histórico de más de 3 días (ADR 0041) se archiva en Storage y deja de poder leerse,
  * así que la serie caliente ya no basta para derivar la actividad: la fecha de
  * arranque y una subida vieja del contador están, por definición, en lo
  * archivado. Lo que se sabía de esa parte se conserva en la propia fila

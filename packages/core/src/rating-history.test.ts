@@ -10,6 +10,7 @@ import {
   ratingHistoryShard,
   serializeRatingHistoryShard,
   seriesKey,
+  standingsInShard,
   type RatingObservation,
 } from "./rating-history";
 
@@ -133,4 +134,24 @@ test("un fichero que no es del formato no se interpreta a medias", () => {
     /mal formado/,
   );
   assert.throws(() => parseRatingHistoryShard("no es json"));
+});
+
+test("una temporada cerrada se resume por bracket en su último rating y su máximo", () => {
+  const shard = emptyRatingHistoryShard(41, "ab");
+  const at = (day: number) => new Date(Date.UTC(2026, 6, day));
+  shard.series.set(seriesKey("ab-uno", "shuffle-mage-frost"), [
+    { at: at(1), rating: 1700 },
+    { at: at(2), rating: 1950 },
+    { at: at(3), rating: 1880 },
+  ]);
+  shard.series.set(seriesKey("ab-uno", "shuffle-mage-fire"), [{ at: at(5), rating: 2010 }]);
+  // Otro personaje del mismo shard cuyo id empieza igual no se cuela: el
+  // separador de la clave es parte del prefijo.
+  shard.series.set(seriesKey("ab-uno-bis", "shuffle-mage-frost"), [{ at: at(1), rating: 2400 }]);
+
+  assert.deepEqual(standingsInShard(shard, "ab-uno"), [
+    { bracket: "shuffle-mage-fire", last: { at: at(5), rating: 2010 }, peak: 2010 },
+    { bracket: "shuffle-mage-frost", last: { at: at(3), rating: 1880 }, peak: 1950 },
+  ]);
+  assert.deepEqual(standingsInShard(shard, "ab-otro"), []);
 });

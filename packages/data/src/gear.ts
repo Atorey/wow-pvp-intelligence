@@ -109,7 +109,7 @@ export async function readLatestGear(
             g.gem_item_ids, g.enchantment_ids,
             m.icon_url, l.captured_at, l.source, l.equipped_item_level
        from latest_with_gear l
-       join character_snapshot_gear g on g.snapshot_id = l.id
+       join character_snapshot_gear_slots g on g.snapshot_id = l.id
        left join item_media m on m.item_id = g.item_id`,
     [key.region, key.realmSlug, key.nameSlug, key.bracket, key.seasonId],
   );
