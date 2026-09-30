@@ -1,0 +1,47 @@
+name: Revalidation
+
+# El barrido de la revalidación de 30 días (ADR 0015, decisión 2; ADR 0043).
+# La ToU de Blizzard no deja guardar nada más de 30 días sin comprobar que el
+# personaje sigue existiendo, y /privacy lo promete. Quien sale en el
+# leaderboard queda revalidado solo; esto pregunta por los demás y borra a los
+# que ya no existen.
+on:
+  schedule:
+    # 01:30 UTC: antes del leaderboard de las 03:00 y de los perfiles de las
+    # 03:30, que se reparten la misma cuota por hora. La hora da igual mientras
+    # sea a diario: el plazo lo cuentan los días, y un 404 se confirma en la
+    # corrida siguiente.
+    - cron: "30 1 * * *"
+  workflow_dispatch:
+
+# Dos corridas a la vez preguntarían por los mismos personajes y gastarían la
+# cuota dos veces.
+concurrency:
+  group: revalidation
+  cancel-in-progress: false
+
+jobs:
+  revalidate:
+    runs-on: ubuntu-latest
+    # El presupuesto por defecto (20.000 peticiones) son unos 45 minutos a 8
+    # req/s. El margen cubre que la cola espere cuota si coincide con otro job.
+    timeout-minutes: 120
+    env:
+      BLIZZARD_CLIENT_ID: ${{ secrets.BLIZZARD_CLIENT_ID }}
+      BLIZZARD_CLIENT_SECRET: ${{ secrets.BLIZZARD_CLIENT_SECRET }}
+      BLIZZARD_REGION: ${{ vars.BLIZZARD_REGION || 'eu' }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      # Variable del repo para poder subirlo sin desplegar nada: la primera
+      # semana hay atasco, y check-freshness dice si el barrido no da abasto.
+      REVALIDATION_BUDGET: ${{ vars.REVALIDATION_BUDGET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Idempotentes, y el runner siempre trae el código de main: evita que el
+      # job falle contra un schema viejo.
+      - run: npm run db:migrate
+      - run: npm run pipeline -- revalidate-characters

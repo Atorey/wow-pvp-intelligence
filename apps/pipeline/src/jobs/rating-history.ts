@@ -3,6 +3,7 @@ import {
   emptyRatingHistoryShard,
   groupByRatingHistoryObject,
   mergeRatingPoints,
+  removeCharactersFromShard,
   type RatingHistoryShard,
   type RatingObservation,
 } from "@wowpvp/core";
@@ -14,6 +15,7 @@ import {
   type Fetch,
   type StorageConfig,
 } from "@wowpvp/storage";
+import { releaseArchiveLock, takeArchiveLock } from "../archive-journal";
 import { getArchiveStorage } from "../config";
 import { createPool } from "../db/pool";
 import { decodeRows } from "../storage";
@@ -95,12 +97,16 @@ export async function indexRatingHistory(
 async function flushShard(
   storage: StorageConfig,
   built: RatingHistoryShard,
+  erased: ReadonlySet<string>,
   fetchFn: Fetch,
 ): Promise<number> {
   const stored = await readRatingHistoryShard(storage, built.seasonId, built.shard, fetchFn);
   for (const [key, points] of stored?.series ?? []) {
     built.series.set(key, mergeRatingPoints(points, built.series.get(key) ?? []));
   }
+  // Lo que el shard ya tuviera de un personaje borrado tampoco vuelve a subir:
+  // una purga pendiente lo quitaría igual, y así no depende de ella.
+  removeCharactersFromShard(built, erased);
   return writeRatingHistoryShard(storage, built, fetchFn);
 }
 
@@ -127,14 +133,28 @@ export async function backfillRatingHistory(args: string[] = []): Promise<void> 
   const options = parseBackfillOptions(args);
   const storage = getArchiveStorage();
   const pool = createPool();
+  const client = await pool.connect();
+  let locked = false;
 
   try {
+    // Reescribe shards: con la purga o el archivado a la vez, el último en subir
+    // borraría lo que hizo el otro.
+    if (!options.dryRun) {
+      await takeArchiveLock(client);
+      locked = true;
+    }
     // La bitácora es el índice del archivo (ADR 0034): se recorre ella y no el
     // bucket, que mezcla los lotes con el propio índice.
-    const { rows: batches } = await pool.query<BatchRow>(
+    const { rows: batches } = await client.query<BatchRow>(
       `select object_prefix, snapshots from snapshot_archive_batches order by object_prefix`,
     );
-    const report = await backfill(storage, batches, options);
+    // Un lote todavía sin purgar puede traer a alguien que ya no existe (ADR
+    // 0043), y el backfill no puede ser el camino por el que vuelve.
+    const { rows: erasures } = await client.query<{ character_id: string }>(
+      "select character_id from character_erasures",
+    );
+    const erased = new Set(erasures.map((row) => row.character_id));
+    const report = await backfill(storage, batches, options, fetch, erased);
     console.log(
       `\n${fmt(report.observations)} observaciones de ${fmt(batches.length)} lotes, en ` +
         `${fmt(report.objects)} objetos del índice.`,
@@ -142,6 +162,8 @@ export async function backfillRatingHistory(args: string[] = []): Promise<void> 
     if (options.dryRun) console.log("--dry-run: no se ha escrito nada.");
     else console.log(`Subido: ${(report.bytes / 1_048_576).toFixed(1)} MB.`);
   } finally {
+    if (locked) await releaseArchiveLock(client).catch(() => {});
+    client.release();
     await pool.end();
   }
 }
@@ -151,6 +173,7 @@ export async function backfill(
   batches: readonly BatchRow[],
   options: BackfillOptions,
   fetchFn: Fetch = fetch,
+  erased: ReadonlySet<string> = new Set(),
 ): Promise<{ observations: number; objects: number; bytes: number }> {
   const shards = new Map<string, RatingHistoryShard>();
   let observations = 0;
@@ -171,7 +194,8 @@ export async function backfill(
       );
     }
 
-    for (const [path, group] of groupByRatingHistoryObject(rows.map(toObservation))) {
+    const kept = rows.filter((row) => !erased.has(row.character_id));
+    for (const [path, group] of groupByRatingHistoryObject(kept.map(toObservation))) {
       const shard = shards.get(path) ?? emptyRatingHistoryShard(group.seasonId, group.shard);
       addToRatingHistoryShard(shard, group.observations);
       shards.set(path, shard);
@@ -183,7 +207,9 @@ export async function backfill(
   let bytes = 0;
   if (!options.dryRun) {
     await ensureBucket(storage, fetchFn);
-    for (const shard of shards.values()) bytes += await flushShard(storage, shard, fetchFn);
+    for (const shard of shards.values()) {
+      bytes += await flushShard(storage, shard, erased, fetchFn);
+    }
   }
 
   return { observations, objects: shards.size, bytes };

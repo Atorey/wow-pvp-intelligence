@@ -31,7 +31,7 @@ Los dos números por segundo son cosas distintas: el primero es el ritmo al que 
 
 **Al quedarse sin fichas la cola espera**, no falla, y lo avisa por consola. Un job puede quedarse parado hasta que el bucket se rellene; el aviso está para que eso no se confunda con un cuelgue. Quien tiene a un humano delante no espera: lleva un presupuesto de tiempo y responde con una negativa explícita al agotarlo.
 
-**Prioridades** (§28 del plan): `on-demand` (`lookup-character`, la búsqueda de usuario) > `batch` (leaderboard) > `aggregate` (`sample-profiles`, `refresh-profiles` y `resolve-item-media`). Cada job declara la suya al construir el cliente: `new BlizzardClient({ priority: "aggregate", db: pool })`.
+**Prioridades** (§28 del plan): `on-demand` (`lookup-character`, la búsqueda de usuario) > `batch` (leaderboard y `revalidate-characters`) > `aggregate` (`sample-profiles`, `refresh-profiles` y `resolve-item-media`). Cada job declara la suya al construir el cliente: `new BlizzardClient({ priority: "aggregate", db: pool })`.
 
 La prioridad hace ahora **dos** cosas. Dentro de un proceso sigue ordenando la cola. Entre procesos es una **reserva**: `on-demand` gasta hasta la última ficha, y `batch` y `aggregate` solo obtienen permiso por encima del colchón. Ordenar no bastaba porque una función efímera no puede esperar su turno en una cola que no ve.
 
@@ -317,6 +317,24 @@ Qué ocupa la base frente a la cuota de 500 MB del plan gratuito de Supabase: to
 Corre a diario detrás de `check-freshness` en el workflow `Freshness` y **falla por encima de `--alert-mb`** (400 por defecto): el correo de GitHub es el aviso. Los MB son de 1024 × 1024, los de `pg_size_pretty`, porque así se midieron todas las cifras anteriores de la cuota.
 
 Con `--detail` añade lo que decide un recorte, y recorre las tablas de observación enteras, así que se lanza a mano: filas calientes y conservadas por temporada y origen, series por bracket, cuántas piezas de gear y conjuntos de talentos distintos sostienen cuántas referencias ([ADR 0040](../../docs/decisions/0040-gear-y-talentos-por-referencia-a-contenido.md)) y, si está `pgstattuple`, el espacio que solo devolvería un `VACUUM FULL`.
+
+### `revalidate-characters`
+
+El barrido de la revalidación de 30 días ([ADR 0043](../../docs/decisions/0043-revalidacion-y-borrado-de-personajes.md)). La ToU de Blizzard no deja guardar nada más de 30 días sin comprobar que el personaje existe, y `/privacy` lo promete. Corre a diario en [.github/workflows/revalidation.yml](../../.github/workflows/revalidation.yml).
+
+**Solo pregunta por quien lleva 18 días sin prueba de existencia** (`characters.verified_at`). Quien sale en el leaderboard, devuelve su perfil o alguien lo busca queda revalidado sin gastar nada. Cada comprobación es una petición `batch` al endpoint de estado, de los más antiguos a los más nuevos, con un tope de `REVALIDATION_BUDGET` (20.000) por corrida.
+
+**Un 404 no borra a la primera**: se anota y se confirma en la corrida siguiente, al menos 20 horas después. `is_valid` falso o un id distinto sí borran en el acto. Un error de API no cuenta como nada. El borrado quita al personaje de Postgres, incluida la bitácora de búsquedas, y lo deja en `character_erasures` para `purge-archive`.
+
+`--dry-run` cuenta los pendientes sin llamar a Blizzard; `--budget N` cambia el tope de la corrida.
+
+### `purge-archive`
+
+Saca del archivo de Storage a los personajes borrados: de los lotes de snapshots, de los ficheros de actividad y presencia de las temporadas cerradas y del índice de rating. Corre detrás de `archive-snapshots` en el workflow `Aggregates` y comparte su candado.
+
+**Casi siempre no hace nada.** Encontrar a alguien obliga a bajar el archivo entero, así que espera a que algún borrado pendiente tenga su última prueba a 22 días y entonces quita a todos de una vez. `--force` no espera y `--dry-run` recorre el archivo y cuenta sin escribir. Imprime lo que baja y lo que sube.
+
+**El archivo no se sobrescribe**: cada lote afectado se escribe filtrado en una ruta nueva y la vieja se borra, con `archive_garbage` como diario para que un corte no deje nada atrás. Relanzarlo siempre es seguro.
 
 ### `compact`
 

@@ -24,6 +24,19 @@ export function fakeStorage(): { fetchFn: Fetch; objects: Map<string, Buffer> } 
     if (href === `${FAKE_STORAGE.url}/storage/v1/bucket/${FAKE_STORAGE.bucket}`) {
       return new Response(JSON.stringify({ public: false }), { status: 200 });
     }
+    if (href === `${FAKE_STORAGE.url}/storage/v1/object/list/${FAKE_STORAGE.bucket}`) {
+      const { prefix, limit, offset } = JSON.parse(String(init?.body)) as {
+        prefix: string;
+        limit: number;
+        offset: number;
+      };
+      return new Response(JSON.stringify(listLevel(objects, prefix).slice(offset, offset + limit)));
+    }
+    if (href === `${FAKE_STORAGE.url}/storage/v1/object/${FAKE_STORAGE.bucket}`) {
+      const { prefixes } = JSON.parse(String(init?.body)) as { prefixes: string[] };
+      const deleted = prefixes.filter((path) => objects.delete(path));
+      return new Response(JSON.stringify(deleted.map((name) => ({ name }))), { status: 200 });
+    }
     if (!href.startsWith(prefix)) return new Response("fuera del fake", { status: 500 });
     const path = href.slice(prefix.length);
 
@@ -41,4 +54,22 @@ export function fakeStorage(): { fetchFn: Fetch; objects: Map<string, Buffer> } 
   }) as Fetch;
 
   return { fetchFn, objects };
+}
+
+/**
+ * Un nivel del listado, como lo devuelve Storage: los objetos de esa carpeta y
+ * sus subcarpetas como entradas sin id, por orden de nombre.
+ */
+function listLevel(
+  objects: Map<string, Buffer>,
+  prefix: string,
+): { name: string; id: string | null }[] {
+  const base = prefix === "" ? "" : `${prefix}/`;
+  const entries = new Map<string, string | null>();
+  for (const path of objects.keys()) {
+    if (!path.startsWith(base)) continue;
+    const [name, ...rest] = path.slice(base.length).split("/");
+    if (name) entries.set(name, rest.length > 0 ? null : path);
+  }
+  return [...entries].sort(([a], [b]) => a.localeCompare(b)).map(([name, id]) => ({ name, id }));
 }

@@ -128,6 +128,9 @@ export async function ingestFile(
         faction: e.faction?.type ?? null,
         blizzardCharacterId: e.character.id ?? null,
       })),
+      // Aparecer en la publicación es la prueba de existencia (ADR 0015), y es
+      // de cuando se publicó, no de cuando se ingiere.
+      content.fetchedAt,
     );
 
     // 2) Snapshots: siempre INSERT, nunca UPDATE (modelo append-only, §27).

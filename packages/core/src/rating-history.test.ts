@@ -8,6 +8,7 @@ import {
   parseRatingHistoryShard,
   ratingHistoryPath,
   ratingHistoryShard,
+  removeCharactersFromShard,
   serializeRatingHistoryShard,
   seriesKey,
   standingsInShard,
@@ -154,4 +155,38 @@ test("una temporada cerrada se resume por bracket en su último rating y su máx
     { bracket: "shuffle-mage-frost", last: { at: at(3), rating: 1880 }, peak: 1950 },
   ]);
   assert.deepEqual(standingsInShard(shard, "ab-otro"), []);
+});
+
+test("borrar a un personaje quita todas sus specs del shard y nada más", () => {
+  const shard = emptyRatingHistoryShard(42, "3f");
+  const gone = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
+  const stays = "3f000000-0000-4000-8000-000000000000";
+  addToRatingHistoryShard(shard, [
+    {
+      characterId: gone,
+      bracket: "shuffle-mage-frost",
+      seasonId: 42,
+      at: new Date(1),
+      rating: 1800,
+    },
+    {
+      characterId: gone,
+      bracket: "shuffle-mage-fire",
+      seasonId: 42,
+      at: new Date(1),
+      rating: 1700,
+    },
+    {
+      characterId: stays,
+      bracket: "shuffle-mage-frost",
+      seasonId: 42,
+      at: new Date(1),
+      rating: 2000,
+    },
+  ]);
+
+  assert.equal(removeCharactersFromShard(shard, new Set([gone])), 2);
+  assert.deepEqual([...shard.series.keys()], [seriesKey(stays, "shuffle-mage-frost")]);
+  // Repetirlo no quita nada más: la purga se puede relanzar.
+  assert.equal(removeCharactersFromShard(shard, new Set([gone])), 0);
 });

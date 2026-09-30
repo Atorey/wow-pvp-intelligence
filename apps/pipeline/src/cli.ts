@@ -11,11 +11,13 @@ import { ingestLeaderboards } from "./jobs/ingest-leaderboard";
 import { lookupCharacters } from "./jobs/lookup-character";
 import { playerGap } from "./jobs/player-gap";
 import { pruneAggregates } from "./jobs/prune-aggregates";
+import { purgeArchive } from "./jobs/purge-archive";
 import { refreshActivity } from "./jobs/refresh-activity";
 import { refreshAggregates } from "./jobs/refresh-aggregates";
 import { refreshLeaderboard } from "./jobs/refresh-leaderboard";
 import { refreshProfiles } from "./jobs/refresh-profiles";
 import { resolveItemMedia } from "./jobs/resolve-item-media";
+import { revalidateCharacters } from "./jobs/revalidate-characters";
 import { sampleProfiles } from "./jobs/sample-profiles";
 import { seed } from "./jobs/seed";
 import { validateEndpoints } from "./jobs/validate-endpoints";
@@ -69,6 +71,14 @@ const COMMANDS: Record<string, { run: (args: string[]) => Promise<void>; help: s
   "archive-snapshots": {
     run: archiveSnapshots,
     help: "Archiva en Supabase Storage los snapshots de más de 3 días que nadie lee [--days --dry-run]",
+  },
+  "revalidate-characters": {
+    run: revalidateCharacters,
+    help: "Job diario: comprueba que existen los personajes sin prueba en 18 días y borra a los que no [--budget --dry-run]",
+  },
+  "purge-archive": {
+    run: purgeArchive,
+    help: "Saca del archivo de Storage a los personajes borrados; corre detrás del archivado [--force --dry-run]",
   },
   "backfill-rating-history": {
     run: backfillRatingHistory,
@@ -141,6 +151,14 @@ function printHelp(): void {
   );
   console.log("  --batch N      snapshots por lote subido (default 20000)");
   console.log("  --dry-run      cuenta lo que archivaría, sin subir ni borrar");
+  console.log("\nOpciones de revalidate-characters:");
+  console.log(
+    "  --budget N     techo de peticiones de la corrida (default REVALIDATION_BUDGET, 20000)",
+  );
+  console.log("  --dry-run      cuenta los pendientes, sin llamar a Blizzard ni escribir");
+  console.log("\nOpciones de purge-archive:");
+  console.log("  --force        purga lo pendiente aunque nada esté cerca de su plazo");
+  console.log("  --dry-run      recorre el archivo y cuenta lo que quitaría, sin escribir");
   console.log("\nOpciones de backfill-rating-history:");
   console.log("  --dry-run      lee los lotes del archivo y cuenta, sin escribir el índice");
   console.log("\nOpciones de db-size (solo lectura):");
