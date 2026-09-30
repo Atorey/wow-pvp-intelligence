@@ -245,7 +245,16 @@ function OverviewFigures({
 
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      <FigureCard value={count(overview.observed)} label={copy.observed} />
+      {/*
+       * La marca va en los observados, que es la cifra que el tope recorta; el
+       * puesto y la proporción cuelgan de ella y la nota del reparto lo dice en
+       * `/meta` para todas a la vez (ADR 0045).
+       */}
+      <FigureCard
+        value={count(overview.observed)}
+        label={copy.observed}
+        note={standing?.capped ? copy.capped : undefined}
+      />
       {overview.medianSegment && (
         <FigureCard
           value={formatSegment(overview.medianSegment)}

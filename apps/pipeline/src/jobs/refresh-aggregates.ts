@@ -8,6 +8,7 @@ import {
   formatSegment,
   groupBySegment,
   isActiveWithin,
+  isLeaderboardCapped,
   parseShuffleBracket,
   pickActivityWindow,
   segmentFor,
@@ -415,6 +416,32 @@ async function loadSearchOnly(
 }
 
 /**
+ * Cuántas entradas traía la última publicación de cada bracket que se descargó
+ * bien, para escribirlo en la corrida (ADR 0045).
+ *
+ * Se lee aquí y no desde la web porque `leaderboard_fetches` es bitácora del
+ * pipeline: lo que la página declara tiene que ser lo que vio **esta** corrida,
+ * con su misma fecha, y no la publicación que haya llegado después. Las
+ * descargas fallidas no cuentan: guardan `entry_count = 0` con el hash a null, y
+ * leer ese cero diría que el bracket está vacío cuando lo que pasó es que no se
+ * pudo mirar.
+ */
+async function loadLeaderboardEntries(
+  pool: pg.Pool,
+  region: string,
+  seasonId: number,
+): Promise<Map<string, number>> {
+  const { rows } = await pool.query<{ bracket: string; entry_count: number }>(
+    `select distinct on (bracket) bracket, entry_count
+       from leaderboard_fetches
+      where region = $1 and season_id = $2 and content_hash is not null
+      order by bracket, fetched_at desc`,
+    [region, seasonId],
+  );
+  return new Map(rows.map((row) => [row.bracket, row.entry_count]));
+}
+
+/**
  * Acumula ids y nombres paralelos de una fila de gear en la lista del snapshot.
  *
  * Los nombres pueden venir cortos: los snapshots anteriores a la migración 0013
@@ -590,6 +617,11 @@ export interface ComputedSegment {
   profileFrom: Date | null;
   profileTo: Date | null;
   excludedSearch: number;
+  /**
+   * Entradas de la última publicación del leaderboard del bracket. null si no
+   * hay ninguna descarga buena: no se sabe, que no es lo mismo que cero.
+   */
+  leaderboardEntries: number | null;
 }
 
 function profileRange(members: readonly Member[]): { from: Date | null; to: Date | null } {
@@ -607,6 +639,7 @@ export function computeSegments(
   searchOnly: readonly { bracket: string; rating: number }[],
   now: Date,
   forcedWindow: ActivityWindowDays | null,
+  leaderboardEntries: ReadonlyMap<string, number> = new Map(),
 ): ComputedSegment[] {
   const excluded = new Map<string, number>();
   for (const row of searchOnly) {
@@ -658,6 +691,7 @@ export function computeSegments(
         profileFrom: range.from,
         profileTo: range.to,
         excludedSearch: excluded.get(segmentKey(bracket, segmentId)) ?? 0,
+        leaderboardEntries: leaderboardEntries.get(bracket) ?? null,
       });
     }
   }
@@ -846,9 +880,9 @@ async function writeSegments(
             item_level_sample, gear_sample, talent_sample, talent_code_distinct,
             talent_node_sample, pvp_talent_sample,
             profile_data_from, profile_data_to, excluded_search,
-            active_by_delta, active_by_first_seen)
+            active_by_delta, active_by_first_seen, leaderboard_entries)
          values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
-                 $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28)
+                 $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29)
          returning id`,
         [
           computedAt,
@@ -879,6 +913,7 @@ async function writeSegments(
           segment.excludedSearch,
           segment.activeByDelta,
           segment.activeByFirstSeen,
+          segment.leaderboardEntries,
         ],
       );
 
@@ -915,7 +950,13 @@ function printSegments(segments: readonly ComputedSegment[]): void {
   for (const segment of segments) {
     if (segment.bracket !== currentBracket) {
       currentBracket = segment.bracket;
-      console.log(`${parseShuffleBracket(segment.bracket)?.label ?? segment.bracket}:`);
+      // El tope se dice aquí, en el log del día, para que el día que una spec lo
+      // toque no haga falta ir a buscarlo: desde ese momento `/meta` declara su
+      // población como un suelo (ADR 0045).
+      const cap = isLeaderboardCapped(segment.leaderboardEntries)
+        ? ` ⚠️  leaderboard en el tope (${segment.leaderboardEntries} entradas): población recortada`
+        : "";
+      console.log(`${parseShuffleBracket(segment.bracket)?.label ?? segment.bracket}:${cap}`);
     }
 
     const { summary } = segment;
@@ -1008,10 +1049,11 @@ export async function refreshAggregates(args: string[], borrowedPool?: pg.Pool):
     console.log("");
 
     const loadStart = Date.now();
-    const [active, searchOnly, { profiles, itemNames }] = await Promise.all([
+    const [active, searchOnly, { profiles, itemNames }, leaderboardEntries] = await Promise.all([
       loadActive(pool, region, seasonId, cutoff),
       loadSearchOnly(pool, region, seasonId, cutoff),
       loadProfiles(pool, region, seasonId, cutoff),
+      loadLeaderboardEntries(pool, region, seasonId),
     ]);
     const loadMs = Date.now() - loadStart;
 
@@ -1022,7 +1064,7 @@ export async function refreshAggregates(args: string[], borrowedPool?: pg.Pool):
 
     const computeStart = Date.now();
     const members = buildMembers(active, profiles);
-    const segments = computeSegments(members, searchOnly, now, options.window);
+    const segments = computeSegments(members, searchOnly, now, options.window, leaderboardEntries);
     const computeMs = Date.now() - computeStart;
     if (segments.length === 0) {
       throw new Error(

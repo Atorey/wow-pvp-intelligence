@@ -291,6 +291,13 @@ export interface BracketPopulation {
    * fechas en cuanto una cayera entre medias.
    */
   segments: SegmentPopulation[];
+  /**
+   * Entradas de la publicación del leaderboard que vio la corrida, o `null` si
+   * no se sabe (ADR 0045). Viaja aquí por lo mismo que los tramos: si el
+   * bracket llena el tope, lo que se declara es sobre esta población y no sobre
+   * la de otra fecha.
+   */
+  leaderboardEntries: number | null;
 }
 
 /**
@@ -310,6 +317,7 @@ interface RunPopulationRow {
   bracket: string;
   segment_min: number;
   population: number;
+  leaderboard_entries: number | null;
 }
 
 /**
@@ -341,7 +349,8 @@ export async function readRunPopulation(
   key: { region: Region },
 ): Promise<RunPopulationRead | null> {
   const { rows } = await db.query<RunPopulationRow>(
-    `select season_id, computed_at, bracket, segment_min, sum(sample_size)::int as population
+    `select season_id, computed_at, bracket, segment_min, sum(sample_size)::int as population,
+            max(leaderboard_entries) as leaderboard_entries
        from population_segments
       where region = $1
         and computed_at = (
@@ -357,9 +366,17 @@ export async function readRunPopulation(
 
   const byBracket = new Map<string, BracketPopulation>();
   for (const row of rows) {
-    const entry = byBracket.get(row.bracket) ?? { bracket: row.bracket, population: 0, segments: [] };
+    const entry = byBracket.get(row.bracket) ?? {
+      bracket: row.bracket,
+      population: 0,
+      segments: [],
+      leaderboardEntries: null,
+    };
     entry.population += row.population;
     entry.segments.push({ segmentMin: row.segment_min, population: row.population });
+    // Todas las filas de un bracket en una corrida llevan la misma cifra; la
+    // primera que la tenga vale para el bracket.
+    entry.leaderboardEntries ??= row.leaderboard_entries;
     byBracket.set(row.bracket, entry);
   }
 

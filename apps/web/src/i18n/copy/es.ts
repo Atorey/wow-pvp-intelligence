@@ -75,6 +75,9 @@ export const es: Copy = {
         `La variación semana a semana todavía no se publica: marcar una spec como tendencia exige que su proporción por encima de ${rating} se mueva en la misma dirección, y ninguna llega todavía a los ${needed} observados ahí arriba que pide una tendencia.`,
       activityPending:
         "El volumen de partidas tampoco: los observados ya cuentan a quien ha estado activo en la ventana, y el contador por partida no es comparable entre el leaderboard y el perfil, así que los dos no se pueden sumar en una sola cifra.",
+      capped: "tope del leaderboard",
+      cappedNote: (specs) =>
+        `En el tope del leaderboard: ${specs}. Blizzard publica 5.000 entradas por spec y modalidad; donde se llenan, vemos la parte alta de la spec y no su cola. Sus observados son un suelo y no una medida, y las proporciones se calculan sobre lo que sí se ve, sin corregir: estimar la cola sería inventar población que nadie ha observado.`,
     },
   },
 
@@ -424,6 +427,7 @@ export const es: Copy = {
       share: (bracket) => `de lo observado en ${bracket}`,
       rank: (observed, total, rank, of) =>
         `${observed} de ${total} · puesto ${rank} de ${of} specs`,
+      capped: "el leaderboard está en su tope de 5.000: es un suelo, no una medida",
     },
 
     table: {

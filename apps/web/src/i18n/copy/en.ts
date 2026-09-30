@@ -141,6 +141,15 @@ export const en = {
        */
       activityPending:
         "Neither is match volume: the observed count already covers who was active in the window, and the per-match counter can't be compared between the leaderboard and the profile, so the two can't be added up into one figure.",
+      /** La marca de la fila cuya spec llena el tope del leaderboard (ADR 0045). */
+      capped: "leaderboard cap",
+      /**
+       * Qué specs llenan el tope y qué deja de significar su cifra. Se declara y
+       * no se corrige: estimar la cola sería inventar población que nadie ha
+       * observado (ADR 0045). Solo se pinta si alguna lo llena.
+       */
+      cappedNote: (specs: string) =>
+        `At the leaderboard cap: ${specs}. Blizzard publishes 5,000 entries per spec and bracket; where they fill up, we see the top of the spec and not its tail. Their observed counts are a floor, not a measurement, and shares are computed on what we do see, uncorrected: estimating the tail would mean inventing players nobody has observed.`,
     },
   },
 
@@ -741,6 +750,11 @@ export const en = {
       /** La fracción va con el porcentaje, nunca detrás de él (§2.5 del brief). */
       rank: (observed: string, total: string, rank: string, of: string) =>
         `${observed} of ${total} · rank ${rank} of ${of} specs`,
+      /**
+       * La nota de los observados cuando la spec llena el tope del leaderboard:
+       * la cifra deja de ser una medida (ADR 0045).
+       */
+      capped: "the leaderboard is at its 5,000 cap: this is a floor, not a measurement",
     },
 
     table: {

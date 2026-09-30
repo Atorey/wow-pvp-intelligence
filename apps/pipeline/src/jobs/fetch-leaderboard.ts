@@ -1,7 +1,14 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { nameSlug, shuffleBracketId, unknownShuffleBrackets, type SpecEntry } from "@wowpvp/core";
+import {
+  LEADERBOARD_CAP,
+  isLeaderboardCapped,
+  nameSlug,
+  shuffleBracketId,
+  unknownShuffleBrackets,
+  type SpecEntry,
+} from "@wowpvp/core";
 import type { Queryable } from "@wowpvp/data";
 import {
   BlizzardClient,
@@ -264,7 +271,8 @@ export function printBatch(batch: LeaderboardBatch): void {
   for (const s of batch.results) {
     console.log(`${s.entries > 0 ? "✅" : "⚠️"} ${s.spec} (${s.bracket})`);
     console.log(
-      `   Entradas: ${s.entries}${s.entries >= 5000 ? " (tope de 5.000 alcanzado)" : ""}`,
+      `   Entradas: ${s.entries}` +
+        (isLeaderboardCapped(s.entries) ? ` (tope de ${LEADERBOARD_CAP} alcanzado)` : ""),
     );
     if (s.topRating !== null) {
       console.log(`   Rating máximo: ${s.topRating} — corte inferior: ${s.cutoffRating}`);

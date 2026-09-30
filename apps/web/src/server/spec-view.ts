@@ -5,6 +5,7 @@ import {
   adoptionChange,
   canShowComparison,
   confidenceFor,
+  isLeaderboardCapped,
   medianSegmentOf,
   parseShuffleBracket,
   slotGroup,
@@ -48,6 +49,12 @@ export interface SpecStanding {
   population: number;
   total: number;
   share: number;
+  /**
+   * Si su leaderboard llena el tope: su población es un suelo, y con ella el
+   * puesto y la proporción (ADR 0045). Va aquí y no en la cabecera porque sale
+   * de la misma corrida que el total, que es la única que se puede afirmar.
+   */
+  capped: boolean;
 }
 
 export interface SpecOverview {
@@ -166,6 +173,7 @@ function standingIn(
     population: own.population,
     total: all,
     share: own.population / all,
+    capped: isLeaderboardCapped(own.leaderboardEntries),
   };
 }
 

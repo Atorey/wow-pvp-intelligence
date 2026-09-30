@@ -10,11 +10,12 @@ import Link from "next/link";
 
 import { classColor } from "../design/class-color";
 import { copyFor } from "../i18n/copy";
-import { formatCount, formatIndex, formatRating, formatShare } from "../i18n/format";
+import { formatCount, formatIndex, formatList, formatRating, formatShare } from "../i18n/format";
 import { type Locale, localizedPathname } from "../i18n/locales";
 import type { RepresentationBoard } from "../server/home-view";
 import { ProportionBar } from "./proportion-bar";
 import { RunProvenance } from "./run-provenance";
+import { Badge } from "./ui/badge";
 import { Card } from "./ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./ui/table";
 
@@ -117,6 +118,17 @@ export function SpecRepresentationTable({
                     {row.spec.label}
                   </Link>
                   {/*
+                   * En la celda de la spec y no en la de observados: esta es la
+                   * única columna que no se retira en pantalla estrecha, y la
+                   * marca es de la spec entera —su población es un suelo—, no de
+                   * una cifra suelta (ADR 0045).
+                   */}
+                  {row.capped && (
+                    <Badge variant="outline" className="text-muted-foreground ml-2 align-middle">
+                      {copy.capped}
+                    </Badge>
+                  )}
+                  {/*
                    * Lo que en pantalla ancha son columnas: la proporción de la
                    * spec, su índice si lo tiene y, en la página, su tramo
                    * mediano. La proporción del tramo alto no baja aquí porque
@@ -185,6 +197,22 @@ export function SpecRepresentationTable({
         <p className="text-muted-foreground max-w-measure text-sm">
           {copy.shareNote(count(board.observed), BRACKET_LABELS[bracket], count(board.specs))}
         </p>
+        {/*
+         * Justo debajo del reparto, porque es lo que matiza: en cuanto una spec
+         * llena el tope, sus proporciones y las de las demás comparan specs
+         * contadas enteras con specs a las que les falta la cola. Sin ninguna
+         * en el tope no se pinta, como no se pinta una ausencia que no hay.
+         */}
+        {board.capped.length > 0 && (
+          <p className="text-muted-foreground max-w-measure text-sm">
+            {copy.cappedNote(
+              formatList(
+                board.capped.map((spec) => spec.label),
+                locale,
+              ),
+            )}
+          </p>
+        )}
         <p className="text-muted-foreground max-w-measure text-sm">{copy.indexNote(highFloor)}</p>
         <p className="text-muted-foreground max-w-measure text-sm">
           {copy.highNote(count(MIN_SAMPLE_MEDIUM), highFloor)}

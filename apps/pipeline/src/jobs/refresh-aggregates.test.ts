@@ -275,6 +275,34 @@ test("los personajes que solo vienen de búsqueda se cuentan aparte, no dentro",
   assert.equal(segments.length, 1);
 });
 
+test("cada tramo lleva las entradas de la publicación de su bracket, y sin descarga no se inventan", () => {
+  const members = [
+    member({ characterId: "frost-baja", rating: 1900 }),
+    member({ characterId: "frost-alta", rating: 2500 }),
+    member({
+      characterId: "fire",
+      bracket: "shuffle-mage-fire",
+      specSlug: "fire",
+    }),
+  ];
+
+  const segments = computeSegments(
+    members,
+    [],
+    NOW,
+    null,
+    new Map([["shuffle-mage-frost", 5_000]]),
+  );
+  const entriesOf = (bracket: string) =>
+    segments.filter((s) => s.bracket === bracket).map((s) => s.leaderboardEntries);
+
+  // La cifra es del bracket, no del tramo: todas sus filas la repiten, y así la
+  // lectura puede sacarla de cualquiera.
+  assert.deepEqual(entriesOf("shuffle-mage-frost"), [5_000, 5_000]);
+  // Un bracket sin ninguna descarga buena no está vacío ni lleno: no se sabe.
+  assert.deepEqual(entriesOf("shuffle-mage-fire"), [null]);
+});
+
 test("el rango temporal de los perfiles queda registrado", () => {
   const members = [
     member({ characterId: "a", profileCapturedAt: daysAgo(6), gearBySlot: new Map([["HEAD", 1]]) }),
