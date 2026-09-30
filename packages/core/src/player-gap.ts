@@ -152,9 +152,45 @@ export interface GearSelection {
 export interface TalentSelection {
   /** Namespace del id: 'class' | 'spec' | 'hero' son nodos; 'pvp', talentos PvP. */
   tree: TalentTree;
+  /** Id del nodo; en 'pvp', del talento, que ahí es lo mismo. */
   talentId: number;
+  /**
+   * El talento elegido en el nodo, que no es el nodo: un nodo de elección son
+   * dos talentos bajo el mismo `talentId` (ADR 0035). Es lo que identifica la
+   * variable (ADR 0044). null = no disponible: la API no trajo tooltip, o la
+   * etiqueta viene de antes de que se guardara.
+   */
+  selectedTalentId: number | null;
   /** null = no disponible. La selección está observada; su etiqueta, no. */
   talentName: string | null;
+}
+
+/**
+ * La clave con la que una selección de talento se agrega y se compara.
+ *
+ * **La unidad es la selección, no el nodo** (ADR 0044). En un nodo de elección
+ * —el 62087 es «Ice Nova» o «Freezing Cold»— la clave del nodo fundía los dos
+ * talentos en una sola cifra con el nombre del primero que llegara, y la caja
+ * Player Gap daba por hecho que quien eligió Freezing Cold ya llevaba lo que
+ * lleva el segmento.
+ *
+ * Tres formas, y ninguna coincide con la de antes (`${árbol}:${nodo}`), que es
+ * lo que impide que la variación entre corridas empareje una cifra que fundía
+ * dos talentos con una que describe uno solo:
+ *
+ * - `class:62087:12345` — la selección conocida.
+ * - `class:62087:?` — la selección no disponible. Es un talento de ese nodo sin
+ *   decir cuál, y por eso no se funde con ninguno de los que sí se conocen.
+ * - `pvp:3517` — un talento PvP. No cambia: ahí el talento ya es el nodo, su
+ *   cifra nunca fundió nada y su serie sigue siendo comparable.
+ *
+ * Vive aquí y no en quien agrega porque la ficha construye la misma clave con
+ * los talentos del jugador: si las dos la escribieran por su cuenta, la marca de
+ * "ya lo llevas" dejaría de aparecer sin que nada fallase.
+ */
+export function talentSelectionKey(selection: TalentSelection): string {
+  if (selection.tree === "pvp") return `pvp:${selection.talentId}`;
+  return `${selection.tree}:${selection.talentId}:${selection.selectedTalentId ?? "?"}`;
 }
 
 export type TalentTree = "class" | "spec" | "hero" | "pvp";

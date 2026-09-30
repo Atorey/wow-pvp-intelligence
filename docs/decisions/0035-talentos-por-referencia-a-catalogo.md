@@ -1,6 +1,6 @@
 # ADR 0035 — Las selecciones de talento se guardan por referencia a un catálogo
 
-**Fecha**: 20 de septiembre de 2026 · **Estado**: aceptada (revisa la forma de almacenamiento del [ADR 0026](0026-talentos-por-nodo.md) sin tocar lo que mide)
+**Fecha**: 20 de septiembre de 2026 · **Estado**: aceptada (revisa la forma de almacenamiento del [ADR 0026](0026-talentos-por-nodo.md) sin tocar lo que mide) · **Lo que deja al descubierto lo resuelve el [ADR 0044](0044-la-variable-de-talentos-es-el-talento-elegido.md)**, que agrega por talento elegido
 
 ## Contexto
 

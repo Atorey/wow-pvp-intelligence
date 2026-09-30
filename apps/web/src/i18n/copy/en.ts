@@ -505,7 +505,7 @@ export const en = {
        */
       list: {
         gear: (segment: string) => `What ${segment} wears more`,
-        talents: (segment: string) => `Talent nodes more common in ${segment}`,
+        talents: (segment: string) => `Talents more common in ${segment}`,
         /** Cada fila lleva su fracción cruda, nunca el porcentaje solo (§13.5). */
         targetShare: (percent: string, users: string, denominator: string) =>
           `${percent} (${users}/${denominator}) up there`,
@@ -823,8 +823,8 @@ export const en = {
           `Only ${population} characters have been observed in ${segment}. ${needed} are needed before a percentage means anything.`,
       },
       /**
-       * Los talentos, por nodo y no por código de build (ADR 0026). Cada familia
-       * dice su propia base, porque no es la del gear ni la de las otras.
+       * Los talentos, uno a uno y no por código de build (ADR 0026 y 0044). Cada
+       * familia dice su propia base, porque no es la del gear ni la de las otras.
        */
       talents: {
         title: "Talents",
@@ -837,7 +837,7 @@ export const en = {
         pvp: "PvP talents",
         nodesLabel: "Talent nodes",
         note: (sample: string) =>
-          `Percentages are over the ${sample} profiles whose talent loadout has been read, counted node by node and not by the full build code.`,
+          `Percentages are over the ${sample} profiles whose talent loadout has been read, counted talent by talent and not by the full build code.`,
         pvpNote: (sample: string) =>
           `Over ${sample} profiles: the API leaves PvP talents out of some loadouts, so their base is their own.`,
         none: (sample: string, needed: string) =>

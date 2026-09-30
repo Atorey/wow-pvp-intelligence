@@ -1,6 +1,6 @@
 # ADR 0026 — Los talentos se observan por nodo, no por código de loadout
 
-**Fecha**: 4 de septiembre de 2026 · **Estado**: aceptada (issue #21; amplía el conjunto cerrado de variables del [ADR 0007](0007-agregados-por-segmento.md) y deja sin objeto a #24)
+**Fecha**: 4 de septiembre de 2026 · **Estado**: aceptada (issue #21; amplía el conjunto cerrado de variables del [ADR 0007](0007-agregados-por-segmento.md) y deja sin objeto a #24) · **Revisado en parte el 30 de septiembre de 2026 por el [ADR 0044](0044-la-variable-de-talentos-es-el-talento-elegido.md)**: la variable deja de ser el nodo y pasa a ser el talento elegido en él, porque un nodo de elección son dos talentos. El resto de puntos sigue en pie
 
 ## Contexto
 

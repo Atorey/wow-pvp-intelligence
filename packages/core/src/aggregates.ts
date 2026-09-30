@@ -27,6 +27,7 @@ import {
   hasComparableGear,
   hasComparablePvpTalents,
   hasComparableTalents,
+  talentSelectionKey,
   type AdoptionRate,
   type PlayerBuild,
   type TalentSelection,
@@ -75,7 +76,11 @@ export interface AggregatedVariable {
   itemName: string | null;
   /** Árbol del nodo. null salvo en 'talent-node' y 'pvp-talent'. */
   talentTree: string | null;
-  /** Id del nodo o del talento PvP; en 'hero-tree', el id del árbol. */
+  /**
+   * Id del nodo o del talento PvP; en 'hero-tree', el id del árbol. En
+   * 'talent-node' dos variables pueden compartirlo —las dos selecciones de un
+   * nodo de elección—, y lo que las separa es la clave (ADR 0044).
+   */
   talentId: number | null;
   /** Nombre legible al calcular. null es "no disponible" (regla 5), no "sin nombre". */
   talentName: string | null;
@@ -283,11 +288,11 @@ export function aggregateTalentCodes(population: readonly PlayerBuild[]): Aggreg
     }));
 }
 
-/** Cómo se identifica un nodo o un talento PvP dentro de su segmento. */
+/** Cómo se identifica una selección de talento dentro de su segmento (ADR 0044). */
 function talentIdentity(selection: TalentSelection): VariableIdentity {
   return {
     ...NO_IDENTITY,
-    key: `${selection.tree}:${selection.talentId}`,
+    key: talentSelectionKey(selection),
     talentTree: selection.tree,
     talentId: selection.talentId,
     talentName: selection.talentName,
@@ -341,13 +346,18 @@ export function aggregateGearEnchants(population: readonly PlayerBuild[]): Aggre
 }
 
 /**
- * adoption_rate de cada nodo de talento observado.
+ * adoption_rate de cada talento elegido en un nodo.
  *
  * Esta es la variable que sí agrupa, y la razón de ser del ADR 0026: dos
- * jugadores comparten nodos aunque no compartan build. Con el código completo no
- * la comparten casi nunca —entre 75 y 97 códigos distintos por cada 100 perfiles
- * de un segmento— así que aquel porcentaje describía personas y este describe el
- * escalón.
+ * jugadores comparten talentos aunque no compartan build. Con el código completo
+ * no la comparten casi nunca —entre 75 y 97 códigos distintos por cada 100
+ * perfiles de un segmento— así que aquel porcentaje describía personas y este
+ * describe el escalón.
+ *
+ * La unidad es la selección y no el nodo (ADR 0044): en un nodo de elección cada
+ * talento tiene su propia adopción, y las dos cuentan sobre el mismo
+ * denominador. Quien eligió Ice Nova no lleva Freezing Cold, y eso es un hecho
+ * observado, no un dato que falte.
  *
  * Misma forma que `aggregateGearItems`: una sola pasada contando, y los perfiles
  * sin nodos legibles fuera del denominador y contados en `unavailable` (regla 5).

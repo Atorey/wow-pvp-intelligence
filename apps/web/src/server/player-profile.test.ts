@@ -181,6 +181,19 @@ function adoption(
   };
 }
 
+/** Una adopción de talento, con la clave de selección que escribe el agregado. */
+function talentAdoption(key: string, name: string, rate: number): AdoptionRead {
+  const [tree, nodeId] = key.split(":");
+  return adoption(key, rate, 100, {
+    kind: "talent-node",
+    slotGroup: null,
+    itemId: null,
+    talentTree: tree ?? null,
+    talentId: Number(nodeId),
+    talentName: name,
+  });
+}
+
 describe("gapFor", () => {
   it("en el tramo abierto de arriba no hay escalón que comparar", () => {
     const gap = gapFor({
@@ -518,13 +531,49 @@ describe("las claves con las que se marca lo que ya llevas", () => {
     assert.equal(talentKeys(null), null);
   });
 
-  it("un nodo se busca por árbol e id, como lo escribió el agregado", () => {
+  it("un talento se busca por árbol, nodo y talento elegido, como lo escribió el agregado", () => {
     const talents: CharacterTalentsRead = {
-      nodes: [{ tree: "class", talentId: 99846, talentName: "Toque gélido", rank: 1 }],
+      nodes: [
+        {
+          tree: "class",
+          talentId: 99846,
+          selectedTalentId: 123456,
+          talentName: "Toque gélido",
+          rank: 1,
+        },
+      ],
       provenance: { observedAt: COMPUTED_AT, source: "profile" },
     };
 
-    assert.ok(talentKeys(talents)?.has("class:99846"));
+    assert.ok(talentKeys(talents)?.has("class:99846:123456"));
+  });
+
+  it("en un nodo de elección no marca el talento que no eligió", () => {
+    // El caso del 62087: quien eligió Freezing Cold no lleva el Ice Nova del
+    // segmento, aunque los dos cuelguen del mismo nodo (ADR 0044).
+    const talents: CharacterTalentsRead = {
+      nodes: [
+        {
+          tree: "class",
+          talentId: 62087,
+          selectedTalentId: 1002,
+          talentName: "Freezing Cold",
+          rank: 1,
+        },
+      ],
+      provenance: { observedAt: COMPUTED_AT, source: "profile" },
+    };
+
+    const view = listFor({
+      own: [talentAdoption("class:62087:1001", "Ice Nova", 0.4)],
+      target: [talentAdoption("class:62087:1001", "Ice Nova", 0.9)],
+      playerKeys: talentKeys(talents),
+    });
+
+    assert.equal(view.state, "listed");
+    if (view.state !== "listed") return;
+    assert.equal(view.differences[0]?.variable.talentName, "Ice Nova");
+    assert.equal(view.differences[0]?.playerHasIt, false);
   });
 });
 

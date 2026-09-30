@@ -264,7 +264,7 @@ export const es: Copy = {
       },
       list: {
         gear: (segment) => `Lo que más se lleva en ${segment}`,
-        talents: (segment) => `Los nodos más frecuentes en ${segment}`,
+        talents: (segment) => `Los talentos más frecuentes en ${segment}`,
         targetShare: (percent, users, denominator) =>
           `${percent} (${users} de ${denominator}) ahí arriba`,
         ownShare: (percent, users, denominator) =>
@@ -498,7 +498,7 @@ export const es: Copy = {
         pvp: "Talentos PvP",
         nodesLabel: "Nodos de talento",
         note: (sample) =>
-          `Los porcentajes son sobre los ${sample} perfiles cuyo loadout de talentos hemos podido leer, contados nodo a nodo y no por el código de build entero.`,
+          `Los porcentajes son sobre los ${sample} perfiles cuyo loadout de talentos hemos podido leer, contados talento a talento y no por el código de build entero.`,
         pvpNote: (sample) =>
           `Sobre ${sample} perfiles: la API deja los talentos PvP fuera de algunos loadouts, así que su base es la suya.`,
         none: (sample, needed) =>
