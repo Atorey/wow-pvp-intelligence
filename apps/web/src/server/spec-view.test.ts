@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { MIN_SAMPLE_MEDIUM, segmentFor } from "@wowpvp/core";
+import { MIN_SAMPLE_MEDIUM, segmentFor, talentSelectionKey } from "@wowpvp/core";
 import {
   provenanceFor,
   type AdoptionRead,
@@ -516,6 +516,55 @@ describe("la variación desde la corrida anterior", () => {
     });
 
     assert.equal(gearOf(detail).gems[0]?.change, null);
+  });
+
+  it("no empareja la clave de nodo de antes con la de selección de ahora", () => {
+    // La corrida anterior al ADR 0044 guardaba el 62087 con Ice Nova y Freezing
+    // Cold fundidos. Emparejarla con la cifra de Ice Nova sola daría una bajada
+    // de 45 puntos que nadie jugó.
+    const wide = provenanceFor({ computedAt: COMPUTED_AT, sampleSize: 900, denominator: 300 });
+    const old = provenanceFor({ computedAt: PREVIOUS_AT, sampleSize: 900, denominator: 300 });
+    const iceNova = talentSelectionKey({
+      tree: "class",
+      talentId: 62087,
+      selectedTalentId: 1001,
+      talentName: "Ice Nova",
+    });
+    const iceWall = talentSelectionKey({
+      tree: "pvp",
+      talentId: 3517,
+      selectedTalentId: 3517,
+      talentName: "Ice Wall",
+    });
+
+    const detail = segmentDetailFor({
+      segment: segment(2000, { population: 900, nodes: 300, pvp: 300 }),
+      adoptions: {
+        ...noAdoptions,
+        talentNodes: [
+          adoption("talent-node", iceNova, 0.5, { talentTree: "class", provenance: wide }),
+        ],
+        pvpTalents: [adoption("pvp-talent", iceWall, 0.8, { talentTree: "pvp", provenance: wide })],
+      },
+      previous: {
+        computedAt: PREVIOUS_AT,
+        adoptions: {
+          ...noAdoptions,
+          talentNodes: [
+            adoption("talent-node", "class:62087", 0.95, { talentTree: "class", provenance: old }),
+          ],
+          // Los talentos PvP no cambian de clave, y su serie sigue siendo comparable.
+          pvpTalents: [
+            adoption("pvp-talent", "pvp:3517", 0.3, { talentTree: "pvp", provenance: old }),
+          ],
+        },
+      },
+    });
+
+    if (detail.build.state !== "listed") throw new Error("La lista de talentos no salió.");
+    if (detail.pvp.state !== "listed") throw new Error("La lista de PvP no salió.");
+    assert.equal(detail.build.content.trees[0]?.rows[0]?.change, null);
+    assert.equal(detail.pvp.content[0]?.change?.direction, "up");
   });
 
   it("la fecha de la comparación se declara aunque no se haya movido nada", () => {

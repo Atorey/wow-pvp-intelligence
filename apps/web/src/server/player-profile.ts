@@ -9,6 +9,7 @@ import {
   segmentFor,
   slotGroup,
   specSlug,
+  talentSelectionKey,
   type ConfidenceLevel,
   type GearAlignment,
   type RatingSegment,
@@ -315,10 +316,16 @@ export function gearKeys(gear: CharacterGearRead | null): ReadonlySet<string> | 
   return keys;
 }
 
-/** Lo mismo para los nodos, con la clave `${árbol}:${id}` de `aggregateTalentNodes()`. */
+/**
+ * Lo mismo para los talentos, con la clave de `talentSelectionKey()`.
+ *
+ * Por el talento elegido y no por el nodo (ADR 0044): con la clave del nodo,
+ * quien eligió Freezing Cold salía marcado como que ya lleva el Ice Nova que
+ * lleva el segmento, porque los dos cuelgan del 62087.
+ */
 export function talentKeys(talents: CharacterTalentsRead | null): ReadonlySet<string> | null {
   if (talents === null) return null;
-  return new Set(talents.nodes.map((node) => `${node.tree}:${node.talentId}`));
+  return new Set(talents.nodes.map(talentSelectionKey));
 }
 
 /**

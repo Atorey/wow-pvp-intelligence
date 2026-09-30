@@ -17,6 +17,7 @@ function talentRow(overrides: Record<string, unknown> = {}) {
   return {
     tree: "spec",
     node_id: 99846,
+    selected_talent_id: 123456,
     talent_name: "Toque gélido",
     rank: 1,
     captured_at: CAPTURED_AT,
@@ -43,6 +44,23 @@ describe("readLatestTalents", () => {
     const read = await readLatestTalents(db, KEY);
 
     assert.equal(read?.nodes[0]?.talentId, 99846);
+  });
+
+  it("devuelve el talento elegido, que en un nodo de elección es lo que distingue", async () => {
+    // El nodo solo no dice cuál de los dos talentos lleva quien mira, y la
+    // comparación con el segmento es por selección (ADR 0044).
+    const db = fakeDb([talentRow()]);
+    const read = await readLatestTalents(db, KEY);
+
+    assert.equal(read?.nodes[0]?.selectedTalentId, 123456);
+    assert.match(db.calls[0]?.text ?? "", /lab\.talent_id as selected_talent_id/);
+  });
+
+  it("un talento elegido sin id sigue siendo una selección observada", async () => {
+    const db = fakeDb([talentRow({ selected_talent_id: null })]);
+    const read = await readLatestTalents(db, KEY);
+
+    assert.equal(read?.nodes[0]?.selectedTalentId, null);
   });
 
   it("empareja cada etiqueta con su rango abriendo los dos arrays a la vez", async () => {

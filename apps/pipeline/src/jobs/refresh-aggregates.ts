@@ -482,15 +482,18 @@ async function loadProfiles(
   // Misma forma que la consulta de gear: los nodos cuelgan del snapshot, y se
   // piden en bloque para los snapshots que ya sabemos que entran. Las etiquetas
   // llegan por referencia (ADR 0035), así que la fila por árbol se vuelve a
-  // abrir en una selección por nodo antes de agregarse: la unidad sigue siendo
-  // el nodo, y el rango no se pide porque no se agrega (ADR 0026).
+  // abrir en una selección por nodo antes de agregarse. El talento elegido
+  // viaja con ella porque es la unidad (ADR 0044), y el rango no se pide porque
+  // no se agrega (ADR 0026).
   const { rows: talentRows } = await pool.query<{
     snapshot_id: string;
     tree: string;
     node_id: number;
+    selected_talent_id: number | null;
     talent_name: string | null;
   }>(
-    `select t.snapshot_id, t.tree, lab.node_id, lab.name as talent_name
+    `select t.snapshot_id, t.tree, lab.node_id, lab.talent_id as selected_talent_id,
+            lab.name as talent_name
        from character_snapshot_talent_trees t
        cross join lateral unnest(t.label_ids) as sel(label_id)
        join talent_labels lab on lab.id = sel.label_id
@@ -507,6 +510,7 @@ async function loadProfiles(
     const selection: TalentSelection = {
       tree: row.tree as TalentSelection["tree"],
       talentId: row.node_id,
+      selectedTalentId: row.selected_talent_id,
       talentName: row.talent_name,
     };
     const target = row.tree === "pvp" ? pvpBySnapshot : talentsBySnapshot;

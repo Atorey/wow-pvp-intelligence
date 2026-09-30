@@ -224,10 +224,10 @@ export interface TalentRow {
   talentName: string | null;
   /**
    * El id del talento elegido en el nodo, que no es el nodo: un nodo de
-   * elección son dos talentos bajo el mismo `talentId`. No entra en la
-   * identidad de la variable —la unidad de agregación sigue siendo el nodo
-   * (ADR 0026)— pero es de lo que `talentName` es función, y por eso viaja con
-   * él hasta el catálogo (ADR 0035). null = la API no trajo tooltip.
+   * elección son dos talentos bajo el mismo `talentId`. Es de lo que
+   * `talentName` es función, por eso viaja con él hasta el catálogo (ADR 0035),
+   * y es lo que identifica la variable agregada (ADR 0044). null = la API no
+   * trajo tooltip.
    */
   selectedTalentId: number | null;
   /** Puntos invertidos. null en 'pvp', que no tiene rangos. */

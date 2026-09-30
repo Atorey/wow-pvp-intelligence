@@ -14,6 +14,7 @@ import {
 import {
   adoptionRate,
   slotItemAdoption,
+  talentSelectionKey,
   type PlayerBuild,
   type TalentSelection,
 } from "./player-gap";
@@ -211,8 +212,8 @@ test("cada personaje cae en un único segmento", () => {
 // --- Nodos de talento (ADR 0026) ---
 
 const NODES: TalentSelection[] = [
-  { tree: "class", talentId: 1, talentName: "Shimmer" },
-  { tree: "spec", talentId: 2, talentName: "Frozen Touch" },
+  { tree: "class", talentId: 1, selectedTalentId: 101, talentName: "Shimmer" },
+  { tree: "spec", talentId: 2, selectedTalentId: 102, talentName: "Frozen Touch" },
 ];
 
 test("los nodos ausentes salen del denominador, no cuentan como no-adopción", () => {
@@ -227,10 +228,10 @@ test("los nodos ausentes salen del denominador, no cuentan como no-adopción", (
   ];
 
   const nodes = new Map(aggregateTalentNodes(population).map((v) => [v.key, v.adoption]));
-  assert.equal(nodes.get("class:1")?.users, 2);
-  assert.equal(nodes.get("class:1")?.denominator, 2);
-  assert.equal(nodes.get("class:1")?.unavailable, 2);
-  assert.equal(nodes.get("spec:2")?.value, 1 / 2);
+  assert.equal(nodes.get("class:1:101")?.users, 2);
+  assert.equal(nodes.get("class:1:101")?.denominator, 2);
+  assert.equal(nodes.get("class:1:101")?.unavailable, 2);
+  assert.equal(nodes.get("spec:2:102")?.value, 1 / 2);
 });
 
 test("un nodo repetido dentro del mismo personaje sigue siendo un usuario", () => {
@@ -240,11 +241,17 @@ test("un nodo repetido dentro del mismo personaje sigue siendo un usuario", () =
 });
 
 test("el nombre se recupera del primer personaje que lo traiga", () => {
-  // La API deja algún nodo sin tooltip. Si el primero que llega es ese, el
-  // agregado no puede quedarse sin etiqueta para siempre.
+  // Si la primera observación de una selección llega sin nombre, el agregado no
+  // puede quedarse sin etiqueta para siempre.
   const nodes = aggregateTalentNodes([
-    build({ rating: 1810, talents: [{ tree: "class", talentId: 1, talentName: null }] }),
-    build({ rating: 1850, talents: [{ tree: "class", talentId: 1, talentName: "Shimmer" }] }),
+    build({
+      rating: 1810,
+      talents: [{ tree: "class", talentId: 1, selectedTalentId: 101, talentName: null }],
+    }),
+    build({
+      rating: 1850,
+      talents: [{ tree: "class", talentId: 1, selectedTalentId: 101, talentName: "Shimmer" }],
+    }),
   ]);
 
   assert.equal(nodes[0]?.talentName, "Shimmer");
@@ -292,14 +299,94 @@ test("la agregación de nodos da el mismo número que adoptionRate uno a uno", (
     build({ rating: 2050 }),
   ];
 
-  for (const variable of aggregateTalentNodes(population)) {
+  const aggregated = aggregateTalentNodes(population);
+  assert.equal(aggregated.length, NODES.length);
+  for (const selection of NODES) {
+    // La referencia empareja por nodo y talento elegido, sin pasar por la
+    // clave: si la clave dejara de separar lo que tiene que separar, este test
+    // lo vería.
     const reference = adoptionRate(population, (member) =>
       member.talents === null
         ? null
-        : member.talents.some((talent) => `${talent.tree}:${talent.talentId}` === variable.key),
+        : member.talents.some(
+            (talent) =>
+              talent.talentId === selection.talentId &&
+              talent.selectedTalentId === selection.selectedTalentId,
+          ),
     );
-    assert.deepEqual(variable.adoption, reference, variable.key);
+    const key = talentSelectionKey(selection);
+    assert.deepEqual(aggregated.find((v) => v.key === key)?.adoption, reference, key);
   }
+});
+
+// --- Nodos de elección (ADR 0044) ---
+
+/** El nodo 62087 del mago frost: el mismo id para dos talentos distintos. Los ids de talento son inventados. */
+const ICE_NOVA: TalentSelection = {
+  tree: "class",
+  talentId: 62087,
+  selectedTalentId: 1001,
+  talentName: "Ice Nova",
+};
+const FREEZING_COLD: TalentSelection = {
+  tree: "class",
+  talentId: 62087,
+  selectedTalentId: 1002,
+  talentName: "Freezing Cold",
+};
+
+test("las dos selecciones de un nodo de elección son dos variables", () => {
+  const population = [
+    ...Array.from({ length: 9 }, () => build({ rating: 2050, talents: [ICE_NOVA] })),
+    build({ rating: 2100, talents: [FREEZING_COLD] }),
+  ];
+
+  const byName = new Map(aggregateTalentNodes(population).map((v) => [v.talentName, v]));
+  assert.equal(byName.size, 2);
+  assert.equal(byName.get("Ice Nova")?.adoption.users, 9);
+  assert.equal(byName.get("Freezing Cold")?.adoption.users, 1);
+  // Las dos cuelgan del mismo nodo y del mismo denominador: quien eligió una no
+  // lleva la otra, y eso es un hecho observado, no un dato que falte.
+  assert.equal(byName.get("Ice Nova")?.talentId, 62087);
+  assert.equal(byName.get("Freezing Cold")?.talentId, 62087);
+  assert.equal(byName.get("Ice Nova")?.adoption.denominator, 10);
+  assert.equal(byName.get("Freezing Cold")?.adoption.denominator, 10);
+  assert.notEqual(byName.get("Ice Nova")?.key, byName.get("Freezing Cold")?.key);
+});
+
+test("una selección sin talento conocido no se funde con las que sí lo tienen", () => {
+  // Sería volver a contar el nodo: decir que esa persona lleva Ice Nova cuando
+  // lo único observado es que eligió algo en el 62087.
+  const unknown: TalentSelection = { ...ICE_NOVA, selectedTalentId: null };
+  const population = [
+    build({ rating: 2050, talents: [ICE_NOVA] }),
+    build({ rating: 2100, talents: [unknown] }),
+  ];
+
+  const byKey = new Map(aggregateTalentNodes(population).map((v) => [v.key, v.adoption.users]));
+  assert.equal(byKey.get("class:62087:1001"), 1);
+  assert.equal(byKey.get("class:62087:?"), 1);
+});
+
+test("ninguna clave de nodo coincide con la forma de antes", () => {
+  // La variación entre corridas empareja por clave (ADR 0037). Una clave nueva
+  // igual a una vieja emparejaría la cifra que fundía los dos talentos con la
+  // de uno solo, y el salto se leería como un movimiento del segmento.
+  for (const selection of [ICE_NOVA, FREEZING_COLD, { ...ICE_NOVA, selectedTalentId: null }]) {
+    assert.notEqual(talentSelectionKey(selection), `${selection.tree}:${selection.talentId}`);
+  }
+});
+
+test("la clave de un talento PvP no cambia, porque ahí el talento es el nodo", () => {
+  assert.equal(
+    talentSelectionKey({
+      tree: "pvp",
+      talentId: 3517,
+      selectedTalentId: 3517,
+      talentName: "Ice Wall",
+    }),
+    "pvp:3517",
+  );
 });
 
 // --- Gemas y encantamientos (ADR 0027) ---

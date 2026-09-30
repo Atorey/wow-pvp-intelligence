@@ -13,7 +13,14 @@ import type { Queryable } from "./queryable";
  */
 export interface TalentNodeRead {
   tree: TalentTree;
+  /** Id del nodo; en 'pvp', del talento. */
   talentId: number;
+  /**
+   * El talento elegido en el nodo, que es lo que se compara con el segmento
+   * (ADR 0044): en un nodo de elección el id del nodo no dice cuál de los dos
+   * lleva. `null` es "no disponible", igual que en el agregado.
+   */
+  selectedTalentId: number | null;
   /**
    * `null` es "no disponible" (regla 5), no "sin nombre": la API deja algún nodo
    * sin tooltip y ese nodo sí está observado, solo que no sabemos llamarlo.
@@ -31,6 +38,7 @@ export interface CharacterTalentsRead {
 interface TalentRow {
   tree: TalentTree;
   node_id: number;
+  selected_talent_id: number | null;
   talent_name: string | null;
   rank: number | null;
   captured_at: Date;
@@ -48,8 +56,8 @@ interface TalentRow {
  * ese vacío se leería como "no lleva talentos" en vez de como "esa observación
  * no traía loadout".
  *
- * Lo que la caja Player Gap hace con esto es marcar qué nodos de la lista lleva
- * ya quien mira. Un nodo sin marca es "no lo lleva" solo si este read devolvió
+ * Lo que la caja Player Gap hace con esto es marcar qué talentos de la lista
+ * lleva ya quien mira. Uno sin marca es "no lo lleva" solo si este read devolvió
  * algo; si devuelve `null`, no se marca ninguno, porque entonces la ausencia de
  * marca sería una afirmación que no hemos observado.
  */
@@ -68,7 +76,8 @@ export async function readLatestTalents(
         order by s.captured_at desc
         limit 1
      )
-     select t.tree, lab.node_id, lab.name as talent_name, sel.rank, l.captured_at, l.source
+     select t.tree, lab.node_id, lab.talent_id as selected_talent_id, lab.name as talent_name,
+            sel.rank, l.captured_at, l.source
        from latest_with_talents l
        join character_snapshot_talent_trees t on t.snapshot_id = l.id
        -- Los dos arrays se abren en el mismo unnest y no en dos: es lo que los
@@ -87,6 +96,7 @@ export async function readLatestTalents(
     nodes: rows.map((row) => ({
       tree: row.tree,
       talentId: row.node_id,
+      selectedTalentId: row.selected_talent_id,
       talentName: row.talent_name,
       rank: row.rank,
     })),
