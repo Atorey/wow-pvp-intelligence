@@ -8,7 +8,7 @@
  * Vive en un paquete y no en el pipeline porque desde el ADR 0039 también lee la
  * web, y una app no importa de otra.
  *
- * Se habla con la API REST a pelo y no con `@supabase/supabase-js`: son cuatro
+ * Se habla con la API REST a pelo y no con `@supabase/supabase-js`: son seis
  * llamadas, y el SDK entero para ellas sería la única dependencia de runtime que
  * no es Postgres. El `fetch` se inyecta para poder probarlo sin red.
  */
@@ -157,5 +157,89 @@ function isNotFound(body: string): boolean {
     return String(json.statusCode) === "404" || json.error === "not_found";
   } catch {
     return false;
+  }
+}
+
+/** Objetos por página al listar: el máximo que admite la API. */
+const LIST_PAGE = 1000;
+
+interface ListEntry {
+  name: string;
+  /** null en una carpeta: Storage no tiene carpetas, las deduce de las rutas. */
+  id: string | null;
+}
+
+/**
+ * Las rutas de todos los objetos bajo una carpeta, bajando por las subcarpetas.
+ *
+ * La API lista un nivel cada vez y enseña las carpetas como entradas sin id; se
+ * recorren una a una. Es para el pipeline, que lista una vez por corrida: la
+ * web nunca lista, sabe la ruta exacta de lo que lee.
+ */
+export async function listObjects(
+  config: StorageConfig,
+  prefix: string,
+  fetchFn: Fetch = fetch,
+): Promise<string[]> {
+  const found: string[] = [];
+  const folders = [prefix.replace(/\/+$/, "")];
+
+  for (let folder = folders.pop(); folder !== undefined; folder = folders.pop()) {
+    for (let offset = 0; ; offset += LIST_PAGE) {
+      const response = await fetchFn(`${config.url}/storage/v1/object/list/${config.bucket}`, {
+        method: "POST",
+        headers: { ...headers(config), "content-type": "application/json" },
+        body: JSON.stringify({
+          prefix: folder,
+          limit: LIST_PAGE,
+          offset,
+          sortBy: { column: "name", order: "asc" },
+        }),
+      });
+      if (!response.ok) {
+        throw new Error(
+          `Storage no listó ${config.bucket}/${folder}: ${response.status} ${await response.text()}`,
+        );
+      }
+      const entries = (await response.json()) as ListEntry[];
+      for (const entry of entries) {
+        const path = folder === "" ? entry.name : `${folder}/${entry.name}`;
+        if (entry.id === null) folders.push(path);
+        else found.push(path);
+      }
+      if (entries.length < LIST_PAGE) break;
+    }
+  }
+
+  return found.sort();
+}
+
+/** Rutas por petición de borrado: holgado bajo el tope de la API. */
+const DELETE_CHUNK = 100;
+
+/**
+ * Borra objetos por su ruta. Una ruta que no existe no es un error: quien borra
+ * quiere que no esté, y ya no está.
+ *
+ * Es lo único del paquete que quita algo del archivo, y lo usa solo la purga
+ * de personajes que ya no existen (ADR 0043), sobre rutas que antes ha anotado
+ * en `archive_garbage`. El archivo en sí sigue sin sobrescribirse nunca.
+ */
+export async function deleteObjects(
+  config: StorageConfig,
+  paths: readonly string[],
+  fetchFn: Fetch = fetch,
+): Promise<void> {
+  for (let start = 0; start < paths.length; start += DELETE_CHUNK) {
+    const response = await fetchFn(`${config.url}/storage/v1/object/${config.bucket}`, {
+      method: "DELETE",
+      headers: { ...headers(config), "content-type": "application/json" },
+      body: JSON.stringify({ prefixes: paths.slice(start, start + DELETE_CHUNK) }),
+    });
+    if (!response.ok) {
+      throw new Error(
+        `Storage no borró objetos de ${config.bucket}: ${response.status} ${await response.text()}`,
+      );
+    }
   }
 }

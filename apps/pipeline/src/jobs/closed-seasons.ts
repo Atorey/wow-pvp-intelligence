@@ -1,5 +1,6 @@
 import type pg from "pg";
 import { uploadObject, type StorageConfig } from "@wowpvp/storage";
+import { forgetGarbage, noteGarbage } from "../archive-journal";
 import { encodeRows } from "../storage";
 
 /**
@@ -196,19 +197,27 @@ export async function archiveSeasonTables(
     bytes: 0,
   };
 
+  // Cada fichero se anota antes de subirlo y se desanota al confirmar el
+  // borrado: si algo falla entre medias, la siguiente corrida borra lo subido
+  // en vez de dejar una copia que nadie sabe que está (ADR 0043).
+  const uploaded: string[] = [];
   for (const { table, select } of SEASON_TABLES) {
     const { rows } = await client.query<object>(select, [seasonId]);
     report.rows[table] = rows.length;
     for (let start = 0; start < rows.length; start += ROWS_PER_OBJECT) {
       const part = String(start / ROWS_PER_OBJECT + 1).padStart(4, "0");
+      const path = `${prefix}/${table}-${part}.ndjson.gz`;
       const body = encodeRows(rows.slice(start, start + ROWS_PER_OBJECT));
-      await uploadObject(storage, `${prefix}/${table}-${part}.ndjson.gz`, body);
+      await noteGarbage(client, [path]);
+      await uploadObject(storage, path, body);
+      uploaded.push(path);
       report.bytes += body.length;
     }
   }
 
   await client.query("begin");
   try {
+    await forgetGarbage(client, uploaded);
     for (const { table, remove } of SEASON_TABLES) {
       const deleted = await client.query(remove, [seasonId]);
       if (deleted.rowCount !== report.rows[table]) {

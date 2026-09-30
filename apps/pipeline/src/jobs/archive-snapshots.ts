@@ -2,6 +2,13 @@ import type pg from "pg";
 import { getArchiveStorage, getLeaderboardRetentionDays } from "../config";
 import { createPool } from "../db/pool";
 import { ensureBucket, uploadObject, type StorageConfig } from "@wowpvp/storage";
+import {
+  collectGarbage,
+  forgetGarbage,
+  noteGarbage,
+  releaseArchiveLock,
+  takeArchiveLock,
+} from "../archive-journal";
 import { encodeRows } from "../storage";
 import {
   archiveRunStamp,
@@ -49,9 +56,9 @@ import { indexRatingHistory, toObservation, type RatingRow } from "./rating-hist
  * una sola persona.
  *
  * Cada lote es autónomo: se sube y **después** se borra, en ese orden. Si algo
- * falla entre medias, lo peor que queda es un lote subido dos veces; el archivo
- * se deduplica por `id` al leerlo. Lo contrario —borrar sin copia— no puede
- * pasar.
+ * falla entre medias, lo que se subió queda anotado en `archive_garbage` y la
+ * siguiente corrida lo borra (ADR 0043). Lo contrario —borrar sin copia— no
+ * puede pasar.
  */
 
 /** Filas de `character_snapshots` por lote: holgado bajo el tope de 50 MB por objeto. */
@@ -246,8 +253,18 @@ export async function archive(
 ): Promise<ArchiveReport> {
   const cutoff = new Date(now.getTime() - options.days * MS_PER_DAY);
   const client = await pool.connect();
+  let locked = false;
 
   try {
+    // Un dry-run no escribe en el archivo y no necesita el candado.
+    if (storage) {
+      await takeArchiveLock(client);
+      locked = true;
+      // Lo que una corrida cortada dejó subido sin llegar a la bitácora.
+      const collected = await collectGarbage(client, storage);
+      if (collected > 0) console.log(`  ${fmt(collected)} objetos huérfanos borrados del archivo`);
+    }
+
     // La selección recorre la tabla entera; con el statement_timeout del
     // pooler de Supabase no llega a terminar.
     await client.query("set statement_timeout = 0");
@@ -360,6 +377,7 @@ export async function archive(
     return report;
   } finally {
     await client.query("drop table if exists archive_candidates").catch(() => {});
+    if (locked) await releaseArchiveLock(client).catch(() => {});
     client.release();
   }
 }
@@ -371,6 +389,17 @@ interface BatchResult {
   bytes: number;
 }
 
+/** Los ficheros de un lote, uno por tabla. */
+const BATCH_TABLES = [
+  "character_snapshots",
+  "character_snapshot_gear",
+  "character_snapshot_talents",
+] as const;
+
+export function batchObjectPaths(prefix: string): string[] {
+  return BATCH_TABLES.map((table) => `${prefix}/${table}.ndjson.gz`);
+}
+
 async function archiveBatch(
   client: pg.PoolClient,
   storage: StorageConfig,
@@ -378,12 +407,60 @@ async function archiveBatch(
   cutoff: Date,
   ids: readonly string[],
 ): Promise<BatchResult> {
+  // Se anota antes de subir y fuera de la transacción: si la subida o el
+  // borrado fallan, el rollback no puede llevarse la anotación con él.
+  const paths = batchObjectPaths(prefix);
+  await noteGarbage(client, paths);
+
+  // Todo lo que sigue va en una transacción, subida incluida, con los
+  // personajes del lote bloqueados contra el borrado (ADR 0043): quien los
+  // borre espera a que el lote se confirme, y entonces su id ya está en el
+  // archivo y la purga lo encuentra. Sin el bloqueo, un borrado se colaría
+  // entre la subida y el recuento y dejaría el personaje en un lote subido que
+  // nadie sabe que lo tiene.
+  await client.query("begin");
+  try {
+    const result = await uploadAndDelete(client, storage, prefix, cutoff, ids);
+    await forgetGarbage(client, paths);
+    await client.query("commit");
+    return result;
+  } catch (error) {
+    await client.query("rollback").catch(() => {});
+    throw error;
+  }
+}
+
+async function uploadAndDelete(
+  client: pg.PoolClient,
+  storage: StorageConfig,
+  prefix: string,
+  cutoff: Date,
+  ids: readonly string[],
+): Promise<BatchResult> {
+  // `for key share` es lo justo: choca con el `for update` con el que empieza un
+  // borrado, y no con la actualización de nombre o de prueba de existencia que
+  // hace cada ingesta del leaderboard. Y va antes de leer nada, para que un
+  // borrado y un lote que se cruzan choquen en su primer paso y no a medias.
+  await client.query(
+    `select 1 from characters
+      where id in (select character_id from character_snapshots where id = any($1::bigint[]))
+      order by id
+      for key share`,
+    [ids],
+  );
+
   // `select *` a propósito: el archivo es una copia de la fila, y una columna que
   // se añada mañana tiene que acabar en él sin que nadie se acuerde de este job.
   const { rows: snapshots } = await client.query<{ captured_at: Date }>(
     `select * from character_snapshots where id = any($1::bigint[]) order by id`,
     [ids],
   );
+  if (snapshots.length === 0) {
+    // Todos sus personajes se borraron desde que se eligieron: no queda nada
+    // que subir, y un lote vacío en la bitácora no tendría fechas que anotar.
+    await client.query("delete from archive_candidates where id = any($1::bigint[])", [ids]);
+    return { snapshots: 0, gearRows: 0, talentRows: 0, bytes: 0 };
+  }
   // El gear sale de la vista por slot y no de la tabla de referencias (ADR
   // 0040): el lote conserva la forma de siempre y se lee sin `gear_pieces`.
   const { rows: gear } = await client.query<object>(
@@ -401,7 +478,7 @@ async function archiveBatch(
     [ids],
   );
 
-  const files: [string, readonly object[]][] = [
+  const files: [(typeof BATCH_TABLES)[number], readonly object[]][] = [
     ["character_snapshots", snapshots],
     ["character_snapshot_gear", gear],
     ["character_snapshot_talents", talents],
@@ -417,13 +494,11 @@ async function archiveBatch(
 
   const captured = snapshots.map((row) => row.captured_at.getTime());
 
-  // Todo lo que borra va en una transacción con lo que lo cuenta: si el
+  // Lo que borra va en la misma transacción que lo que lo cuenta: si el
   // recuento de `archived_observations` y el borrado pudieran separarse, la
   // actividad perdería observaciones o las contaría dos veces.
-  await client.query("begin");
-  try {
-    await client.query(
-      `update character_activity a
+  await client.query(
+    `update character_activity a
           set archived_observations = a.archived_observations + x.n
          from (select character_id, bracket, season_id, count(*)::int as n
                  from character_snapshots
@@ -431,39 +506,34 @@ async function archiveBatch(
                 group by character_id, bracket, season_id) x
         where a.character_id = x.character_id and a.bracket = x.bracket
           and a.season_id = x.season_id`,
-      [ids],
+    [ids],
+  );
+  const deleted = await client.query(
+    `delete from character_snapshots where id = any($1::bigint[])`,
+    [ids],
+  );
+  if (deleted.rowCount !== snapshots.length) {
+    throw new Error(
+      `El lote ${prefix} subió ${snapshots.length} snapshots y el borrado alcanzó ` +
+        `${deleted.rowCount}: se deshace para no borrar nada que no esté en el archivo.`,
     );
-    const deleted = await client.query(
-      `delete from character_snapshots where id = any($1::bigint[])`,
-      [ids],
-    );
-    if (deleted.rowCount !== snapshots.length) {
-      throw new Error(
-        `El lote ${prefix} subió ${snapshots.length} snapshots y el borrado alcanzó ` +
-          `${deleted.rowCount}: se deshace para no borrar nada que no esté en el archivo.`,
-      );
-    }
-    await client.query(
-      `insert into snapshot_archive_batches
+  }
+  await client.query(
+    `insert into snapshot_archive_batches
          (object_prefix, cutoff, snapshots, gear_rows, talent_rows,
           first_captured_at, last_captured_at)
        values ($1, $2, $3, $4, $5, $6, $7)`,
-      [
-        prefix,
-        cutoff,
-        snapshots.length,
-        gear.length,
-        talents.length,
-        new Date(Math.min(...captured)),
-        new Date(Math.max(...captured)),
-      ],
-    );
-    await client.query("delete from archive_candidates where id = any($1::bigint[])", [ids]);
-    await client.query("commit");
-  } catch (error) {
-    await client.query("rollback").catch(() => {});
-    throw error;
-  }
+    [
+      prefix,
+      cutoff,
+      snapshots.length,
+      gear.length,
+      talents.length,
+      new Date(Math.min(...captured)),
+      new Date(Math.max(...captured)),
+    ],
+  );
+  await client.query("delete from archive_candidates where id = any($1::bigint[])", [ids]);
 
   return {
     snapshots: snapshots.length,

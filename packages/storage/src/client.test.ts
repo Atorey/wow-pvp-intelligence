@@ -1,6 +1,14 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { downloadObject, ensureBucket, supabaseUrlFrom, uploadObject } from "./client";
+import {
+  deleteObjects,
+  downloadObject,
+  ensureBucket,
+  listObjects,
+  supabaseUrlFrom,
+  uploadObject,
+} from "./client";
+import { FAKE_STORAGE, fakeStorage } from "./fake-storage";
 
 const CONFIG = { url: "https://ref.supabase.co", serviceKey: "secreta", bucket: "archivo" };
 
@@ -121,4 +129,37 @@ test("no se archiva nada en un bucket público", async () => {
   const { fetchFn } = fakeFetch([new Response(JSON.stringify({ public: true }), { status: 200 })]);
 
   await assert.rejects(ensureBucket(CONFIG, fetchFn), /público/);
+});
+
+test("el listado baja por las carpetas y devuelve rutas completas", async () => {
+  const { fetchFn, objects } = fakeStorage();
+  for (const path of [
+    "2026-09-19T05-40-12Z/0001/character_snapshots.ndjson.gz",
+    "2026-09-19T05-40-12Z/0002/character_snapshots.ndjson.gz",
+    "seasons/s41/2026-09-26T12-19-55Z/character_activity-0001.ndjson.gz",
+    "rating-history/s42/3f.json.gz",
+  ]) {
+    objects.set(path, Buffer.from("x"));
+  }
+
+  assert.deepEqual(await listObjects(FAKE_STORAGE, "seasons", fetchFn), [
+    "seasons/s41/2026-09-26T12-19-55Z/character_activity-0001.ndjson.gz",
+  ]);
+  assert.equal((await listObjects(FAKE_STORAGE, "", fetchFn)).length, 4);
+  assert.deepEqual(await listObjects(FAKE_STORAGE, "no-existe", fetchFn), []);
+});
+
+test("borrar lo que no existe no es un error, y se borra por tandas", async () => {
+  const { fetchFn, objects } = fakeStorage();
+  const paths = Array.from({ length: 150 }, (_, i) => `lote/${i}.ndjson.gz`);
+  for (const path of paths) objects.set(path, Buffer.from("x"));
+  objects.set("se-queda.json.gz", Buffer.from("x"));
+
+  await deleteObjects(FAKE_STORAGE, [...paths, "nunca-existio.gz"], fetchFn);
+  assert.deepEqual([...objects.keys()], ["se-queda.json.gz"]);
+});
+
+test("un listado rechazado es un error, no una carpeta vacía", async () => {
+  const { fetchFn } = fakeFetch([new Response("no", { status: 403 })]);
+  await assert.rejects(listObjects(CONFIG, "seasons", fetchFn), /no listó/);
 });

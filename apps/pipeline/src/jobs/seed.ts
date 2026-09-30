@@ -65,6 +65,8 @@ const SEEDED_TABLES = [
   "character_snapshots",
   "character_lookups",
   "leaderboard_fetches",
+  "character_erasures",
+  "archive_garbage",
   "characters",
 ];
 
@@ -187,7 +189,7 @@ export async function seedDatabase(
       faction: identity.faction,
       blizzardCharacterId: identity.blizzardCharacterId,
     }));
-    const ids = await upsertCharacters(client, region, identities);
+    const ids = await upsertCharacters(client, region, identities, new Date());
 
     const idFor = (participation: SeedParticipation): string => {
       const id = ids.get(

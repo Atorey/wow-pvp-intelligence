@@ -421,15 +421,20 @@ export async function lookupCharacter(deps: LookupDeps, ref: CharacterRef): Prom
   try {
     await client.query("begin");
 
-    const idByKey = await upsertCharacters(client, deps.region, [
-      {
-        realmSlug: realm,
-        nameSlug: name,
-        nameDisplay: profile.name ?? ref.nameSlug,
-        faction: profile.faction?.type ?? null,
-        blizzardCharacterId: typeof profile.id === "number" ? profile.id : null,
-      },
-    ]);
+    const idByKey = await upsertCharacters(
+      client,
+      deps.region,
+      [
+        {
+          realmSlug: realm,
+          nameSlug: name,
+          nameDisplay: profile.name ?? ref.nameSlug,
+          faction: profile.faction?.type ?? null,
+          blizzardCharacterId: typeof profile.id === "number" ? profile.id : null,
+        },
+      ],
+      requestedAt,
+    );
 
     const characterId = idByKey.get(identityKey(realm, name));
     if (!characterId) {

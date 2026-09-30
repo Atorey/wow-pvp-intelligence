@@ -24,6 +24,7 @@ import {
   formatUsage,
   mapEquipment,
   mapPvpTalents,
+  markCharactersVerified,
 } from "@wowpvp/blizzard";
 import {
   getBlizzardCredentials,
@@ -548,6 +549,7 @@ async function refreshPair(
   );
 
   let done = 0;
+  const verified: string[] = [];
   for (const candidate of chosen) {
     const parts = await fetchProfileParts(client, {
       realmSlug: candidate.realmSlug,
@@ -557,6 +559,10 @@ async function refreshPair(
     report.profiles++;
     done++;
     if (done % PROGRESS_EVERY === 0) console.log(`   ${done}/${chosen.length}`);
+
+    // Blizzard acaba de devolver su perfil: existe, tenga o no rating en este
+    // bracket (ADR 0043).
+    if (parts.profile.status === 200) verified.push(candidate.characterId);
 
     if (
       parts.profile.status !== 200 ||
@@ -619,6 +625,8 @@ async function refreshPair(
     });
     if (isNew) report.snapshots++;
   }
+
+  await markCharactersVerified(pool, verified, capturedAt);
 }
 
 // --- Reporte ---

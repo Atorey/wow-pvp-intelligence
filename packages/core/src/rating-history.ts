@@ -134,6 +134,29 @@ export function addToRatingHistoryShard(
 }
 
 /**
+ * Quita de un shard todas las series de unos personajes y devuelve cuántas
+ * quitó.
+ *
+ * Es el borrado de quien ya no existe en Blizzard (ADR 0043). Va por
+ * personaje y no por serie porque lo que se borra es la persona entera: todas
+ * sus specs, que en el shard son claves distintas con el mismo prefijo.
+ */
+export function removeCharactersFromShard(
+  target: RatingHistoryShard,
+  characterIds: ReadonlySet<string>,
+): number {
+  let removed = 0;
+  for (const key of [...target.series.keys()]) {
+    const characterId = key.slice(0, key.indexOf("|"));
+    if (characterIds.has(characterId)) {
+      target.series.delete(key);
+      removed++;
+    }
+  }
+  return removed;
+}
+
+/**
  * Qué shards y de qué temporada tocan unas observaciones, agrupadas.
  *
  * La clave es la ruta del objeto: es lo que hay que bajar, fundir y volver a

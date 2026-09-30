@@ -45,6 +45,10 @@ jobs:
       # Detrás del recálculo y no antes: solo se archiva lo que la actividad ya
       # ha visto, y la corrida de arriba es la que la acaba de poner al día.
       - run: npm run pipeline -- archive-snapshots
+      # Detrás del archivado y en el mismo job: los dos escriben en el bucket y
+      # comparten candado (ADR 0043). Casi siempre no hace nada: espera a que un
+      # borrado se acerque a su plazo para recorrer el archivo una vez con todos.
+      - run: npm run pipeline -- purge-archive
       # La serie de cobertura servible (ADR 0032). La corrida de arriba ya
       # imprime la del día; esto es lo que deja ver cómo se mueve, que es la
       # pregunta que no se puede contestar con una sola corrida.

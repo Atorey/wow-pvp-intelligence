@@ -85,6 +85,24 @@ export function getProfileRefreshBudget(): number {
   return parsed;
 }
 
+/**
+ * Presupuesto de peticiones de una corrida de `revalidate-characters` (ADR 0043).
+ *
+ * Una petición por personaje sin prueba de existencia reciente. En régimen son
+ * unos pocos miles al día —quien no sale en el leaderboard, una vez cada 18
+ * días—, pero la primera semana hay atasco: el 30 de septiembre de 2026 eran
+ * 79.000 los que ya pasaban de 30 días. El tope es lo que reparte ese atasco en
+ * varias noches sin quedarse con la cuota por hora del resto del sistema.
+ */
+export function getRevalidationBudget(): number {
+  const raw = process.env["REVALIDATION_BUDGET"];
+  const parsed = raw ? Number(raw) : 20_000;
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error(`REVALIDATION_BUDGET="${raw}" no es un número de peticiones válido.`);
+  }
+  return parsed;
+}
+
 export function getDatabaseUrl(): string {
   return required(
     "DATABASE_URL",

@@ -144,3 +144,32 @@ test("el backfill solo entiende --dry-run", () => {
   assert.deepEqual(parseBackfillOptions(["--dry-run"]), { dryRun: true });
   assert.throws(() => parseBackfillOptions(["--season", "42"]), /Opción desconocida/);
 });
+
+test("el backfill no devuelve al índice a un personaje borrado", async () => {
+  const { fetchFn, objects } = fakeStorage();
+  // Otro personaje del mismo shard, para que el backfill tenga que reescribirlo.
+  const neighbour = "3f000000-0000-4000-8000-000000000000";
+  objects.set(
+    "2026-09-19T05-40-12Z/0001/character_snapshots.ndjson.gz",
+    encodeRows([
+      row(MAGE, "2026-08-14T10:00:00.000Z", 1700),
+      row(neighbour, "2026-08-14T10:00:00.000Z", 1600),
+    ]),
+  );
+  // Ya estaba en el índice antes de borrarse, y la purga todavía no ha pasado.
+  await indexRatingHistory(
+    FAKE_STORAGE,
+    [toObservation(row(MAGE, "2026-09-20T10:00:00Z", 1900))],
+    fetchFn,
+  );
+
+  await backfill(
+    FAKE_STORAGE,
+    [{ object_prefix: "2026-09-19T05-40-12Z/0001", snapshots: 2 }],
+    { dryRun: false },
+    fetchFn,
+    new Set([MAGE]),
+  );
+  assert.equal(await ratings(fetchFn, MAGE, "3f"), undefined);
+  assert.deepEqual(await ratings(fetchFn, neighbour, "3f"), [1600]);
+});
