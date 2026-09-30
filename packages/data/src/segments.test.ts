@@ -249,6 +249,7 @@ describe("readRunPopulation", () => {
         bracket: "shuffle-mage-frost",
         segment_min: 2000,
         population: 500,
+        leaderboard_entries: 5000,
       },
       {
         season_id: 42,
@@ -256,6 +257,7 @@ describe("readRunPopulation", () => {
         bracket: "shuffle-mage-frost",
         segment_min: 2400,
         population: 162,
+        leaderboard_entries: 5000,
       },
       {
         season_id: 42,
@@ -263,6 +265,7 @@ describe("readRunPopulation", () => {
         bracket: "shuffle-priest-holy",
         segment_min: 2000,
         population: 1817,
+        leaderboard_entries: null,
       },
     ]);
 
@@ -277,6 +280,7 @@ describe("readRunPopulation", () => {
         bracket: "shuffle-priest-holy",
         population: 1817,
         segments: [{ segmentMin: 2000, population: 1817 }],
+        leaderboardEntries: null,
       },
       {
         bracket: "shuffle-mage-frost",
@@ -285,6 +289,7 @@ describe("readRunPopulation", () => {
           { segmentMin: 2000, population: 500 },
           { segmentMin: 2400, population: 162 },
         ],
+        leaderboardEntries: 5000,
       },
     ]);
 

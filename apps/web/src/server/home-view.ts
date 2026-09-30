@@ -3,6 +3,7 @@ import {
   HIGH_RATING_FLOOR,
   canShowComparison,
   isHighRating,
+  isLeaderboardCapped,
   medianSegmentOf,
   parseShuffleBracket,
   type RatingSegment,
@@ -73,6 +74,13 @@ export interface SpecRepresentation {
    * inventado sería peor que una celda vacía.
    */
   medianSegment: RatingSegment | null;
+  /**
+   * Si su leaderboard llena el tope de entradas: de esta spec vemos la parte
+   * alta y no la cola, así que `observed` es un suelo y no una medida
+   * (ADR 0045). Se declara y no se corrige: estimar la cola sería inventar
+   * población que nadie ha observado.
+   */
+  capped: boolean;
 }
 
 export interface RepresentationBoard {
@@ -89,6 +97,15 @@ export interface RepresentationBoard {
   rows: SpecRepresentation[];
   /** Cuántas specs trae la corrida: las filas son un recorte de estas. */
   specs: number;
+  /**
+   * Las specs de la corrida que llenan el tope del leaderboard, en el orden de
+   * las filas.
+   *
+   * Son todas las de la corrida y no solo las que caben en el recorte: una spec
+   * recortada que no sale en la portada sigue estando en el denominador de las
+   * ocho que sí, y la nota que lo declara tiene que poder nombrarla.
+   */
+  capped: SpecEntry[];
 }
 
 /**
@@ -115,6 +132,13 @@ export function representationFor(
 
   const highObserved = total(specs.map(({ entry }) => highPopulationOf(entry)));
 
+  const rows = specs
+    .map(({ spec, entry }) => representationOf(spec, entry, { observed, highObserved }))
+    // El empate se deshace por la etiqueta y no por el orden en que llegó la
+    // corrida: dos specs con la misma población tienen que salir siempre en
+    // el mismo orden, o la portada se reordena sola entre dos visitas.
+    .sort((a, b) => b.observed - a.observed || a.spec.label.localeCompare(b.spec.label));
+
   return {
     computedAt: run.computedAt,
     seasonId: run.seasonId,
@@ -122,13 +146,8 @@ export function representationFor(
     highObserved,
     highFloor: HIGH_RATING_FLOOR,
     specs: specs.length,
-    rows: specs
-      .map(({ spec, entry }) => representationOf(spec, entry, { observed, highObserved }))
-      // El empate se deshace por la etiqueta y no por el orden en que llegó la
-      // corrida: dos specs con la misma población tienen que salir siempre en
-      // el mismo orden, o la portada se reordena sola entre dos visitas.
-      .sort((a, b) => b.observed - a.observed || a.spec.label.localeCompare(b.spec.label))
-      .slice(0, options.limit ?? TOP_SPECS),
+    rows: rows.slice(0, options.limit ?? TOP_SPECS),
+    capped: rows.filter((row) => row.capped).map((row) => row.spec),
   };
 }
 
@@ -142,7 +161,13 @@ function representationOf(
   const high = highPopulationOf(entry);
   // La mediana se calcula fuera del umbral del tramo alto: describe a toda la
   // población de la spec, no a la de arriba, así que no se cae con ella.
-  const row = { spec, observed, share, medianSegment: medianSegmentOf(entry.segments) };
+  const row = {
+    spec,
+    observed,
+    share,
+    medianSegment: medianSegmentOf(entry.segments),
+    capped: isLeaderboardCapped(entry.leaderboardEntries),
+  };
 
   // El umbral se pregunta por la muestra de **esta** spec arriba, que es sobre
   // quien se calcularía la cifra. Con el total de la modalidad se publicarían

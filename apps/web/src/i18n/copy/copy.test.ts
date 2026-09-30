@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
+import { LEADERBOARD_CAP } from "@wowpvp/core";
+
 import { LOCALES } from "../locales";
 import { CAUSAL_PATTERNS, allPhrases } from "../voice";
 import { copyFor } from "./index";
@@ -42,6 +44,18 @@ test("el bloque de posición dice el tope del leaderboard en las dos lenguas", (
   // distribución que ese corte recorta.
   assert.match(copyFor("en").spec.ladderCap, /5,000/);
   assert.match(copyFor("es").spec.ladderCap, /5\.000/);
+});
+
+test("lo que declara una spec en el tope escribe el mismo tope que core", () => {
+  // El número está escrito a mano en la frase, con el separador de cada lengua,
+  // porque `Intl` no agrupa los millares en español. Si Blizzard cambia el tope
+  // y alguien lo cambia en core, esto le recuerda que la frase lo dice también.
+  const en = LEADERBOARD_CAP.toLocaleString("en");
+  const es = en.replace(",", ".");
+  assert.ok(copyFor("en").meta.table.cappedNote("A").includes(en));
+  assert.ok(copyFor("es").meta.table.cappedNote("A").includes(es));
+  assert.ok(copyFor("en").spec.figures.capped.includes(en));
+  assert.ok(copyFor("es").spec.figures.capped.includes(es));
 });
 
 /**

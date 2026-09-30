@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { MIN_SAMPLE_MEDIUM, segmentFor, talentSelectionKey } from "@wowpvp/core";
+import { LEADERBOARD_CAP, MIN_SAMPLE_MEDIUM, segmentFor, talentSelectionKey } from "@wowpvp/core";
 import {
   provenanceFor,
   type AdoptionRead,
@@ -204,8 +204,17 @@ describe("el puesto de la spec en la modalidad", () => {
    * trae, aunque el puesto se decida solo con el total: un fixture sin tramos
    * sería una población que no está en ninguna parte.
    */
-  function bracketOf(bracket: string, population: number): BracketPopulation {
-    return { bracket, population, segments: [{ segmentMin: 1800, population }] };
+  function bracketOf(
+    bracket: string,
+    population: number,
+    leaderboardEntries: number | null = null,
+  ): BracketPopulation {
+    return {
+      bracket,
+      population,
+      segments: [{ segmentMin: 1800, population }],
+      leaderboardEntries,
+    };
   }
 
   function run(overrides: Partial<RunPopulationRead> = {}): RunPopulationRead {
@@ -234,7 +243,20 @@ describe("el puesto de la spec en la modalidad", () => {
       population: 4412,
       total: 5000 + 4412 + 1286,
       share: 4412 / (5000 + 4412 + 1286),
+      capped: false,
     });
+  });
+
+  it("dice si la spec llena el tope del leaderboard en esa misma corrida", () => {
+    const overview = specOverviewFor({
+      bracket: "shuffle-mage-frost",
+      segments: FROST,
+      run: run({ brackets: [bracketOf("shuffle-mage-frost", 4412, LEADERBOARD_CAP)] }),
+    });
+
+    // 4.412 observados en un leaderboard de 5.000 entradas: el tope lo deciden
+    // las entradas publicadas, no la población activa que queda de ellas.
+    assert.equal(overview?.standing?.capped, true);
   });
 
   it("un bracket que no es una spec no cuenta ni en el puesto ni en el total", () => {

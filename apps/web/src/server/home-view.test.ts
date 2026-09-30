@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { ALL_SPECS, HIGH_RATING_FLOOR, MIN_SAMPLE_MEDIUM } from "@wowpvp/core";
+import { ALL_SPECS, HIGH_RATING_FLOOR, LEADERBOARD_CAP, MIN_SAMPLE_MEDIUM } from "@wowpvp/core";
 import type { BracketPopulation, RunPopulationRead } from "@wowpvp/data";
 
 import { ALL_SPEC_ROWS, representationFor } from "./home-view";
@@ -8,7 +8,12 @@ import { ALL_SPEC_ROWS, representationFor } from "./home-view";
 const COMPUTED_AT = new Date("2026-09-18T04:00:00Z");
 
 /** Un bracket con su población repartida entre un tramo de abajo y uno de arriba. */
-function bracketOf(bracket: string, below: number, high: number): BracketPopulation {
+function bracketOf(
+  bracket: string,
+  below: number,
+  high: number,
+  leaderboardEntries: number | null = null,
+): BracketPopulation {
   return {
     bracket,
     population: below + high,
@@ -16,6 +21,7 @@ function bracketOf(bracket: string, below: number, high: number): BracketPopulat
       { segmentMin: 1800, population: below },
       { segmentMin: HIGH_RATING_FLOOR, population: high },
     ],
+    leaderboardEntries,
   };
 }
 
@@ -147,6 +153,7 @@ describe("representationFor", () => {
             { segmentMin: 1600, population: 10 },
             { segmentMin: 1800, population: 45 },
           ],
+          leaderboardEntries: null,
         },
       ]),
     );
@@ -181,6 +188,47 @@ describe("representationFor", () => {
     );
 
     assert.equal(board?.rows.length, 3);
+  });
+
+  it("una spec que llena el tope del leaderboard se marca, y su cifra no se corrige", () => {
+    const board = representationFor(
+      run([
+        bracketOf("shuffle-mage-frost", 3000, 800, LEADERBOARD_CAP),
+        bracketOf("shuffle-priest-holy", 900, 100, LEADERBOARD_CAP - 1),
+        bracketOf("shuffle-warrior-arms", 100, 0),
+      ]),
+    );
+
+    const flag = (slug: string) => board?.rows.find((row) => row.spec.specSlug === slug)?.capped;
+    assert.equal(flag("frost"), true);
+    // A una entrada del tope no hay recorte, y sin saber cuántas había tampoco
+    // se afirma: las dos son la medida de siempre.
+    assert.equal(flag("holy"), false);
+    assert.equal(flag("arms"), false);
+    // Se declara, no se corrige: la proporción es la de lo observado.
+    assert.equal(board?.rows[0]?.share, 3800 / 4900);
+  });
+
+  it("la nota nombra las specs en el tope aunque no quepan en el recorte", () => {
+    const board = representationFor(
+      run([
+        bracketOf("shuffle-mage-frost", 500, 0),
+        bracketOf("shuffle-priest-holy", 400, 0),
+        bracketOf("shuffle-warrior-arms", 300, 0, LEADERBOARD_CAP),
+      ]),
+      { limit: 2 },
+    );
+
+    // Arms no sale en la portada pero sí está en su denominador: las dos filas
+    // que salen se reparten un total al que le falta la cola de otra spec.
+    assert.deepEqual(
+      board?.rows.map((row) => row.capped),
+      [false, false],
+    );
+    assert.deepEqual(
+      board?.capped.map((spec) => spec.label),
+      ["Arms Warrior"],
+    );
   });
 
   it("sin corrida, y con una corrida sin nadie, no hay reparto", () => {

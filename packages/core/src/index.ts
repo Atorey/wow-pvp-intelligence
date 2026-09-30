@@ -4,6 +4,7 @@ export * from "./characters";
 export * from "./segments";
 export * from "./confidence";
 export * from "./coverage";
+export * from "./leaderboard";
 export * from "./freshness";
 export * from "./activity";
 export * from "./stats";

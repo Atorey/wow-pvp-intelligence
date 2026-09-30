@@ -119,6 +119,16 @@ export function formatIndex(value: number, locale: Locale): string {
 }
 
 /**
+ * Una enumeración: "Frost Mage, Fire Mage y Arcane Mage".
+ *
+ * `Intl` y no un `join(", ")`, porque la conjunción del final es de cada lengua
+ * y una lista que acaba en coma se lee como cortada.
+ */
+export function formatList(values: readonly string[], locale: Locale): string {
+  return new Intl.ListFormat(locale, { type: "conjunction" }).format(values);
+}
+
+/**
  * La fecha de una observación. Sin hora: lo que importa es de qué día es el
  * dato, y una hora en UTC invita a restarla mentalmente contra la del lector.
  */
