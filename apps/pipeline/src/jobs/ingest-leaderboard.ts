@@ -10,7 +10,7 @@ import {
   segmentFor,
 } from "@wowpvp/core";
 import { LEADERBOARD_DIR, getRegion } from "../config";
-import { identityKey, upsertCharacters } from "@wowpvp/blizzard";
+import { identityKey, writeCharacters } from "@wowpvp/blizzard";
 import { createPool } from "../db/pool";
 import type { LeaderboardFile } from "./fetch-leaderboard";
 
@@ -118,7 +118,13 @@ export async function ingestFile(
     // 1) Identidades. La reconciliación de renombres y transferencias vive en
     //    db/characters.ts: la comparte con la búsqueda bajo demanda, que se topa
     //    con exactamente el mismo caso.
-    const idByKey = await upsertCharacters(
+    //
+    //    Los ids no se piden de vuelta: cada sentencia de abajo los resuelve
+    //    con un `join` contra `characters`. Son unas 114.000 identidades por
+    //    corrida, ocho corridas al día, y bajarlas para volver a subirlas en la
+    //    sentencia siguiente era salida de Supabase sin ningún uso.
+    //    `dedupeEntries` garantiza que cada identidad resuelve a una sola fila.
+    await writeCharacters(
       client,
       region,
       entries.map((e) => ({
@@ -136,15 +142,9 @@ export async function ingestFile(
     // 2) Snapshots: siempre INSERT, nunca UPDATE (modelo append-only, §27).
     //    captured_at = fetchedAt del archivo, no now(): así reingerir el mismo
     //    archivo choca contra el índice único y no duplica población.
-    const rows = entries.flatMap((e) => {
-      const id = idByKey.get(identityKey(e.character.realm.slug, nameSlug(e.character.name)));
-      return id ? [{ id, entry: e }] : [];
-    });
-
-    const skipped = entries.length - rows.length;
-    if (skipped > 0)
-      console.warn(`  ⚠️  ${skipped} entradas sin character_id resoluble (revisar).`);
-
+    const realmSlugs = entries.map((e) => e.character.realm.slug);
+    const nameSlugs = entries.map((e) => nameSlug(e.character.name));
+    //
     //    Y solo entra lo que difiere de la observación anterior del mismo
     //    personaje: sin ese filtro, una publicación entera (5.000 filas) se
     //    escribe porque *otro* jugador del bracket jugó. Medido sobre la
@@ -160,11 +160,16 @@ export async function ingestFile(
     //    siga siendo idempotente en vez de compararse consigo mismo.
     const result = await client.query<{ received: string; redundant: string; inserted: string }>(
       `with incoming as (
-         select * from unnest(
-           $1::uuid[], $2::timestamptz[], $3::text[], $4::int[], $5::text[], $6::text[], $7::text[],
-           $8::int[], $9::int[], $10::int[], $11::int[], $12::int[], $13::int[]
-         ) as t(character_id, captured_at, source, season_id, bracket, class_slug, spec_slug,
-                rating, ladder_rank, matches_played, matches_won, matches_lost, pvp_tier_id)
+         select c.id as character_id, t.*
+           from unnest(
+             $2::text[], $3::text[],
+             $4::timestamptz[], $5::text[], $6::int[], $7::text[], $8::text[], $9::text[],
+             $10::int[], $11::int[], $12::int[], $13::int[], $14::int[], $15::int[]
+           ) as t(realm_slug, name_slug,
+                  captured_at, source, season_id, bracket, class_slug, spec_slug,
+                  rating, ladder_rank, matches_played, matches_won, matches_lost, pvp_tier_id)
+           join characters c
+             on c.region = $1 and c.realm_slug = t.realm_slug and c.name_slug = t.name_slug
        ),
        with_previous as (
          select i.*,
@@ -201,21 +206,28 @@ export async function ingestFile(
               (select count(*) from with_previous where redundant) as redundant,
               (select count(*) from inserted)                      as inserted`,
       [
-        rows.map((r) => r.id),
-        rows.map(() => content.fetchedAt),
-        rows.map(() => "leaderboard"),
-        rows.map(() => content.seasonId),
-        rows.map(() => content.bracket),
-        rows.map(() => spec.classSlug),
-        rows.map(() => spec.specSlug),
-        rows.map((r) => r.entry.rating),
-        rows.map((r) => r.entry.rank),
-        rows.map((r) => r.entry.season_match_statistics?.played ?? null),
-        rows.map((r) => r.entry.season_match_statistics?.won ?? null),
-        rows.map((r) => r.entry.season_match_statistics?.lost ?? null),
-        rows.map((r) => r.entry.tier?.id ?? null),
+        region,
+        realmSlugs,
+        nameSlugs,
+        entries.map(() => content.fetchedAt),
+        entries.map(() => "leaderboard"),
+        entries.map(() => content.seasonId),
+        entries.map(() => content.bracket),
+        entries.map(() => spec.classSlug),
+        entries.map(() => spec.specSlug),
+        entries.map((e) => e.rating),
+        entries.map((e) => e.rank),
+        entries.map((e) => e.season_match_statistics?.played ?? null),
+        entries.map((e) => e.season_match_statistics?.won ?? null),
+        entries.map((e) => e.season_match_statistics?.lost ?? null),
+        entries.map((e) => e.tier?.id ?? null),
       ],
     );
+
+    const counts = result.rows[0];
+    const skipped = entries.length - Number(counts?.received ?? 0);
+    if (skipped > 0)
+      console.warn(`  ⚠️  ${skipped} entradas sin character_id resoluble (revisar).`);
 
     // 3) Presencia: le hemos visto en la lista, cambiara algo o no.
     //
@@ -231,18 +243,20 @@ export async function ingestFile(
     await client.query(
       `insert into character_presence
          (character_id, bracket, season_id, first_seen_at, last_seen_at)
-       select id, $2, $3, $4::timestamptz, $4::timestamptz from unnest($1::uuid[]) as id
+       select c.id, $4, $5, $6::timestamptz, $6::timestamptz
+         from unnest($2::text[], $3::text[]) as u(realm_slug, name_slug)
+         join characters c
+           on c.region = $1 and c.realm_slug = u.realm_slug and c.name_slug = u.name_slug
        on conflict (character_id, bracket, season_id) do update set
          first_seen_at = least(character_presence.first_seen_at, excluded.first_seen_at),
          last_seen_at  = excluded.last_seen_at,
          publications  = character_presence.publications + 1
        where excluded.last_seen_at > character_presence.last_seen_at`,
-      [rows.map((r) => r.id), content.bracket, content.seasonId, content.fetchedAt],
+      [region, realmSlugs, nameSlugs, content.bracket, content.seasonId, content.fetchedAt],
     );
 
     await client.query("commit");
 
-    const counts = result.rows[0];
     return {
       snapshots: Number(counts?.inserted ?? 0),
       redundant: Number(counts?.redundant ?? 0),

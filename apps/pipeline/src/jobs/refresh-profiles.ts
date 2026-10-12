@@ -761,15 +761,26 @@ export async function refreshProfiles(args: string[] = []): Promise<void> {
     }
     console.log(`Temporada ${seasonId}.\n`);
 
-    // La actividad se recalcula antes de elegir a nadie, igual que en el
-    // agregado: decidir a quién bajarle el perfil con la actividad de ayer daría
-    // por activo a quien dejó de jugar y por inactivo a quien acaba de volver.
-    // No gasta cuota, solo lee snapshots.
-    console.log("Ventana de actividad (§27, #16):");
-    printActivitySummary(
-      await rebuildActivity(pool, region, seasonId, now, { dryRun: options.dryRun }),
+    // La actividad se usa la que dejó el último agregado, de hace unas 22 horas
+    // (ADR 0046). Recalcularla baja la serie caliente de cada bracket entera, y
+    // hacerlo también aquí duplicaba la mayor salida diaria de Supabase. Lo que
+    // cuesta es poco: en el borde de una ventana de 7 a 14 días, quien volvió
+    // ayer espera un día más a que le bajen el perfil.
+    //
+    // La excepción es una temporada sin ninguna fila, el estado normal al
+    // empezar: sin actividad no hay candidatos, y la corrida no haría nada sin
+    // que nada lo explicara (ADR 0021, punto 8).
+    const { rows: known } = await pool.query<{ exists: boolean }>(
+      "select exists (select 1 from character_activity where season_id = $1) as exists",
+      [seasonId],
     );
-    console.log("");
+    if (!known[0]?.exists) {
+      console.log("Sin actividad calculada para esta temporada; se calcula ahora (§27, #16):");
+      printActivitySummary(
+        await rebuildActivity(pool, region, seasonId, now, { dryRun: options.dryRun }),
+      );
+      console.log("");
+    }
 
     const all = await loadCandidates(pool, region, seasonId, cutoff);
     const brackets = options.specs ? new Set(options.specs.map(shuffleBracketId)) : null;

@@ -489,44 +489,9 @@ async function loadProfiles(
     [region, seasonId, cutoff],
   );
 
-  const { rows: gear } = await pool.query<{
-    snapshot_id: string;
-    slot: string;
-    item_id: string;
-    item_name: string | null;
-    gem_item_ids: number[];
-    gem_item_names: (string | null)[];
-    enchantment_ids: number[];
-    enchantment_names: (string | null)[];
-  }>(
-    `select g.snapshot_id, g.slot, g.item_id, g.item_name,
-            g.gem_item_ids, g.gem_item_names, g.enchantment_ids, g.enchantment_names
-       from character_snapshot_gear_slots g
-      where g.snapshot_id = any($1::bigint[])`,
-    [snapshots.map((row) => row.id)],
-  );
-
-  // Misma forma que la consulta de gear: los nodos cuelgan del snapshot, y se
-  // piden en bloque para los snapshots que ya sabemos que entran. Las etiquetas
-  // llegan por referencia (ADR 0035), así que la fila por árbol se vuelve a
-  // abrir en una selección por nodo antes de agregarse. El talento elegido
-  // viaja con ella porque es la unidad (ADR 0044), y el rango no se pide porque
-  // no se agrega (ADR 0026).
-  const { rows: talentRows } = await pool.query<{
-    snapshot_id: string;
-    tree: string;
-    node_id: number;
-    selected_talent_id: number | null;
-    talent_name: string | null;
-  }>(
-    `select t.snapshot_id, t.tree, lab.node_id, lab.talent_id as selected_talent_id,
-            lab.name as talent_name
-       from character_snapshot_talent_trees t
-       cross join lateral unnest(t.label_ids) as sel(label_id)
-       join talent_labels lab on lab.id = sel.label_id
-      where t.snapshot_id = any($1::bigint[])`,
-    [snapshots.map((row) => row.id)],
-  );
+  const snapshotIds = snapshots.map((row) => row.id);
+  const gear = await loadGearRows(pool, snapshotIds);
+  const talentRows = await loadTalentRows(pool, snapshotIds);
 
   // Nodos y talentos PvP se separan aquí y no en la consulta porque tienen
   // denominadores distintos: un snapshot puede traer el loadout entero y no los
@@ -594,6 +559,112 @@ async function loadProfiles(
   }));
 
   return { profiles, itemNames };
+}
+
+interface GearRow {
+  snapshot_id: string;
+  slot: string;
+  item_id: string;
+  item_name: string | null;
+  gem_item_ids: number[];
+  gem_item_names: (string | null)[];
+  enchantment_ids: number[];
+  enchantment_names: (string | null)[];
+}
+
+/**
+ * El gear de unos snapshots, una fila por slot: lo que daría la vista
+ * `character_snapshot_gear_slots`, pero armado aquí.
+ *
+ * Se arma aquí porque lo que cuesta es el viaje, no la consulta. La vista
+ * repite cada pieza con sus nombres en cada snapshot que la lleva, y con 17.000
+ * perfiles eso eran unos 45 MB de salida de Supabase al día, una cuota que se
+ * cobra por byte. Por referencia (ADR 0040) cada pieza viaja una vez.
+ */
+async function loadGearRows(pool: pg.Pool, snapshotIds: readonly string[]): Promise<GearRow[]> {
+  const { rows: refs } = await pool.query<{ snapshot_id: string; piece_ids: number[] }>(
+    `select snapshot_id, piece_ids from character_snapshot_gear
+      where snapshot_id = any($1::bigint[])`,
+    [snapshotIds],
+  );
+  const { rows: pieces } = await pool.query<Omit<GearRow, "snapshot_id"> & { id: number }>(
+    `select id, slot, item_id, item_name,
+            gem_item_ids, gem_item_names, enchantment_ids, enchantment_names
+       from gear_pieces
+      where id = any($1::int[])`,
+    [[...new Set(refs.flatMap((ref) => ref.piece_ids))]],
+  );
+  const byId = new Map(pieces.map(({ id, ...piece }) => [id, piece]));
+
+  // Una referencia sin pieza se salta, como la saltaba el `join` de la vista.
+  return refs.flatMap((ref) =>
+    ref.piece_ids.flatMap((pieceId) => {
+      const piece = byId.get(pieceId);
+      return piece ? [{ snapshot_id: ref.snapshot_id, ...piece }] : [];
+    }),
+  );
+}
+
+interface TalentRow {
+  snapshot_id: string;
+  tree: string;
+  node_id: number;
+  selected_talent_id: number | null;
+  talent_name: string | null;
+}
+
+/**
+ * Los talentos de unos snapshots, una fila por selección. Misma forma que el
+ * gear: los nodos cuelgan del snapshot, y se piden en bloque para los snapshots
+ * que ya sabemos que entran.
+ *
+ * Y mismo motivo para no abrirlos en la base: un perfil son unas noventa
+ * selecciones, cada una con su nombre, y abiertas allí eran la mayor salida
+ * diaria de Supabase. Por referencia viaja cada conjunto una vez (ADR 0040) y
+ * cada etiqueta una vez (ADR 0035), y se abren aquí. El talento elegido viaja
+ * con la etiqueta porque es la unidad (ADR 0044), y el rango no se pide porque
+ * no se agrega (ADR 0026).
+ */
+async function loadTalentRows(pool: pg.Pool, snapshotIds: readonly string[]): Promise<TalentRow[]> {
+  const { rows: refs } = await pool.query<{ snapshot_id: string; set_ids: number[] }>(
+    `select snapshot_id, set_ids from character_snapshot_talents
+      where snapshot_id = any($1::bigint[])`,
+    [snapshotIds],
+  );
+  const { rows: sets } = await pool.query<{ id: number; tree: string; label_ids: number[] }>(
+    `select id, tree, label_ids from talent_sets where id = any($1::int[])`,
+    [[...new Set(refs.flatMap((ref) => ref.set_ids))]],
+  );
+  const { rows: labels } = await pool.query<{
+    id: number;
+    node_id: number;
+    talent_id: number | null;
+    name: string | null;
+  }>(`select id, node_id, talent_id, name from talent_labels where id = any($1::int[])`, [
+    [...new Set(sets.flatMap((set) => set.label_ids))],
+  ]);
+  const setById = new Map(sets.map((set) => [set.id, set]));
+  const labelById = new Map(labels.map((label) => [label.id, label]));
+
+  return refs.flatMap((ref) =>
+    ref.set_ids.flatMap((setId) => {
+      const set = setById.get(setId);
+      if (!set) return [];
+      return set.label_ids.flatMap((labelId) => {
+        const label = labelById.get(labelId);
+        if (!label) return [];
+        return [
+          {
+            snapshot_id: ref.snapshot_id,
+            tree: set.tree,
+            node_id: label.node_id,
+            selected_talent_id: label.talent_id,
+            talent_name: label.name,
+          },
+        ];
+      });
+    }),
+  );
 }
 
 // --- Cálculo ---

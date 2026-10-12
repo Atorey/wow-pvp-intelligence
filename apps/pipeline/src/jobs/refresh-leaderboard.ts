@@ -4,7 +4,7 @@ import type pg from "pg";
 import { LEADERBOARD_DIR, getLeaderboardRetentionDays } from "../config";
 import { createPool } from "../db/pool";
 import { fetchLeaderboardBatch, printBatch, type FetchedLeaderboard } from "./fetch-leaderboard";
-import { ingestFile, printDistribution } from "./ingest-leaderboard";
+import { ingestFile } from "./ingest-leaderboard";
 
 /**
  * Job programado del leaderboard (§28 del plan): descarga e ingesta en la misma
@@ -303,9 +303,11 @@ export async function refreshLeaderboard(): Promise<void> {
     const pruned = prune(new Date(batch.fetchedAt));
     if (pruned > 0) console.log(`Retención: ${pruned} archivo(s) antiguos borrados de disco.`);
 
-    // La distribución solo cambia si entró población nueva; imprimirla en cada
-    // corrida llenaría el log del job con la misma tabla ocho veces al día.
-    if (changedCount > 0) await printDistribution(pool);
+    // La distribución por segmento no se imprime aquí: se calculaba bajando la
+    // última fila de cada serie, unas 150.000, ocho veces al día, y era salida
+    // de Supabase por un listado de log. Y contaba a todo el que se ha visto, no
+    // a los activos: el n que decide la confianza lo imprime refresh-aggregates
+    // cada día. La ingesta manual (`ingest-leaderboard`) la sigue enseñando.
 
     await printCadence(pool, batch.region);
 
