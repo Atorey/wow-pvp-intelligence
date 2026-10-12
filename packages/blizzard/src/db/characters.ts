@@ -52,6 +52,35 @@ export async function upsertCharacters(
   verifiedAt: Date | string,
 ): Promise<Map<string, string>> {
   if (identities.length === 0) return new Map();
+  await writeCharacters(client, region, identities, verifiedAt);
+
+  const idRows = await client.query<{ id: string; realm_slug: string; name_slug: string }>(
+    `select c.id, c.realm_slug, c.name_slug
+     from unnest($2::text[], $3::text[]) as u(realm_slug, name_slug)
+     join characters c on c.region = $1 and c.realm_slug = u.realm_slug and c.name_slug = u.name_slug`,
+    [region, identities.map((i) => i.realmSlug), identities.map((i) => i.nameSlug)],
+  );
+
+  return new Map(idRows.rows.map((r) => [identityKey(r.realm_slug, r.name_slug), r.id]));
+}
+
+/**
+ * La mitad de `upsertCharacters` que escribe, sin devolver los ids.
+ *
+ * Existe para quien puede resolverlos dentro de la base con un `join` por
+ * `(region, realm_slug, name_slug)`: la ingesta del leaderboard trae unas
+ * 114.000 identidades ocho veces al día, y bajarse sus ids para volver a
+ * subirlos en la sentencia siguiente era salida de Supabase pagada por nada.
+ * Las mismas condiciones que `upsertCharacters`: transacción abierta y
+ * `verifiedAt` de la fuente.
+ */
+export async function writeCharacters(
+  client: pg.PoolClient,
+  region: string,
+  identities: readonly CharacterIdentity[],
+  verifiedAt: Date | string,
+): Promise<void> {
+  if (identities.length === 0) return;
 
   const realmSlugs = identities.map((i) => i.realmSlug);
   const nameSlugs = identities.map((i) => i.nameSlug);
@@ -176,16 +205,6 @@ export async function upsertCharacters(
       verifiedAt,
     ],
   );
-
-  // 2) Resolver los ids recién insertados/actualizados.
-  const idRows = await client.query<{ id: string; realm_slug: string; name_slug: string }>(
-    `select c.id, c.realm_slug, c.name_slug
-     from unnest($2::text[], $3::text[]) as u(realm_slug, name_slug)
-     join characters c on c.region = $1 and c.realm_slug = u.realm_slug and c.name_slug = u.name_slug`,
-    [region, realmSlugs, nameSlugs],
-  );
-
-  return new Map(idRows.rows.map((r) => [identityKey(r.realm_slug, r.name_slug), r.id]));
 }
 
 /**

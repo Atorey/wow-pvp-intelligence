@@ -1,6 +1,6 @@
 # ADR 0021 — La base de comparación se mantiene con un job diario de presupuesto declarado, no con muestreos a mano
 
-**Fecha**: 26 de agosto de 2026 · **Estado**: aceptada (issue #66; implementa las decisiones 4-6 del [ADR 0010](0010-cobertura-por-segmento.md))
+**Fecha**: 26 de agosto de 2026 · **Estado**: aceptada (issue #66; implementa las decisiones 4-6 del [ADR 0010](0010-cobertura-por-segmento.md)) · Su punto 8 lo revisa el [ADR 0046](0046-el-pipeline-no-baja-lo-que-no-usa.md)
 
 ## Contexto
 
