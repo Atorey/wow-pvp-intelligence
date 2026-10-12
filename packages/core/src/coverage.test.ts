@@ -23,6 +23,28 @@ function segment(overrides: Partial<SegmentCoverageInput> = {}): SegmentCoverage
   };
 }
 
+test("en arena el par se empareja dentro de la misma spec, no del bracket", () => {
+  // Un bracket de arena lleva las cuarenta specs (ADR 0048): el objetivo de un
+  // Frost Mage de 3v3 es el Frost Mage de arriba, no cualquier fila del bracket.
+  const arena = { bracket: "3v3" };
+  const pairs = buildCoverage([
+    segment({ ...arena, segmentMin: 2000, sampleSize: 40, gearSample: 40 }),
+    segment({
+      ...arena,
+      classSlug: "paladin",
+      specSlug: "holy",
+      segmentMin: 2200,
+      sampleSize: 90,
+      gearSample: 90,
+    }),
+  ]);
+
+  const frost = pairs.find((pair) => pair.specSlug === "frost");
+  assert.equal(frost?.target.id, "2200-2400");
+  assert.equal(frost?.targetSampleSize, 0);
+  assert.equal(frost?.targetGearSample, 0);
+});
+
 test("el par empareja cada escalón con el inmediatamente superior", () => {
   const pairs = buildCoverage([
     segment({ segmentMin: 1600, sampleSize: 200, gearSample: 10 }),

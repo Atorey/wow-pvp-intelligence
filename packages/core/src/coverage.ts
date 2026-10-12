@@ -68,8 +68,13 @@ export interface CoveragePair {
   targetWindow: ActivityWindowDays | null;
 }
 
-function pairKey(bracket: string, segmentId: string): string {
-  return `${bracket}|${segmentId}`;
+/**
+ * La spec entra en la clave aunque en Solo Shuffle la nombre el bracket: en
+ * 2v2 y 3v3 el bracket lleva las cuarenta dentro (ADR 0048), y emparejar por
+ * bracket le daría a un Frost Mage el objetivo de un Holy Paladin.
+ */
+function pairKey(segment: SegmentCoverageInput, segmentId: string): string {
+  return `${segment.bracket}|${segment.classSlug}|${segment.specSlug}|${segmentId}`;
 }
 
 /**
@@ -87,7 +92,7 @@ export function buildCoverage(
 ): CoveragePair[] {
   const byKey = new Map<string, SegmentCoverageInput>();
   for (const segment of segments) {
-    byKey.set(pairKey(segment.bracket, segmentFor(segment.segmentMin, scale).id), segment);
+    byKey.set(pairKey(segment, segmentFor(segment.segmentMin, scale).id), segment);
   }
 
   const pairs: CoveragePair[] = [];
@@ -98,7 +103,7 @@ export function buildCoverage(
     const target = nextSegment(subject, scale);
     if (!target) continue;
 
-    const above = byKey.get(pairKey(segment.bracket, target.id));
+    const above = byKey.get(pairKey(segment, target.id));
     pairs.push({
       bracket: segment.bracket,
       classSlug: segment.classSlug,
@@ -112,7 +117,13 @@ export function buildCoverage(
     });
   }
 
-  return pairs.sort((a, b) => a.bracket.localeCompare(b.bracket) || a.subject.min - b.subject.min);
+  return pairs.sort(
+    (a, b) =>
+      a.bracket.localeCompare(b.bracket) ||
+      a.classSlug.localeCompare(b.classSlug) ||
+      a.specSlug.localeCompare(b.specSlug) ||
+      a.subject.min - b.subject.min,
+  );
 }
 
 /**

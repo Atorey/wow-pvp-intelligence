@@ -6,6 +6,7 @@ import {
   coverageOf,
   parseOptions,
   selectByWindow,
+  splitMembers,
   type ActiveRow,
   type Member,
   type ProfileRow,
@@ -77,6 +78,8 @@ test("el rating es del snapshot más reciente y el gear del último perfil", () 
     {
       characterId: "a",
       bracket: "shuffle-mage-frost",
+      classSlug: "mage",
+      specSlug: "frost",
       capturedAt: daysAgo(5),
       equippedItemLevel: 630,
       averageItemLevel: 634,
@@ -121,6 +124,8 @@ test("un perfil anterior al ADR 0026 tiene código pero no nodos", () => {
     {
       characterId: "a",
       bracket: "shuffle-mage-frost",
+      classSlug: "mage",
+      specSlug: "frost",
       capturedAt: daysAgo(1),
       equippedItemLevel: 630,
       averageItemLevel: 632,
@@ -144,6 +149,8 @@ test("el perfil se pega al mismo personaje en el mismo bracket, no en otro", () 
     {
       characterId: "a",
       bracket: "shuffle-mage-fire",
+      classSlug: "mage",
+      specSlug: "fire",
       capturedAt: daysAgo(2),
       equippedItemLevel: 640,
       averageItemLevel: 640,
@@ -258,9 +265,9 @@ test("el tramo abierto de arriba no finge un máximo", () => {
 test("los personajes que solo vienen de búsqueda se cuentan aparte, no dentro", () => {
   const members = [member({ characterId: "ladder", rating: 1900 })];
   const searchOnly = [
-    { bracket: "shuffle-mage-frost", rating: 1850 },
-    { bracket: "shuffle-mage-frost", rating: 1950 },
-    { bracket: "shuffle-mage-frost", rating: 2100 },
+    { bracket: "shuffle-mage-frost", classSlug: "mage", specSlug: "frost", rating: 1850 },
+    { bracket: "shuffle-mage-frost", classSlug: "mage", specSlug: "frost", rating: 1950 },
+    { bracket: "shuffle-mage-frost", classSlug: "mage", specSlug: "frost", rating: 2100 },
   ];
 
   const segments = computeSegments(members, searchOnly, NOW, null);
@@ -378,4 +385,109 @@ test("un segmento sin nadie encima deja el par a cero en vez de desaparecer", ()
   assert.equal(pair?.targetSampleSize, 0);
   assert.equal(pair?.targetGearSample, 0);
   assert.equal(pair?.targetWindow, null);
+});
+
+// --- Arena (ADR 0048) ---
+
+function arenaProfile(characterId: string, classSlug: string, specSlug: string): ProfileRow {
+  return {
+    characterId,
+    bracket: "3v3",
+    classSlug,
+    specSlug,
+    capturedAt: daysAgo(2),
+    equippedItemLevel: 640,
+    averageItemLevel: 640,
+    talentLoadoutCode: null,
+    talents: null,
+    pvpTalents: null,
+    heroTalentTree: null,
+    gearBySlot: new Map([["HEAD", 9]]),
+    gems: [],
+    enchantments: [],
+  };
+}
+
+const ARENA_ROW = { bracket: "3v3", classSlug: null, specSlug: null } as const;
+
+test("en arena la spec la pone el perfil del mismo bracket, y sin él no hay spec", () => {
+  const { members, withoutSpec } = splitMembers(
+    [
+      active({ characterId: "con-perfil", ...ARENA_ROW }),
+      active({ characterId: "sin-perfil", ...ARENA_ROW }),
+      // El perfil de su Solo Shuffle no dice con qué spec juega 3v3.
+      active({ characterId: "solo-shuffle", ...ARENA_ROW }),
+    ],
+    [
+      arenaProfile("con-perfil", "shaman", "restoration"),
+      { ...arenaProfile("solo-shuffle", "mage", "frost"), bracket: "shuffle-mage-frost" },
+    ],
+  );
+
+  assert.deepEqual(
+    members.map((m) => [m.characterId, m.classSlug, m.specSlug]),
+    [["con-perfil", "shaman", "restoration"]],
+  );
+  assert.deepEqual(
+    withoutSpec.map((row) => row.characterId),
+    ["sin-perfil", "solo-shuffle"],
+  );
+});
+
+test("en Solo Shuffle la spec sigue siendo la del bracket, con perfil o sin él", () => {
+  const { members, withoutSpec } = splitMembers([active({ characterId: "a" })], []);
+  assert.equal(members[0]?.specSlug, "frost");
+  assert.equal(withoutSpec.length, 0);
+});
+
+test("un tramo de arena se parte por spec y declara cuántos quedan sin ella", () => {
+  const arena = { bracket: "3v3", rating: 2050 } as const;
+  const members = [
+    member({ characterId: "f1", ...arena, classSlug: "mage", specSlug: "frost" }),
+    member({ characterId: "f2", ...arena, classSlug: "mage", specSlug: "frost" }),
+    member({ characterId: "h1", ...arena, classSlug: "paladin", specSlug: "holy" }),
+  ];
+  const withoutSpec = [
+    active({ characterId: "x1", ...ARENA_ROW, rating: 2010 }),
+    active({ characterId: "x2", ...ARENA_ROW, rating: 2190 }),
+    active({ characterId: "x3", ...ARENA_ROW, rating: 2300 }),
+  ];
+
+  const segments = computeSegments(members, [], NOW, null, new Map(), withoutSpec);
+
+  assert.deepEqual(
+    segments.map((s) => [s.specSlug, s.segmentId, s.summary.sampleSize, s.withoutSpec]),
+    [
+      ["frost", "2000-2200", 2, 2],
+      ["holy", "2000-2200", 1, 2],
+    ],
+  );
+});
+
+test("en Solo Shuffle no hay población sin spec que declarar", () => {
+  const [segment] = computeSegments([member({ characterId: "a" })], [], NOW, null);
+  assert.equal(segment?.withoutSpec, null);
+});
+
+test("en arena solo se guarda la variable que se puede servir", () => {
+  // Doce perfiles no sostienen ninguna comparación (canShowComparison): en
+  // arena sus variables no se escriben. En Solo Shuffle sí, como siempre.
+  const crowd = (bracket: string, count: number): Member[] =>
+    Array.from({ length: count }, (_, i) =>
+      member({
+        characterId: `${bracket}-${i}`,
+        bracket,
+        profileCapturedAt: daysAgo(2),
+        gearBySlot: new Map([["HEAD", 9]]),
+      }),
+    );
+
+  const [small] = computeSegments(crowd("3v3", 12), [], NOW, null);
+  const [servible] = computeSegments(crowd("3v3", 30), [], NOW, null);
+  const [shuffle] = computeSegments(crowd("shuffle-mage-frost", 12), [], NOW, null);
+
+  assert.equal(small?.summary.gearSample, 12);
+  assert.deepEqual(small?.variables, []);
+  assert.ok((servible?.variables.length ?? 0) > 0);
+  assert.ok((shuffle?.variables.length ?? 0) > 0);
 });

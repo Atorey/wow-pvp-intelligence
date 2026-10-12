@@ -22,11 +22,10 @@ export const SPECS_TO_INGEST: readonly SpecEntry[] = ALL_SPECS;
  * propio bracket.
  *
  * La arena se ingiere desde el ADR 0048, pero sus filas de leaderboard no
- * tienen spec. Las consultas que todavía no saben darle una filtran con esto: sin
- * el filtro, `refresh-aggregates` etiquetaría el bracket `3v3` con la spec de su
- * primer miembro. `refresh-profiles` la mete aparte, nombrando los brackets de
- * arena encendidos, porque su spec la pone el perfil (ADR 0049). Filtrar en la
- * consulta, y no después, es además lo que evita bajar de Postgres filas que
- * nadie va a usar.
+ * tienen spec, y solo entra donde el interruptor la encienda. Por eso los jobs
+ * que la tratan —`refresh-profiles` y `refresh-aggregates`— filtran con esto más
+ * los brackets de arena encendidos, nombrados uno a uno, en vez de leer cualquier
+ * bracket que haya en la ventana. Filtrar en la consulta, y no después, es además
+ * lo que evita bajar de Postgres filas que nadie va a usar.
  */
 export const SHUFFLE_BRACKETS_LIKE = "shuffle-%";
