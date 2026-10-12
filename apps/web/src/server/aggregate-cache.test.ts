@@ -46,7 +46,13 @@ function row(computedAt: Date, id = "41"): QueryRow {
 }
 
 /** Cada test usa su propio bracket: la caché es un módulo y vive entre tests. */
-const key = (bracket: string) => ({ region: "eu" as const, seasonId: 42, bracket });
+const key = (bracket: string) => ({
+  region: "eu" as const,
+  seasonId: 42,
+  bracket,
+  classSlug: "mage",
+  specSlug: "frost",
+});
 
 describe("la caché de agregados por proceso", () => {
   it("no vuelve a la base mientras la corrida siga siendo la última", async () => {

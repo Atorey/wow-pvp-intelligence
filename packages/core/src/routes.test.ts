@@ -4,6 +4,8 @@ import { test } from "node:test";
 import {
   BRACKET_SLUGS,
   bracketIdFor,
+  bracketSlugFor,
+  isArenaSlug,
   isRegion,
   METHODOLOGY_PATH,
   METHODOLOGY_SECTIONS,
@@ -75,12 +77,23 @@ test("la modalidad de la URL se traduce al bracket que guarda la BD", () => {
     bracketIdFor("solo-shuffle", requireSpec("death-knight", "frost")),
     "shuffle-deathknight-frost",
   );
+  // En arena el bracket no lleva la spec (ADR 0048): la columna es la modalidad.
+  assert.equal(bracketIdFor("3v3", requireSpec("mage", "frost")), "3v3");
 });
 
-test("el MVP publica una sola modalidad", () => {
-  // §25 del plan: una modalidad. Ampliar la lista es abrir rutas nuevas, no
-  // cambiar una constante, así que conviene que rompa aquí.
-  assert.deepEqual([...BRACKET_SLUGS], ["solo-shuffle"]);
+test("el bracket de la BD se traduce de vuelta a su modalidad, sin la spec", () => {
+  assert.equal(bracketSlugFor("shuffle-deathknight-frost"), "solo-shuffle");
+  assert.equal(bracketSlugFor("2v2"), "2v2");
+  assert.equal(bracketSlugFor("rbg"), undefined);
+  assert.equal(bracketSlugFor("shuffle-overall"), undefined);
+});
+
+test("el catálogo sabe publicar Solo Shuffle y la arena, y nada más", () => {
+  // Ampliar la lista es abrir rutas nuevas, no cambiar una constante, así que
+  // conviene que rompa aquí. Qué arena se enseña lo decide el interruptor.
+  assert.deepEqual([...BRACKET_SLUGS], ["solo-shuffle", "2v2", "3v3"]);
+  assert.equal(isArenaSlug("3v3"), true);
+  assert.equal(isArenaSlug("solo-shuffle"), false);
 });
 
 test("una ruta de perfil ya canónica se sirve tal cual", () => {
@@ -192,7 +205,7 @@ test("el tramo abierto escrito con + redirige a su slug", () => {
 
 test("lo que no está en el catálogo no es una ruta", () => {
   assert.equal(resolveSpecRoute({ spec: "mage-frost" }).status, "unknown");
-  assert.equal(resolveSpecRoute({ spec: "frost-mage", bracket: "2v2" }).status, "unknown");
+  assert.equal(resolveSpecRoute({ spec: "frost-mage", bracket: "rbg" }).status, "unknown");
   assert.equal(
     resolveSpecRoute({ spec: "frost-mage", bracket: "solo-shuffle", segment: "2010-2190" }).status,
     "unknown",
@@ -250,7 +263,8 @@ test("el meta resuelve su modalidad y corrige la caja sin adivinar la que no est
   assert.equal(written.status, "redirect");
   assert.equal(written.status === "redirect" && written.path, "/meta/solo-shuffle");
 
-  // Una modalidad que no publicamos no redirige a la que sí: diría cifras de
-  // Solo Shuffle bajo una dirección que promete otra cosa.
-  assert.equal(resolveMetaRoute({ bracket: "3v3" }).status, "unknown");
+  // Una modalidad que no está en el catálogo no redirige a la que sí: diría
+  // cifras de otra modalidad bajo una dirección que promete otra cosa.
+  assert.equal(resolveMetaRoute({ bracket: "rbg" }).status, "unknown");
+  assert.equal(resolveMetaRoute({ bracket: "3v3" }).status, "canonical");
 });

@@ -1,6 +1,6 @@
 import type { MethodologyDocument, Thresholds } from "./en";
 
-export function es(t: Thresholds): MethodologyDocument {
+export function es(t: Thresholds, arena: string | null): MethodologyDocument {
   return {
     title: "Metodología",
     lead: "De dónde salen los datos, cómo se calculan los segmentos y los percentiles, y qué significa cada nivel de confianza.",
@@ -9,7 +9,9 @@ export function es(t: Thresholds): MethodologyDocument {
       sources: {
         heading: "De dónde salen los datos",
         paragraphs: [
-          "Cada cifra de este sitio viene de las Blizzard® Developer APIs, la interfaz pública que Blizzard Entertainment, Inc. publica de World of Warcraft®. Trabajan dos endpoints: el leaderboard de Solo Shuffle, que lista la parte alta de la clasificación por especialización, y el perfil de personaje, que devuelve el equipo y los talentos con los que se vio al personaje por última vez.",
+          arena === null
+            ? "Cada cifra de este sitio viene de las Blizzard® Developer APIs, la interfaz pública que Blizzard Entertainment, Inc. publica de World of Warcraft®. Trabajan dos endpoints: el leaderboard de Solo Shuffle, que lista la parte alta de la clasificación por especialización, y el perfil de personaje, que devuelve el equipo y los talentos con los que se vio al personaje por última vez."
+            : `Cada cifra de este sitio viene de las Blizzard® Developer APIs, la interfaz pública que Blizzard Entertainment, Inc. publica de World of Warcraft®. Trabajan dos tipos de endpoint: los leaderboards —el de Solo Shuffle, que lista la parte alta de la clasificación por especialización, y los de ${arena}, uno por modalidad para todas las especializaciones juntas— y el perfil de personaje, que devuelve el equipo y los talentos con los que se vio al personaje por última vez.`,
           "Aquí no hay nada que venga de un addon, de un parseador de logs ni de una página raspada de otro sitio, y ninguna cifra se teclea a mano. Un número que la API no devuelve es un número que este sitio no tiene.",
           "One Rung no está afiliado a Blizzard Entertainment, Inc. ni cuenta con su respaldo ni con su patrocinio. El dato llega como llega, y así es como sale.",
         ],
@@ -22,6 +24,11 @@ export function es(t: Thresholds): MethodologyDocument {
           "El leaderboard publica 5.000 personajes por especialización y modalidad. Dónde cae ese corte se mueve con la temporada: en una madura, las especializaciones más jugadas llenan sus 5.000 plazas muy por encima de los ratings bajos, y los personajes de debajo no entran nunca por la vía de la clasificación. De ahí el buscador: un personaje consultado aquí se suma a la población observada.",
           "Consultar a alguien, eso sí, no mueve los porcentajes. Las observaciones que llegan por búsqueda se guardan y se cuentan aparte, fuera de los agregados, de modo que una especialización no puede parecer más común solo porque quien lee sobre ella haya ido a buscarla.",
           `La posición dentro de una especialización es un recuento y no una estimación: cuántos personajes observados de esa especialización quedan por debajo de un rating, sobre cuántos se observaron en total. El percentil es una etiqueta encima de esa fracción, y solo aparece cuando la modalidad llega a ${t.medium} personajes observados. Por debajo sale la fracción sola.`,
+          ...(arena === null
+            ? []
+            : [
+                `En ${arena} el bracket no nombra la especialización, y ni el leaderboard ni el endpoint del bracket la devuelven. La especialización de un personaje ahí es la que llevaba puesta cuando se le bajó el perfil, que puede no ser con la que juega esa modalidad. Quien no tiene un perfil reciente cuenta en su tramo de rating pero en ninguna especialización, y las páginas dicen cuántos son. Por lo mismo, la posición en ${arena} cuenta la modalidad entera, todas las especializaciones juntas, y no hay reparto de la modalidad por especialización: quién tiene perfil depende de nuestro muestreo, y una proporción por especialización mediría eso.`,
+              ]),
         ],
       },
 

@@ -5,6 +5,7 @@ import {
   adoptionChange,
   canShowComparison,
   confidenceFor,
+  isArenaBracket,
   isLeaderboardCapped,
   medianSegmentOf,
   parseShuffleBracket,
@@ -64,8 +65,17 @@ export interface SpecOverview {
   observed: number;
   highestRating: number | null;
   medianSegment: RatingSegment | null;
-  /** `null` cuando no se puede afirmar con la misma corrida que los tramos. */
+  /**
+   * `null` cuando no se puede afirmar con la misma corrida que los tramos, y
+   * siempre en arena, donde el reparto por spec mide el muestreo tanto como la
+   * modalidad (ADR 0048).
+   */
   standing: SpecStanding | null;
+  /**
+   * En arena, cuántos activos de los tramos de esta tabla no tienen spec
+   * conocida y no están en ella (ADR 0048). `null` en Solo Shuffle.
+   */
+  withoutSpec: number | null;
   /** De arriba abajo, que es como se lee una escalera. */
   rows: SegmentRowView[];
 }
@@ -102,6 +112,7 @@ export function specOverviewFor(input: {
     highestRating: maxima.length > 0 ? Math.max(...maxima) : null,
     medianSegment: medianSegment(populated),
     standing: standingIn(input.run, input.bracket, computedAt),
+    withoutSpec: withoutSpecOf(populated),
     rows: [...populated]
       .sort((a, b) => b.segment.min - a.segment.min)
       .map((row) => ({
@@ -158,6 +169,9 @@ function standingIn(
   computedAt: Date,
 ): SpecStanding | null {
   if (!run || run.computedAt.getTime() !== computedAt.getTime()) return null;
+  // En arena no hay puesto: la población de cada spec depende de a quién se le
+  // ha bajado el perfil, y su parte del bracket mediría eso (ADR 0048).
+  if (isArenaBracket(bracket)) return null;
 
   const specs = run.brackets
     .filter((entry) => parseShuffleBracket(entry.bracket) !== undefined)
@@ -175,6 +189,15 @@ function standingIn(
     share: own.population / all,
     capped: isLeaderboardCapped(own.leaderboardEntries),
   };
+}
+
+/**
+ * Los activos sin spec de los tramos de la tabla. Cada fila trae la cifra de su
+ * tramo, que es del bracket y no de la spec, así que se suma una por tramo.
+ */
+function withoutSpecOf(segments: readonly SegmentRead[]): number | null {
+  const counts = segments.flatMap((row) => (row.withoutSpec === null ? [] : [row.withoutSpec]));
+  return counts.length === 0 ? null : total(counts);
 }
 
 /**

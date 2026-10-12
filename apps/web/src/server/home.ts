@@ -3,8 +3,10 @@ import {
   ACTIVITY_WINDOWS,
   ALL_SPECS,
   activityWindowStart,
+  isArenaSlug,
   shuffleBracketId,
   type ActivityWindowDays,
+  type ArenaBracket,
   type Region,
 } from "@wowpvp/core";
 import type { ActiveCharactersRead, RunPopulationRead } from "@wowpvp/data";
@@ -15,6 +17,7 @@ import { getDb } from "./db";
 import "./env";
 import { representationFor, type RepresentationBoard } from "./home-view";
 import { logServerEvent } from "./log";
+import { publishedBrackets } from "./published";
 
 /**
  * Lo que la portada necesita de Postgres.
@@ -50,6 +53,11 @@ export type PopulationBlock =
   | {
       state: "counted";
       active: ActiveCharactersRead;
+      /**
+       * La arena publicada, contada igual y con la misma ventana. Un bracket
+       * por modalidad, así que aquí no hay specs que sumar dos veces.
+       */
+      arena: { slug: ArenaBracket; active: ActiveCharactersRead }[];
       /** De qué corrida es la cifra: la misma que fecha el bloque de arriba. */
       computedAt: Date;
       /** Cuántos días abarca la ventana, para escribirlo donde se afirma. */
@@ -133,16 +141,32 @@ async function loadPopulation(
   if (!run) return { state: "empty" };
 
   const windowDays = ACTIVITY_WINDOWS.default;
-  const active = await cachedActiveCharacters(getDb(), {
-    region,
-    seasonId: run.seasonId,
-    brackets: SHUFFLE_BRACKETS,
-    computedAt: run.computedAt,
-    since: activityWindowStart(run.computedAt, windowDays),
+  const count = (brackets: readonly string[]): Promise<ActiveCharactersRead> =>
+    cachedActiveCharacters(getDb(), {
+      region,
+      seasonId: run.seasonId,
+      brackets,
+      computedAt: run.computedAt,
+      since: activityWindowStart(run.computedAt, windowDays),
+    });
+
+  // Una lectura por modalidad y no una para todas: un personaje que juega Solo
+  // Shuffle y 3v3 es uno en cada cifra, y contarlos juntos lo fundiría.
+  const arenaSlugs = publishedBrackets().filter(isArenaSlug);
+  const [active, ...arenaCounts] = await Promise.all([
+    count(SHUFFLE_BRACKETS),
+    // En arena el bracket de la BD es la propia modalidad (`bracketIdFor`).
+    ...arenaSlugs.map((slug) => count([slug])),
+  ]);
+  const arena = arenaSlugs.flatMap((slug, index) => {
+    const counted = arenaCounts[index];
+    return counted ? [{ slug, active: counted }] : [];
   });
 
   // Cero observados no es una cifra que enseñar, es la ausencia de población: se
   // dice con palabras, como manda la §1.5 del brief.
-  if (active.observed === 0) return { state: "empty" };
-  return { state: "counted", active, computedAt: run.computedAt, windowDays };
+  if (active.observed === 0 && arena.every((entry) => entry.active.observed === 0)) {
+    return { state: "empty" };
+  }
+  return { state: "counted", active, arena, computedAt: run.computedAt, windowDays };
 }

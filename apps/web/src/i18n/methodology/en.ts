@@ -38,7 +38,13 @@ export interface MethodologyDocument {
   readonly updated: (date: string) => string;
 }
 
-export function en(t: Thresholds): MethodologyDocument {
+/**
+ * `arena` es la arena publicada, ya escrita como lista ("2v2 and 3v3"), o `null`
+ * si no hay ninguna. Llega de fuera por lo mismo que los umbrales: entra con un
+ * interruptor (ADR 0048), y un párrafo que la diera por hecha explicaría un dato
+ * que el sitio no tiene.
+ */
+export function en(t: Thresholds, arena: string | null): MethodologyDocument {
   return {
     title: "Methodology",
     lead: "Where the data comes from, how the segments and percentiles are calculated, and what each confidence level means.",
@@ -47,7 +53,9 @@ export function en(t: Thresholds): MethodologyDocument {
       sources: {
         heading: "Where the data comes from",
         paragraphs: [
-          "Every figure on this site comes from the Blizzard® Developer APIs, the public interface Blizzard Entertainment, Inc. publishes for World of Warcraft®. Two endpoints do the work: the Solo Shuffle leaderboard, which lists the top of the ladder by specialization, and the character profile, which returns the gear and the talents a character was last seen with.",
+          arena === null
+            ? "Every figure on this site comes from the Blizzard® Developer APIs, the public interface Blizzard Entertainment, Inc. publishes for World of Warcraft®. Two endpoints do the work: the Solo Shuffle leaderboard, which lists the top of the ladder by specialization, and the character profile, which returns the gear and the talents a character was last seen with."
+            : `Every figure on this site comes from the Blizzard® Developer APIs, the public interface Blizzard Entertainment, Inc. publishes for World of Warcraft®. Two kinds of endpoint do the work: the leaderboards — Solo Shuffle's, which lists the top of the ladder by specialization, and the ${arena} ones, one per bracket for every specialization together — and the character profile, which returns the gear and the talents a character was last seen with.`,
           "Nothing here comes from an addon, from a log parser, or from a page scraped off another site, and no figure is ever typed in by hand. A number the API does not return is a number this site does not have.",
           "One Rung is not affiliated with, endorsed by, or sponsored by Blizzard Entertainment, Inc. The data arrives as it arrives, and that is how it goes out.",
         ],
@@ -60,6 +68,11 @@ export function en(t: Thresholds): MethodologyDocument {
           "The leaderboard publishes 5,000 characters per specialization and bracket. Where that cut falls moves with the season — in a mature one the most played specializations fill their 5,000 slots well above the lower ratings, and the characters below never enter through the ladder at all. That is what the search box is there for: a character looked up here joins the observed population.",
           "Looking someone up does not move the percentages, though. Observations that arrive from a search are kept and counted separately, outside the aggregates, so that a specialization cannot look more common merely because the people reading about it went looking for it.",
           `Position inside a specialization is a count and not an estimate: how many observed characters of that specialization sit below a rating, out of how many were observed at all. The percentile is a label on top of that fraction, and it appears only once the bracket reaches ${t.medium} observed characters. Below that, the fraction goes out on its own.`,
+          ...(arena === null
+            ? []
+            : [
+                `In ${arena} the bracket does not name the specialization, and neither the leaderboard nor the bracket endpoint returns it. A character's specialization there is the one they had equipped when their profile was read, which may not be the one they play in that bracket. Whoever has no recent profile is counted in their rating band but in no specialization, and pages say how many. For the same reason, position in ${arena} counts the whole bracket, every specialization together, and there is no split of the bracket by specialization: who has a profile depends on our sampling, and a share per specialization would measure that.`,
+              ]),
         ],
       },
 

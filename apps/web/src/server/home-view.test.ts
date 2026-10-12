@@ -18,10 +18,11 @@ function bracketOf(
     bracket,
     population: below + high,
     segments: [
-      { segmentMin: 1800, population: below },
-      { segmentMin: HIGH_RATING_FLOOR, population: high },
+      { segmentMin: 1800, population: below, withoutSpec: null },
+      { segmentMin: HIGH_RATING_FLOOR, population: high, withoutSpec: null },
     ],
     leaderboardEntries,
+    withoutSpec: null,
   };
 }
 
@@ -149,11 +150,12 @@ describe("representationFor", () => {
           bracket: "shuffle-mage-frost",
           population: 100,
           segments: [
-            { segmentMin: 1400, population: 45 },
-            { segmentMin: 1600, population: 10 },
-            { segmentMin: 1800, population: 45 },
+            { segmentMin: 1400, population: 45, withoutSpec: null },
+            { segmentMin: 1600, population: 10, withoutSpec: null },
+            { segmentMin: 1800, population: 45, withoutSpec: null },
           ],
           leaderboardEntries: null,
+          withoutSpec: null,
         },
       ]),
     );

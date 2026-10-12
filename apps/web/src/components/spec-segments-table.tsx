@@ -1,7 +1,9 @@
 import {
   ACTIVITY_WINDOWS,
+  BRACKET_LABELS,
   MIN_SAMPLE_MEDIUM,
   formatSegment,
+  isArenaSlug,
   specPath,
   type BracketSlug,
   type SpecRoute,
@@ -130,7 +132,9 @@ export function SpecSegmentsTable({
           )}
         </p>
         <p className="text-subtle-foreground max-w-measure text-sm">{copy.observedNote}</p>
-        <p className="text-subtle-foreground max-w-measure text-sm">{copy.ladderCap}</p>
+        <p className="text-subtle-foreground max-w-measure text-sm">
+          {isArenaSlug(bracket) ? copy.ladderCapArena(BRACKET_LABELS[bracket]) : copy.ladderCap}
+        </p>
       </div>
     </SectionCard>
   );

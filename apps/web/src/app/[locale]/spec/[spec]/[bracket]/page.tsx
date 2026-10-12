@@ -4,6 +4,7 @@ import { notFound, permanentRedirect } from "next/navigation";
 
 import { SpecPage, specMetadata } from "../../../../../components/spec-page";
 import { isLocale, localizedPathname } from "../../../../../i18n/locales";
+import { isRouteBracketPublished } from "../../../../../server/published";
 import { loadSpecOverview } from "../../../../../server/spec";
 
 interface SpecBracketParams {
@@ -20,6 +21,7 @@ export async function generateMetadata({
   const { locale, ...rest } = await params;
   const resolution = resolveSpecRoute(rest);
   if (!isLocale(locale) || resolution.status !== "canonical") return {};
+  if (!isRouteBracketPublished(resolution.route)) return {};
 
   return specMetadata(resolution.route, locale);
 }
@@ -30,6 +32,11 @@ export default async function SpecBracketPage({ params }: { params: Promise<Spec
 
   const resolution = resolveSpecRoute(rest);
   if (resolution.status === "unknown") notFound();
+  // El catálogo sabe construir la ruta de 3v3; si su interruptor está apagado no
+  // hay datos detrás, y una página vacía que se puede indexar es peor que un 404.
+  if (resolution.status === "canonical" && !isRouteBracketPublished(resolution.route)) {
+    notFound();
+  }
   if (resolution.status === "redirect") {
     permanentRedirect(localizedPathname(resolution.path, locale));
   }

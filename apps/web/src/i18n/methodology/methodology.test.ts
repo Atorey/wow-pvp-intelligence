@@ -83,3 +83,34 @@ describe("la página de metodología", () => {
     }
   });
 });
+
+describe("la metodología con la arena publicada (ADR 0048)", () => {
+  it("explica de dónde sale la spec en arena solo cuando la arena se lee", () => {
+    for (const locale of LOCALES) {
+      const without = methodologyFor(locale).sections.observed.paragraphs.join(" ");
+      const withArena = methodologyFor(locale, [
+        "solo-shuffle",
+        "3v3",
+      ]).sections.observed.paragraphs.join(" ");
+      assert.doesNotMatch(without, /3v3/);
+      assert.match(withArena, /3v3/);
+    }
+  });
+
+  it("tiene los mismos párrafos en las dos lenguas", () => {
+    const keys = (locale: "en" | "es") =>
+      allPhrases(methodologyFor(locale, ["solo-shuffle", "3v3"])).map((phrase) => phrase.key);
+    assert.deepEqual(keys("es"), keys("en"));
+  });
+
+  it("y pasa por el mismo guardián de voz que el resto", () => {
+    for (const locale of LOCALES) {
+      const doc = methodologyFor(locale, ["solo-shuffle", "2v2", "3v3"]);
+      for (const { key, text } of allPhrases(doc)) {
+        for (const pattern of CAUSAL_PATTERNS[locale]) {
+          assert.doesNotMatch(text, pattern, `Texto causal en "${locale}" (${key}): "${text}"`);
+        }
+      }
+    }
+  });
+});

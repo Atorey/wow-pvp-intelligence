@@ -108,7 +108,7 @@ describe("lo que entra por el endpoint", () => {
     // Una spec, una modalidad o un segmento inventados no son datos con los que
     // no contábamos: son filas que ensucian el denominador para siempre.
     assert.equal(parseGapViewEvent({ ...valid, spec: "fireball-mage" }), null);
-    assert.equal(parseGapViewEvent({ ...valid, bracket: "3v3" }), null);
+    assert.equal(parseGapViewEvent({ ...valid, bracket: "rbg" }), null);
     assert.equal(parseGapViewEvent({ ...valid, segment: "2010-2190" }), null);
     assert.equal(parseGapViewEvent({ ...valid, outcome: "low" }), null);
     assert.equal(parseGapViewEvent({ ...valid, locale: "fr" }), null);

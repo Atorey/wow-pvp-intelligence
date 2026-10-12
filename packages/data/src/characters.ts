@@ -163,6 +163,49 @@ export async function readLatestSnapshotsByBracket(
   return rows.map(toSnapshotRead);
 }
 
+/** La spec con la que se observó a un personaje en un bracket, y cuándo. */
+export interface ObservedSpecRead {
+  bracket: string;
+  classSlug: string;
+  specSlug: string;
+  observedAt: Date;
+}
+
+/**
+ * La última spec observada del personaje en cada bracket de la temporada.
+ *
+ * Hace falta por la arena: su última observación suele ser de leaderboard, que
+ * no trae spec (ADR 0048), y la spec es la de la última captura que sí la trajo,
+ * de perfil o de búsqueda. Es la que llevaba puesta entonces, y por eso viaja
+ * con su fecha. En Solo Shuffle la devuelve igual, y es la del bracket.
+ */
+export async function readObservedSpecs(
+  db: Queryable,
+  key: CharacterKey & { seasonId: number },
+): Promise<ObservedSpecRead[]> {
+  const { rows } = await db.query<{
+    bracket: string;
+    class_slug: string;
+    spec_slug: string;
+    captured_at: Date;
+  }>(
+    `select distinct on (s.bracket) s.bracket, s.class_slug, s.spec_slug, s.captured_at
+       from character_snapshots s
+       join characters c on c.id = s.character_id
+      where c.region = $1 and c.realm_slug = $2 and c.name_slug = $3 and s.season_id = $4
+        and s.spec_slug is not null
+      order by s.bracket, s.captured_at desc`,
+    [key.region, key.realmSlug, key.nameSlug, key.seasonId],
+  );
+
+  return rows.map((row) => ({
+    bracket: row.bracket,
+    classSlug: row.class_slug,
+    specSlug: row.spec_slug,
+    observedAt: row.captured_at,
+  }));
+}
+
 /**
  * Hasta dónde se puede demostrar que un personaje ha jugado (§27, ADR 0008).
  *

@@ -11,15 +11,17 @@ import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 
 import { BracketPopulationList } from "../../components/bracket-population-list";
+import { readBracketNames } from "../../components/brackets";
 import { CharacterSearch } from "../../components/character-search";
 import { RecentSearches } from "../../components/recent-searches";
 import { SpecRepresentationTable } from "../../components/spec-representation-table";
 import { Card } from "../../components/ui/card";
 import { copyFor } from "../../i18n/copy";
 import { alternatesFor } from "../../i18n/alternates";
-import { formatCount, formatRating } from "../../i18n/format";
+import { formatCount, formatList, formatRating } from "../../i18n/format";
 import { isLocale, localizedPathname, type Locale } from "../../i18n/locales";
 import { loadHomeData, type HomeScope } from "../../server/home";
+import { publishedBrackets } from "../../server/published";
 
 export async function generateMetadata({
   params,
@@ -177,6 +179,8 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
           <BracketPopulationList
             locale={locale}
             active={population.active}
+            arena={population.arena}
+            published={publishedBrackets()}
             computedAt={population.computedAt}
             windowDays={population.windowDays}
           />
@@ -189,7 +193,9 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
         )}
       </section>
 
-      <p className="text-subtle-foreground max-w-measure text-xs">{copy.home.lead}</p>
+      <p className="text-subtle-foreground max-w-measure text-xs">
+        {copy.home.lead(formatList(readBracketNames(publishedBrackets()), locale))}
+      </p>
     </main>
   );
 }

@@ -1,8 +1,10 @@
 import {
-  BRACKET_SLUGS,
   type BracketSlug,
   type RatingSegment,
   type SpecEntry,
+  bracketSlugFor,
+  findSpec,
+  isArenaSlug,
   parseSegmentSlug,
   parseShuffleBracket,
   specPath,
@@ -60,21 +62,25 @@ interface SegmentTarget {
 /**
  * De qué ruta habla una fila de `population_segments`.
  *
- * La columna `bracket` es la de Blizzard (`shuffle-mage-frost`) y el tramo de la
- * URL es la modalidad (`solo-shuffle`): el puente en este sentido es
- * `parseShuffleBracket`, y el catálogo decide si existe. Una fila de un bracket
- * que no esté en `ALL_SPECS` —el agregado de Solo Shuffle, una spec nueva— no
- * tiene página, y se descarta en vez de inventarle una.
+ * La columna `bracket` es la de Blizzard y el tramo de la URL es la modalidad:
+ * `bracketSlugFor` es el puente, y el catálogo decide si existe. En Solo Shuffle
+ * la spec la nombra el bracket; en arena, la columna de la fila (ADR 0048). Una
+ * fila de un bracket que no esté en el catálogo —el agregado de Solo Shuffle,
+ * una spec nueva— no tiene página, y se descarta en vez de inventarle una. Una
+ * de una modalidad que la web no publica, tampoco: su página es un 404.
  */
-function targetFor(sample: SegmentSampleRead): SegmentTarget | undefined {
-  const spec = parseShuffleBracket(sample.bracket);
+function targetFor(
+  sample: SegmentSampleRead,
+  published: readonly BracketSlug[],
+): SegmentTarget | undefined {
+  const bracket = bracketSlugFor(sample.bracket);
   const segment = parseSegmentSlug(sample.segmentId);
-  if (!spec || !segment) return undefined;
+  if (!bracket || !segment || !published.includes(bracket)) return undefined;
 
-  // Solo Shuffle es la única modalidad publicada (§25); el día que haya otra,
-  // la fila dirá de cuál es y esto dejará de ser una constante.
-  const [bracket] = BRACKET_SLUGS;
-  return { bracket, segment, spec };
+  const spec = isArenaSlug(bracket)
+    ? findSpec(sample.classSlug, sample.specSlug)
+    : parseShuffleBracket(sample.bracket);
+  return spec ? { bracket, segment, spec } : undefined;
 }
 
 /**
@@ -88,7 +94,10 @@ function targetFor(sample: SegmentSampleRead): SegmentTarget | undefined {
  * Está separada de `indexableSpecRoutes` para que la parte que decide qué URL
  * existen se pueda probar hoy, con el armazón todavía sin encender.
  */
-export function specRoutesWithSample(samples: readonly SegmentSampleRead[]): IndexableRoute[] {
+export function specRoutesWithSample(
+  samples: readonly SegmentSampleRead[],
+  published: readonly BracketSlug[] = ["solo-shuffle"],
+): IndexableRoute[] {
   const byPath = new Map<string, Date>();
   const record = (path: string, at: Date): void => {
     const known = byPath.get(path);
@@ -98,7 +107,7 @@ export function specRoutesWithSample(samples: readonly SegmentSampleRead[]): Ind
   for (const sample of samples) {
     if (!isSegmentIndexable(sample)) continue;
 
-    const target = targetFor(sample);
+    const target = targetFor(sample, published);
     if (!target) continue;
 
     const { spec, bracket, segment } = target;
@@ -114,8 +123,11 @@ export function specRoutesWithSample(samples: readonly SegmentSampleRead[]): Ind
 }
 
 /** Lo anterior, más la condición de que la página exista de verdad. */
-export function indexableSpecRoutes(samples: readonly SegmentSampleRead[]): IndexableRoute[] {
-  return SPEC_PAGES_PUBLISHED ? specRoutesWithSample(samples) : [];
+export function indexableSpecRoutes(
+  samples: readonly SegmentSampleRead[],
+  published?: readonly BracketSlug[],
+): IndexableRoute[] {
+  return SPEC_PAGES_PUBLISHED ? specRoutesWithSample(samples, published) : [];
 }
 
 /**
@@ -125,8 +137,12 @@ export function indexableSpecRoutes(samples: readonly SegmentSampleRead[]): Inde
  * el sitemap decidieran cada uno por su cuenta acabarían discrepando, y Google
  * vería URL anunciadas que dicen `noindex` o indexables que nadie anuncia.
  */
-export function isSpecPathIndexable(path: string, samples: readonly SegmentSampleRead[]): boolean {
-  return indexableSpecRoutes(samples).some((route) => route.path === path);
+export function isSpecPathIndexable(
+  path: string,
+  samples: readonly SegmentSampleRead[],
+  published?: readonly BracketSlug[],
+): boolean {
+  return indexableSpecRoutes(samples, published).some((route) => route.path === path);
 }
 
 /**

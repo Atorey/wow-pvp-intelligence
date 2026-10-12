@@ -1,4 +1,4 @@
-import { BRACKET_SLUGS, metaPath } from "@wowpvp/core";
+import { metaPath } from "@wowpvp/core";
 import type { MetadataRoute } from "next";
 import { connection } from "next/server";
 
@@ -6,7 +6,8 @@ import { indexableSpecRoutes, type IndexableRoute } from "../seo/indexable";
 import { cachedSegmentSamples } from "../server/aggregate-cache";
 import { getDb } from "../server/db";
 import "../server/env";
-import { loadMetaData } from "../server/meta";
+import { loadMetaData, metaComputedAt } from "../server/meta";
+import { publishedBrackets } from "../server/published";
 import { sitemapEntries } from "../seo/sitemap";
 import { siteUrl } from "../site";
 
@@ -26,7 +27,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   return sitemapEntries({
     base: siteUrl(process.env),
-    specRoutes: indexableSpecRoutes(samples),
+    specRoutes: indexableSpecRoutes(samples, publishedBrackets()),
     metaRoutes: await metaRoutes(),
   });
 }
@@ -44,9 +45,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
  */
 async function metaRoutes(): Promise<IndexableRoute[]> {
   const routes: IndexableRoute[] = [];
-  for (const bracket of BRACKET_SLUGS) {
-    const { board } = await loadMetaData(bracket);
-    if (board) routes.push({ path: metaPath(bracket), lastModified: board.computedAt });
+  for (const bracket of publishedBrackets()) {
+    const computedAt = metaComputedAt(await loadMetaData(bracket));
+    if (computedAt) routes.push({ path: metaPath(bracket), lastModified: computedAt });
   }
   return routes;
 }

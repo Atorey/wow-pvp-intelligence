@@ -51,6 +51,21 @@ export const es: Copy = {
     lead: "Todas las specs de la modalidad, por los personajes que hemos observado en la corrida más reciente.",
     empty: (bracket) =>
       `La corrida de agregados más reciente no tiene a nadie observado en ${bracket}, así que no hay reparto que enseñar.`,
+    arena: {
+      lead: "La población del bracket por tramo de rating, partida en quien tiene spec conocida y quien no, en la corrida más reciente.",
+      segment: "Tramo",
+      withSpec: "Con spec conocida",
+      withoutSpec: "Sin spec conocida",
+      unknown: "sin registrar",
+      totals: (withSpec, withoutSpec, bracket) =>
+        `${withSpec} personajes observados en ${bracket} con spec conocida y ${withoutSpec} sin ella, cada uno en la ventana activa de esta corrida.`,
+      noSplit:
+        "No hay reparto por spec. El bracket no nombra la spec: sale del perfil de cada personaje, y a quién se le baja el perfil lo decide nuestro muestreo, no el bracket. Una proporción por spec mediría el muestreo y se leería como el meta.",
+      windows:
+        "La cifra con spec conocida de cada tramo suma specs contadas con su propia ventana de 7 o 14 días; la de sin spec usa la ventana más ancha de la corrida.",
+      capped: (entries, bracket) =>
+        `El leaderboard de ${bracket} está en su tope (${entries} entradas): todas las cifras de aquí son un suelo, no una medida.`,
+    },
     table: {
       rank: "#",
       spec: "Spec",
@@ -88,7 +103,8 @@ export const es: Copy = {
     },
     subtitle:
       "Analizamos miles de jugadores para mostrarte qué usan, cómo juegan y qué puedes mejorar",
-    lead: "Población del leaderboard de Solo Shuffle, más todos los personajes que alguien ha consultado.",
+    lead: (brackets) =>
+      `Población de los leaderboards de ${brackets}, más todos los personajes que alguien ha consultado.`,
 
     recent: {
       title: "Búsquedas recientes",
@@ -108,8 +124,10 @@ export const es: Copy = {
       unavailable: "Estas cifras no se han podido leer ahora mismo. El buscador sigue funcionando.",
       list: {
         notIngested: "todavía no se ingiere",
-        notIngestedNote:
-          "Las cuatro modalidades sin cifra no la tienen baja: su leaderboard no se ingiere todavía, así que de ellas no hay ninguna fila en la base.",
+        notIngestedNote: (brackets) =>
+          `${brackets} no tienen cifra, no la tienen baja: su leaderboard no se ingiere todavía, así que de ellas no hay ninguna fila en la base.`,
+        arenaNote: (brackets) =>
+          `${brackets}: personajes distintos observados con actividad en la misma ventana. Su leaderboard es uno para todas las specs juntas, así que por debajo de su corte un personaje entra solo cuando alguien lo busca aquí.`,
         note: (observed, bracket, days) =>
           `Personajes distintos observados en ${bracket} con actividad en los ${days} días anteriores a esta corrida. Quien juega varias de sus specs cuenta una vez, y por eso ${observed} no es la suma de las specs de arriba.`,
         evidence: (delta) =>
@@ -178,7 +196,8 @@ export const es: Copy = {
       },
       noRating: {
         title: "A este personaje no le consta rating",
-        body: "Está en la población: Blizzard contestó por él y no listó ningún Solo Shuffle con clasificación. La rotación, una vuelta y una temporada sin jugar con clasificación se ven así.",
+        body: (read) =>
+          `Está en la población: Blizzard contestó por él y no listó clasificación en ${read}. La rotación, una vuelta y una temporada sin jugar con clasificación se ven así.`,
         asked: (when) => `La última vez que se le preguntó a Blizzard por él fue el ${when}.`,
       },
       closedSeason: {
@@ -187,8 +206,8 @@ export const es: Copy = {
         standing: (last, peak) => `último rating observado ${last} · máximo observado ${peak}`,
       },
       action: "Preguntarle a Blizzard por él",
-      stillNoRating:
-        "Blizzard ha contestado y sigue sin constarle ningún Solo Shuffle con clasificación.",
+      stillNoRating: (read) =>
+        `Blizzard ha contestado y sigue sin constarle clasificación en ${read}.`,
       unavailable:
         "Ahora mismo no se ha podido preguntar a Blizzard. Nada de lo que consta de este personaje ha cambiado.",
       rateLimited:
@@ -205,6 +224,8 @@ export const es: Copy = {
     },
 
     observedAt: (when) => `Observado ${when}`,
+    arenaSpec: (bracket, when) =>
+      `En ${bracket} la spec es la que llevaba puesta este personaje cuando se le bajó el perfil, el ${when}. Puede no ser con la que juega ahí.`,
     season: (id) => `Temporada ${id}`,
 
     figures: {
@@ -215,6 +236,7 @@ export const es: Copy = {
       itemLevel: "item level equipado",
       itemLevelMedian: (segment, median) => `mediana de ${segment}: ${median}`,
       percentile: "percentil en la spec",
+      percentileBracket: "percentil en la modalidad",
       below: (below, observed) => `${below} de ${observed} por debajo`,
     },
 
@@ -304,6 +326,8 @@ export const es: Copy = {
       title: "Posición en la spec",
       sentence: (below, observed, spec, rating) =>
         `${below} de los ${observed} ${spec} que hemos observado esta temporada están por debajo de ${rating}.`,
+      sentenceBracket: (below, observed, bracket, rating) =>
+        `${below} de los ${observed} personajes que hemos observado en ${bracket} esta temporada, de todas las specs, están por debajo de ${rating}.`,
       percentile: (value) => `Percentil ${value}.`,
       segment: (segment) => `Segmento ${segment}`,
       segmentsNote: (days) =>
@@ -312,11 +336,14 @@ export const es: Copy = {
       observedNote: "Observado = visto en la ladder o consultado aquí. No son todos los jugadores.",
       ladderCap:
         "El leaderboard de Blizzard publica los 5.000 primeros de cada spec y modalidad. Por debajo de ese corte, un personaje entra en estos datos solo cuando alguien lo busca aquí.",
+      ladderCapArena: (bracket) =>
+        `El leaderboard de ${bracket} de Blizzard publica los 5.000 primeros de todas las specs juntas. Por debajo de ese corte, un personaje entra en estos datos solo cuando alguien lo busca aquí.`,
     },
 
     brackets: {
       title: "Otras modalidades",
-      none: "Este sitio solo lee Solo Shuffle. 2v2, 3v3, RBG y BG Blitz no se observan en esta versión.",
+      scope: (read, unread) => `Este sitio lee ${read}. ${unread} no se observan en esta versión.`,
+      withoutSpec: "spec sin observar: el leaderboard no la trae, una consulta de perfil sí",
     },
 
     missing: {
@@ -451,6 +478,14 @@ export const es: Copy = {
     observedNote: "Observado = visto en la ladder o consultado aquí. No son todos los jugadores.",
     ladderCap:
       "El leaderboard de Blizzard publica los 5.000 primeros de cada spec y modalidad. Por debajo de ese corte, un personaje entra en estos datos solo cuando alguien lo busca aquí.",
+    ladderCapArena: (bracket) =>
+      `El leaderboard de ${bracket} de Blizzard publica los 5.000 primeros de todas las specs juntas. Por debajo de ese corte, un personaje entra en estos datos solo cuando alguien lo busca aquí.`,
+    arena: {
+      spec: (bracket) =>
+        `En ${bracket} el bracket no nombra la spec. Cada personaje cuenta en la spec que llevaba puesta cuando se le bajó el perfil; quien no tiene un perfil reciente está en su tramo, pero en ninguna spec.`,
+      withoutSpec: (count, bracket) =>
+        `${count} personajes activos de estos tramos de ${bracket} no tienen spec conocida, y no se cuentan aquí.`,
+    },
     empty: {
       spec: (spec, bracket) =>
         `En la corrida de agregados más reciente no consta ningún ${spec} observado en ${bracket}.`,

@@ -1,15 +1,20 @@
 import {
+  BRACKET_SLUGS,
   MIN_SAMPLE_MEDIUM,
   biggestDifferences,
+  bracketSlugFor,
   canShowComparison,
   confidenceFor,
+  findSpec,
   gearOverlap,
+  isArenaSlug,
   nextSegment,
   parseShuffleBracket,
   segmentFor,
   slotGroup,
   specSlug,
   talentSelectionKey,
+  type BracketSlug,
   type ConfidenceLevel,
   type GearAlignment,
   type RatingSegment,
@@ -22,6 +27,7 @@ import {
   type CharacterGearRead,
   type CharacterSnapshotRead,
   type CharacterTalentsRead,
+  type ObservedSpecRead,
   type SegmentRead,
   type StandingRead,
 } from "@wowpvp/data";
@@ -36,14 +42,41 @@ import {
  * eso se prueba con objetos y sin Postgres delante.
  */
 
-/** Una spec observada del personaje, tal como la ofrece el selector. */
+/** Una spec observada del personaje en una modalidad, tal como la ofrece el selector. */
 export interface ObservedSpec {
   /** El bracket de Blizzard: la clave con la que se leen sus datos. */
   bracket: string;
+  /** La modalidad (`solo-shuffle`, `3v3`), que viaja en la URL junto a la spec. */
+  bracketSlug: BracketSlug;
   /** El slug canónico (`frost-mage`), que es lo que viaja en la URL. */
   slug: string;
   spec: SpecEntry;
   rating: number;
+  /**
+   * En arena, cuándo se le vio esa spec: es la que llevaba puesta al bajarle el
+   * perfil, no necesariamente con la que juega (ADR 0048), y por eso viaja con
+   * su fecha. `null` en Solo Shuffle, donde la nombra el bracket.
+   */
+  specObservedAt: Date | null;
+}
+
+/**
+ * Una modalidad de arena con rating y sin spec observada: solo la ha visto el
+ * leaderboard, que no la trae (ADR 0048). Se enseña su rating y nada que
+ * dependa de la spec.
+ */
+export interface UnattributedBracket {
+  bracket: string;
+  bracketSlug: BracketSlug;
+  rating: number;
+}
+
+/** Lo que hace falta para nombrar las modalidades de un personaje. */
+export interface ObservedSpecsOptions {
+  /** La última spec observada en cada bracket (`readObservedSpecs`). */
+  specs?: readonly ObservedSpecRead[];
+  /** Las modalidades que la web publica. Sin decirlo, solo Solo Shuffle. */
+  published?: readonly BracketSlug[];
 }
 
 /**
@@ -169,34 +202,111 @@ export interface StandingView {
 }
 
 /**
- * Las specs que el personaje juega, ordenadas por rating.
- *
- * Se filtra a lo que `parseShuffleBracket` reconoce y no se enseña lo demás: un
- * bracket que el catálogo no sabe nombrar no tiene ni spec ni clase que pintar,
- * y adivinarlas partiendo el string por guiones es justo lo que prohíbe el ADR
- * 0016. Hoy no hay ninguno, porque solo se ingiere Solo Shuffle.
+ * La modalidad publicada de un bracket, o `undefined` si la web no la enseña.
+ * Lo que el catálogo no sabe nombrar no tiene ni spec ni clase que pintar, y
+ * adivinarlas partiendo el string por guiones es lo que prohíbe el ADR 0016.
  */
-export function observedSpecs(snapshots: readonly CharacterSnapshotRead[]): ObservedSpec[] {
-  return snapshots
-    .flatMap((snapshot) => {
-      const spec = parseShuffleBracket(snapshot.bracket);
-      if (!spec) return [];
-      return [{ bracket: snapshot.bracket, slug: specSlug(spec), spec, rating: snapshot.rating }];
-    })
-    .sort((a, b) => b.rating - a.rating || a.slug.localeCompare(b.slug));
+function publishedSlugOf(
+  bracket: string,
+  published: readonly BracketSlug[],
+): BracketSlug | undefined {
+  const slug = bracketSlugFor(bracket);
+  return slug !== undefined && published.includes(slug) ? slug : undefined;
 }
 
 /**
- * Qué spec abre la página.
+ * Las specs que el personaje juega, por modalidad.
  *
- * Por defecto la de mayor rating, que es la que el jugador considera suya, y no
- * la observada más recientemente: esa cambiaría sola entre visitas y con ella
- * cambiaría el sujeto de la comparación. Lo pedido en la URL manda sobre el
- * defecto, y un slug que este personaje no juega **no es un 404**: la ruta
- * identifica al personaje, no a la spec.
+ * Solo Shuffle primero y la arena después, cada una por rating: un 2100 de 3v3
+ * y un 2100 de Solo Shuffle no son la misma cifra, y ordenarlos juntos haría que
+ * la página abriese en una u otra modalidad según el día. La spec de arena es la
+ * última que se le observó en ese bracket (ADR 0048); sin ninguna, la modalidad
+ * no entra aquí y va a `unattributedBrackets`.
  */
-export function pickSpec(specs: readonly ObservedSpec[], requested?: string): ObservedSpec | null {
-  const asked = requested ? specs.find((entry) => entry.slug === requested) : undefined;
+export function observedSpecs(
+  snapshots: readonly CharacterSnapshotRead[],
+  options: ObservedSpecsOptions = {},
+): ObservedSpec[] {
+  const published = options.published ?? ["solo-shuffle"];
+  const known = new Map((options.specs ?? []).map((entry) => [entry.bracket, entry]));
+
+  return snapshots
+    .flatMap((snapshot): ObservedSpec[] => {
+      const bracketSlug = publishedSlugOf(snapshot.bracket, published);
+      if (!bracketSlug) return [];
+
+      if (!isArenaSlug(bracketSlug)) {
+        const spec = parseShuffleBracket(snapshot.bracket);
+        if (!spec) return [];
+        const slug = specSlug(spec);
+        return [{ ...base(snapshot, bracketSlug), slug, spec, specObservedAt: null }];
+      }
+
+      const observed = known.get(snapshot.bracket);
+      const spec = observed ? findSpec(observed.classSlug, observed.specSlug) : undefined;
+      if (!observed || !spec) return [];
+      return [
+        {
+          ...base(snapshot, bracketSlug),
+          slug: specSlug(spec),
+          spec,
+          specObservedAt: observed.observedAt,
+        },
+      ];
+    })
+    .sort(
+      (a, b) =>
+        BRACKET_SLUGS.indexOf(a.bracketSlug) - BRACKET_SLUGS.indexOf(b.bracketSlug) ||
+        b.rating - a.rating ||
+        a.slug.localeCompare(b.slug),
+    );
+}
+
+function base(
+  snapshot: CharacterSnapshotRead,
+  bracketSlug: BracketSlug,
+): Pick<ObservedSpec, "bracket" | "bracketSlug" | "rating"> {
+  return { bracket: snapshot.bracket, bracketSlug, rating: snapshot.rating };
+}
+
+/**
+ * Las modalidades de arena con rating y sin spec observada: solo el leaderboard
+ * las ha visto. Van aparte porque no tienen página de spec que abrir, pero su
+ * rating es un dato del personaje y se enseña.
+ */
+export function unattributedBrackets(
+  snapshots: readonly CharacterSnapshotRead[],
+  options: ObservedSpecsOptions = {},
+): UnattributedBracket[] {
+  const published = options.published ?? ["solo-shuffle"];
+  const known = new Set((options.specs ?? []).map((entry) => entry.bracket));
+
+  return snapshots.flatMap((snapshot) => {
+    const bracketSlug = publishedSlugOf(snapshot.bracket, published);
+    if (!bracketSlug || !isArenaSlug(bracketSlug) || known.has(snapshot.bracket)) return [];
+    return [{ bracket: snapshot.bracket, bracketSlug, rating: snapshot.rating }];
+  });
+}
+
+/**
+ * Qué spec y qué modalidad abren la página.
+ *
+ * Por defecto la primera de `observedSpecs`: la de mayor rating de Solo Shuffle,
+ * que es la que el jugador considera suya, y no la observada más recientemente:
+ * esa cambiaría sola entre visitas y con ella cambiaría el sujeto de la
+ * comparación. Lo pedido en la URL manda sobre el defecto. La spec sin modalidad
+ * abre la primera modalidad en que la juega, y lo que este personaje no juega
+ * **no es un 404**: la ruta identifica al personaje, no a la spec.
+ */
+export function pickSpec(
+  specs: readonly ObservedSpec[],
+  requested?: string,
+  requestedBracket?: string,
+): ObservedSpec | null {
+  const asked = requested
+    ? (specs.find((entry) => entry.slug === requested && entry.bracketSlug === requestedBracket) ??
+      specs.find((entry) => entry.slug === requested))
+    : undefined;
   return asked ?? specs[0] ?? null;
 }
 
@@ -418,11 +528,20 @@ export function standingFor(input: {
   rating: number;
   standing: StandingRead;
   segments: readonly SegmentRead[];
+  /**
+   * En arena la posición cuenta el bracket entero, todas las specs: su
+   * leaderboard no trae spec, y por spec solo contaría a quien tiene perfil
+   * (ADR 0048). Los tamaños de segmento, que sí son de la spec, no se ponen al
+   * lado: sumarían una población por spec bajo una frase sobre el bracket.
+   */
+  wholeBracket?: boolean;
 }): StandingView {
   const ownSegment = segmentFor(input.rating);
   const targetSegment = nextSegment(ownSegment);
   const find = (segment: RatingSegment | undefined): SegmentRead | undefined =>
-    segment ? input.segments.find((row) => row.segment.id === segment.id) : undefined;
+    !input.wholeBracket && segment
+      ? input.segments.find((row) => row.segment.id === segment.id)
+      : undefined;
 
   const own = find(ownSegment);
   const target = find(targetSegment);

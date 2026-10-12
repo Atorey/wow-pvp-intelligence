@@ -15,7 +15,14 @@
  */
 import { type CharacterRef, nameSlug, realmSlug } from "./characters";
 import { DEFAULT_SEGMENT_SCALE, type SegmentScale, allSegments } from "./segments";
-import { parseSpecSlug, shuffleBracketId, specSlug } from "./specs";
+import {
+  isArenaBracket,
+  parseShuffleBracket,
+  parseSpecSlug,
+  shuffleBracketId,
+  specSlug,
+  type ArenaBracket,
+} from "./specs";
 import type { RatingSegment, Region, SpecEntry } from "./types";
 
 /**
@@ -31,16 +38,20 @@ export function isRegion(value: string): value is Region {
 }
 
 /**
- * Las modalidades que el sitio publica como tramo de ruta. Hoy solo hay una: el
- * MVP es Solo Shuffle y nada más (§25 del plan).
+ * Las modalidades que el sitio sabe publicar como tramo de ruta: Solo Shuffle y
+ * la arena (ADR 0048).
  *
- * No coincide con lo que la BD guarda en `bracket`, que es el bracket de
- * Blizzard por spec (`shuffle-mage-frost`). Aquí `solo-shuffle` nombra la
- * modalidad y la spec va en su propio tramo, porque así se lee la URL y así se
- * puede subir un nivel: `/spec/frost-mage/solo-shuffle` → `/spec/frost-mage`.
- * La correspondencia entre las dos formas es `bracketIdFor`.
+ * No coincide con lo que la BD guarda en `bracket`, que en Solo Shuffle es el
+ * bracket de Blizzard por spec (`shuffle-mage-frost`). Aquí `solo-shuffle` nombra
+ * la modalidad y la spec va en su propio tramo, porque así se lee la URL y así se
+ * puede subir un nivel: `/spec/frost-mage/solo-shuffle` → `/spec/frost-mage`. En
+ * arena la columna y el tramo coinciden (`3v3`), porque su bracket no nombra
+ * ninguna spec. La correspondencia entre las dos formas es `bracketIdFor`.
+ *
+ * Que una modalidad esté aquí no la publica: la web solo enseña la arena que el
+ * pipeline ingiere, y eso lo decide su interruptor, no este catálogo.
  */
-export const BRACKET_SLUGS = ["solo-shuffle"] as const;
+export const BRACKET_SLUGS = ["solo-shuffle", "2v2", "3v3"] as const;
 
 export type BracketSlug = (typeof BRACKET_SLUGS)[number];
 
@@ -56,20 +67,42 @@ export function isBracketSlug(value: string): value is BracketSlug {
  */
 export const BRACKET_LABELS: Record<BracketSlug, string> = {
   "solo-shuffle": "Solo Shuffle",
+  "2v2": "2v2",
+  "3v3": "3v3",
 };
+
+/** ¿Es una modalidad de arena, cuyo bracket no nombra la spec (ADR 0048)? */
+export function isArenaSlug(slug: BracketSlug): slug is ArenaBracket {
+  return isArenaBracket(slug);
+}
 
 /**
  * El `bracket` que la BD guarda para una modalidad y una spec.
  *
  * Es el único puente entre el tramo de URL y la columna, y no se construye a
  * mano en ningún otro sitio: `shuffleBracketId` ya sabe que Blizzard aplasta los
- * slugs compuestos ("death-knight" → "deathknight").
+ * slugs compuestos ("death-knight" → "deathknight"). En arena la spec no entra
+ * en el bracket, y quien lee una spec de arena filtra además por su columna.
  */
 export function bracketIdFor(bracket: BracketSlug, spec: SpecEntry): string {
   switch (bracket) {
     case "solo-shuffle":
       return shuffleBracketId(spec);
+    case "2v2":
+    case "3v3":
+      return bracket;
   }
+}
+
+/**
+ * La modalidad de un `bracket` de la BD: el inverso de `bracketIdFor`, sin la
+ * spec, que en Solo Shuffle va dentro y en arena no. `undefined` para lo que el
+ * sitio no publica (RBG, el agregado `shuffle-overall`).
+ */
+export function bracketSlugFor(bracketId: string): BracketSlug | undefined {
+  if (parseShuffleBracket(bracketId)) return "solo-shuffle";
+  if (isArenaBracket(bracketId)) return bracketId;
+  return undefined;
 }
 
 /**
@@ -228,14 +261,15 @@ export function specPath(spec: SpecEntry, bracket?: BracketSlug, segment?: Ratin
 
 /**
  * `/meta/solo-shuffle`: el reparto de una modalidad entre sus cuarenta specs
- * (ADR 0038).
+ * (ADR 0038). En arena, la población de la modalidad por tramo, sin reparto por
+ * spec (ADR 0048).
  *
  * La modalidad es un tramo de ruta y no una query porque es lo que la página
  * es: cada modalidad tiene su población, su tramo alto y su reparto, y una
  * `?bracket=` dejaría el contenido colgando de un parámetro que los rastreadores
- * tratan como la misma URL. `/meta` a secas **no existe** mientras haya una sola
- * modalidad publicada: sería una segunda dirección con el mismo contenido, que
- * es lo que la decisión 7 del ADR 0020 evita.
+ * tratan como la misma URL. `/meta` a secas **no existe**: con una modalidad era
+ * una segunda dirección con el mismo contenido, y con varias sería una portada
+ * de modalidades que nadie ha decidido.
  */
 export const META_PATH = "/meta";
 
@@ -327,9 +361,9 @@ export interface MetaRoute {
 /**
  * Resuelve el único tramo de `/meta/{modalidad}`.
  *
- * Una modalidad que no publicamos es 404 y no una redirección a la que sí:
- * adivinar aquí llevaría a quien pide `/meta/3v3` a una página de Solo Shuffle
- * que afirma cifras de otra cosa (ADR 0020, decisión 7).
+ * Una modalidad que no está en el catálogo es 404 y no una redirección a la que
+ * sí: adivinar aquí llevaría a quien pide `/meta/rbg` a una página de otra
+ * modalidad que afirma cifras de otra cosa (ADR 0020, decisión 7).
  */
 export function resolveMetaRoute(params: MetaRouteParams): RouteResolution<MetaRoute> {
   const written = decodeRouteSegment(params.bracket);

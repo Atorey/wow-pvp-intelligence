@@ -25,6 +25,7 @@ import {
 } from "./aggregate-cache";
 import { getDb } from "./db";
 import "./env";
+import { publishedBrackets } from "./published";
 import {
   segmentDetailFor,
   specOverviewFor,
@@ -51,13 +52,13 @@ export interface SpecScope {
 }
 
 /**
- * La modalidad de la página. La de spec a secas no nombra ninguna y enseña la
- * única publicada, que es lo mismo que su página de modalidad (§25): son la
- * misma vista hasta que haya una segunda.
+ * La modalidad de la página. La de spec a secas no nombra ninguna y enseña Solo
+ * Shuffle, la primera del catálogo y la que siempre está publicada: la arena se
+ * elige desde el selector de modalidad.
  */
 function bracketOf(route: SpecRoute): BracketSlug {
-  const [only] = BRACKET_SLUGS;
-  return route.bracket ?? only;
+  const [first] = BRACKET_SLUGS;
+  return route.bracket ?? first;
 }
 
 async function loadSegments(route: SpecRoute): Promise<{
@@ -84,6 +85,8 @@ async function loadSegments(route: SpecRoute): Promise<{
     region,
     seasonId: run.seasonId,
     bracket: bracketIdFor(bracket, route.spec),
+    classSlug: route.spec.classSlug,
+    specSlug: route.spec.specSlug,
   });
   return { scope: { region, seasonId: run.seasonId, bracket }, run, segments };
 }
@@ -190,7 +193,11 @@ export async function loadSegmentPage(route: SpecRoute): Promise<SegmentPageData
 export async function isSpecRouteIndexable(route: SpecRoute): Promise<boolean> {
   try {
     const samples = await cachedSegmentSamples(getDb());
-    return isSpecPathIndexable(specPath(route.spec, route.bracket, route.segment), samples);
+    return isSpecPathIndexable(
+      specPath(route.spec, route.bracket, route.segment),
+      samples,
+      publishedBrackets(),
+    );
   } catch {
     return false;
   }
