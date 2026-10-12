@@ -7,7 +7,6 @@ import {
   nameSlug,
   shuffleBracketId,
   unknownShuffleBrackets,
-  type SpecEntry,
 } from "@wowpvp/core";
 import type { Queryable } from "@wowpvp/data";
 import {
@@ -16,7 +15,7 @@ import {
   formatUsage,
   resolveCurrentSeasonId,
 } from "@wowpvp/blizzard";
-import { LEADERBOARD_DIR } from "../config";
+import { LEADERBOARD_DIR, getArenaBrackets } from "../config";
 import { createPool } from "../db/pool";
 import { SPECS_TO_INGEST } from "../specs-to-ingest";
 
@@ -120,9 +119,10 @@ export function hashPopulation(payload: unknown): string {
   return crypto.createHash("sha256").update(JSON.stringify(projection)).digest("hex");
 }
 
-/** Una spec descargada. `file` es null cuando la descarga falló o vino vacía. */
+/** Un bracket descargado. `file` es null cuando la descarga falló o vino vacía. */
 export interface FetchedLeaderboard {
-  spec: string;
+  /** Lo que se enseña en el log: la spec en Solo Shuffle, el bracket en arena. */
+  label: string;
   bracket: string;
   entries: number;
   topRating: number | null;
@@ -180,20 +180,20 @@ export function leaderboardFileName(bracket: string, seasonId: number, fetchedAt
   return `${bracket}-season${seasonId}-${stamp}.json`;
 }
 
-async function fetchSpec(
+async function fetchBracket(
   client: BlizzardClient,
-  spec: SpecEntry,
+  bracket: string,
+  label: string,
   seasonId: number,
   fetchedAt: string,
 ): Promise<FetchedLeaderboard> {
-  const bracket = shuffleBracketId(spec);
   const res = await client.tryGet<{ entries?: { rating?: number }[] }>(
     `/data/wow/pvp-season/${seasonId}/pvp-leaderboard/${bracket}`,
     "dynamic",
   );
 
   const result: FetchedLeaderboard = {
-    spec: spec.label,
+    label,
     bracket,
     entries: 0,
     topRating: null,
@@ -214,8 +214,8 @@ async function fetchSpec(
     // Fallo documentado en el foro oficial: el endpoint responde 200 con 0
     // entradas para ciertos brackets de shuffle según temporada/namespace.
     result.warning =
-      "0 entradas con respuesta OK. Es un fallo conocido para algunos brackets de Solo Shuffle: " +
-      "no asumas que la spec no se juega, reintenta más tarde antes de descartarla.";
+      "0 entradas con respuesta OK. Es un fallo conocido de algunos brackets de Solo Shuffle: " +
+      "no asumas que el bracket no se juega, reintenta más tarde antes de descartarlo.";
   } else {
     const ratings = entries.map((e) => e.rating).filter((r): r is number => typeof r === "number");
     result.topRating = Math.max(...ratings);
@@ -243,10 +243,11 @@ async function fetchSpec(
 }
 
 /**
- * Descarga el leaderboard de las specs activas y devuelve lo descargado. Los
- * jobs que la usan deciden qué hacer con ello; aquí no se imprime nada, para
- * que el job programado (`refresh-leaderboard`) no tenga que leer la salida por
- * consola para saber qué pasó.
+ * Descarga el leaderboard de las specs activas, y el de la arena encendida en
+ * `BLIZZARD_ARENA_BRACKETS` (ADR 0048), y devuelve lo descargado. Los jobs que
+ * la usan deciden qué hacer con ello; aquí no se imprime nada, para que el job
+ * programado (`refresh-leaderboard`) no tenga que leer la salida por consola
+ * para saber qué pasó.
  */
 export async function fetchLeaderboardBatch(db: Queryable): Promise<LeaderboardBatch> {
   // Batch: prioridad intermedia (§28). Puede llegar tarde sin que nadie lo note,
@@ -259,7 +260,14 @@ export async function fetchLeaderboardBatch(db: Queryable): Promise<LeaderboardB
 
   const results: FetchedLeaderboard[] = [];
   for (const spec of SPECS_TO_INGEST) {
-    results.push(await fetchSpec(client, spec, seasonId, fetchedAt));
+    results.push(
+      await fetchBracket(client, shuffleBracketId(spec), spec.label, seasonId, fetchedAt),
+    );
+  }
+  // Una petición por bracket: el leaderboard de arena es uno para todas las
+  // specs, no uno por spec como el de Solo Shuffle.
+  for (const bracket of getArenaBrackets()) {
+    results.push(await fetchBracket(client, bracket, bracket, seasonId, fetchedAt));
   }
 
   return { region: client.region, seasonId, fetchedAt, results, unknownBrackets };
@@ -267,9 +275,9 @@ export async function fetchLeaderboardBatch(db: Queryable): Promise<LeaderboardB
 
 /** Informe legible de una tanda de descarga. Lo comparten el fetch manual y el job programado. */
 export function printBatch(batch: LeaderboardBatch): void {
-  console.log("\n=== LEADERBOARD SOLO SHUFFLE ===\n");
+  console.log("\n=== LEADERBOARDS ===\n");
   for (const s of batch.results) {
-    console.log(`${s.entries > 0 ? "✅" : "⚠️"} ${s.spec} (${s.bracket})`);
+    console.log(`${s.entries > 0 ? "✅" : "⚠️"} ${s.label} (${s.bracket})`);
     console.log(
       `   Entradas: ${s.entries}` +
         (isLeaderboardCapped(s.entries) ? ` (tope de ${LEADERBOARD_CAP} alcanzado)` : ""),
@@ -297,7 +305,11 @@ export function printBatch(batch: LeaderboardBatch): void {
 }
 
 export async function fetchLeaderboards(): Promise<void> {
-  console.log(`Descargando leaderboard de Solo Shuffle para ${SPECS_TO_INGEST.length} specs...`);
+  const arena = getArenaBrackets();
+  console.log(
+    `Descargando leaderboard de Solo Shuffle para ${SPECS_TO_INGEST.length} specs` +
+      (arena.length > 0 ? ` y de arena (${arena.join(", ")})...` : "..."),
+  );
 
   // Este job escribe en disco, no en Postgres, pero necesita la base igual: el
   // permiso para llamar a Blizzard vive ahí desde el ADR 0013 y no hay

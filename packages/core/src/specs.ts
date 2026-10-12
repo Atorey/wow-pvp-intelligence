@@ -139,6 +139,22 @@ export function parseShuffleBracket(bracket: string): SpecEntry | undefined {
 }
 
 /**
+ * Brackets de arena, con el id que exige la API (ADR 0048).
+ *
+ * Al contrario que los de Solo Shuffle, no nombran ninguna spec: el leaderboard
+ * es uno para todas, y ni su entrada ni el `pvp-bracket` del personaje traen la
+ * spec. La de una observación sale del `active_spec` de su perfil, y una fila de
+ * leaderboard de arena va sin clase ni spec.
+ */
+export const ARENA_BRACKETS = ["2v2", "3v3"] as const;
+
+export type ArenaBracket = (typeof ARENA_BRACKETS)[number];
+
+export function isArenaBracket(bracket: string): bracket is ArenaBracket {
+  return (ARENA_BRACKETS as readonly string[]).includes(bracket);
+}
+
+/**
  * Leaderboard agregado de Solo Shuffle: no es una spec, es la suma de todas.
  * Aparece en el índice de Blizzard junto a los brackets por spec, así que hay
  * que descontarlo antes de comparar el índice con el catálogo.

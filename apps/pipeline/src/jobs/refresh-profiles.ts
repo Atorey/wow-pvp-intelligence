@@ -34,6 +34,7 @@ import {
 } from "../config";
 import { createPool } from "../db/pool";
 import { takeSample } from "../sampling";
+import { AGGREGATED_BRACKETS_LIKE } from "../specs-to-ingest";
 import { REQUESTS_PER_PROFILE, fetchProfileParts, saveProfileSnapshot } from "./profile-capture";
 import { printActivitySummary, rebuildActivity } from "./refresh-activity";
 import { resolveSeason } from "./refresh-aggregates";
@@ -467,12 +468,14 @@ async function loadCandidates(
           and a.season_id = s.season_id
         where c.region = $1 and s.season_id = $2 and s.captured_at >= $3
           and s.source <> 'search'
+          and s.bracket like '${AGGREGATED_BRACKETS_LIKE}'
         order by s.character_id, s.bracket, s.captured_at desc
      ),
      profiles as (
        select s.character_id, s.bracket, max(s.captured_at) as last_profile_at
          from character_snapshots s
         where s.season_id = $2 and s.source = 'profile' and s.captured_at >= $3
+          and s.bracket like '${AGGREGATED_BRACKETS_LIKE}'
         group by s.character_id, s.bracket
      )
      select a.character_id, a.bracket, a.season_id, a.rating, a.last_active_at,

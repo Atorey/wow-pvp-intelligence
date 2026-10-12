@@ -21,6 +21,7 @@ dotenv.config({ path: path.join(REPO_ROOT, ".env"), quiet: true });
  * `process.env` antes de que ningún job llame a uno de estos getters.
  */
 export {
+  getArenaBrackets,
   getBlizzardCredentials,
   getCharacterLookupTtlMinutes,
   getGlobalPerSecond,

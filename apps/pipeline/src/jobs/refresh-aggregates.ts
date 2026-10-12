@@ -25,6 +25,7 @@ import {
 } from "@wowpvp/core";
 import { getRegion } from "../config";
 import { createPool } from "../db/pool";
+import { AGGREGATED_BRACKETS_LIKE } from "../specs-to-ingest";
 import { printCoverage } from "./coverage";
 import { prune, parseOptions as parsePruneOptions } from "./prune-aggregates";
 import { printActivitySummary, rebuildActivity } from "./refresh-activity";
@@ -354,6 +355,7 @@ async function loadActive(
         and a.season_id = s.season_id
       where c.region = $1 and s.season_id = $2 and s.captured_at >= $3
         and s.source <> 'search'
+        and s.bracket like '${AGGREGATED_BRACKETS_LIKE}'
       order by s.character_id, s.bracket, s.captured_at desc`,
     [region, seasonId, cutoff],
   );
@@ -399,6 +401,7 @@ async function loadSearchOnly(
           and a.season_id = s.season_id
         where c.region = $1 and s.season_id = $2 and s.captured_at >= $3
           and a.last_active_at >= $3
+          and s.bracket like '${AGGREGATED_BRACKETS_LIKE}'
      ),
      search_only as (
        select character_id, bracket
@@ -485,6 +488,7 @@ async function loadProfiles(
        join characters c on c.id = s.character_id
       where c.region = $1 and s.season_id = $2 and s.captured_at >= $3
         and s.source = 'profile'
+        and s.bracket like '${AGGREGATED_BRACKETS_LIKE}'
       order by s.character_id, s.bracket, s.captured_at desc`,
     [region, seasonId, cutoff],
   );

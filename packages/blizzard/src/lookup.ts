@@ -4,16 +4,18 @@ import {
   formatCharacterRef,
   nameSlug,
   specSlug,
+  type ArenaBracket,
   type CharacterRef,
   type SpecEntry,
 } from "@wowpvp/core";
 import type { BlizzardClient } from "./client";
 import {
   activeSpecOf,
+  bracketsFromSummary,
   isProfileFresh,
-  shuffleBracketsFromSummary,
+  observationSpec,
+  type BracketRef,
   type PvpSummaryResponse,
-  type ShuffleBracketRef,
 } from "./character-lookup";
 import { identityKey, upsertCharacters } from "./db/characters";
 import { insertProfileSnapshot } from "./db/snapshots";
@@ -88,6 +90,12 @@ export interface LookupDeps {
    * entorno aquí por lo mismo que `ttlMinutes`: el motor no elige su política.
    */
   notFoundTtlMinutes: number;
+  /**
+   * Brackets de arena que se buscan (`getArenaBrackets()`, ADR 0048). Vacío es
+   * la búsqueda de siempre, solo Solo Shuffle. Llega de fuera por lo mismo que
+   * los TTL: el motor no elige su política.
+   */
+  arenaBrackets: readonly ArenaBracket[];
   /** Ignora la caché. Para depurar, no para uso normal: se salta el ahorro de cuota. */
   force: boolean;
   /** Inyectable para poder probar la caducidad de la caché sin esperar 30 minutos. */
@@ -206,7 +214,7 @@ async function recordLookup(
 /** Lo descargado de un personaje, antes de decidir qué se guarda. */
 interface Capture {
   profile: ProfileResponse;
-  brackets: { ref: ShuffleBracketRef; stats: PvpBracketResponse }[];
+  brackets: { ref: BracketRef; stats: PvpBracketResponse }[];
   gear: GearRow[];
   /** null = el endpoint de talentos no respondió; no es lo mismo que "sin talentos". */
   specializations: SpecializationsResponse | null;
@@ -221,8 +229,8 @@ interface CaptureOutcome {
 }
 
 /**
- * Baja el perfil completo del personaje: identidad, brackets de Solo Shuffle que
- * juega, gear y talentos.
+ * Baja el perfil completo del personaje: identidad, brackets que juega, gear y
+ * talentos.
  *
  * Cuesta 4 peticiones más una por bracket jugado. Los brackets no se adivinan:
  * salen del propio pvp-summary, así que un personaje que juega dos specs cuesta
@@ -231,6 +239,7 @@ interface CaptureOutcome {
 async function captureCharacter(
   client: BlizzardClient,
   ref: CharacterRef,
+  arenaBrackets: readonly ArenaBracket[],
 ): Promise<CaptureOutcome> {
   const base = `/profile/wow/character/${encodeURIComponent(ref.realmSlug)}/${encodeURIComponent(ref.nameSlug)}`;
 
@@ -268,10 +277,10 @@ async function captureCharacter(
     };
   }
 
-  const bracketRefs = shuffleBracketsFromSummary(summary.data ?? {});
+  const bracketRefs = bracketsFromSummary(summary.data ?? {}, arenaBrackets);
   if (bracketRefs.length === 0) {
-    // Existe y no juega Solo Shuffle (o solo juega 2v2/3v3/RBG, que hoy no
-    // modelamos). Su identidad entra igual; snapshots, ninguno.
+    // Existe y no juega nada de lo que modelamos: ni Solo Shuffle ni la arena
+    // encendida. Su identidad entra igual; snapshots, ninguno.
     return {
       capture: { profile: profile.data, brackets: [], gear: [], specializations: null },
       outcome: "no-brackets",
@@ -280,8 +289,8 @@ async function captureCharacter(
     };
   }
 
-  // Equipo y talentos se piden solo ahora: si el personaje no juega shuffle no
-  // hay snapshot donde colgarlos y serían dos peticiones tiradas.
+  // Equipo y talentos se piden solo ahora: si el personaje no juega nada que
+  // modelemos no hay snapshot donde colgarlos y serían dos peticiones tiradas.
   const equipment = await client.tryGet<EquipmentResponse>(`${base}/equipment`, "profile");
   if (!equipment.ok) notes.push(`equipo: HTTP ${equipment.status}`);
 
@@ -291,7 +300,7 @@ async function captureCharacter(
   );
   if (!specializations.ok) notes.push(`talentos: HTTP ${specializations.status}`);
 
-  const brackets: { ref: ShuffleBracketRef; stats: PvpBracketResponse }[] = [];
+  const brackets: { ref: BracketRef; stats: PvpBracketResponse }[] = [];
   for (const bracketRef of bracketRefs) {
     const stats = await client.tryGet<PvpBracketResponse>(bracketRef.path, "profile");
     if (!stats.ok || !stats.data) {
@@ -388,7 +397,7 @@ export async function lookupCharacter(deps: LookupDeps, ref: CharacterRef): Prom
     return result;
   }
 
-  const fetched = await captureCharacter(deps.client, ref);
+  const fetched = await captureCharacter(deps.client, ref, deps.arenaBrackets);
   result.outcome = fetched.outcome;
   result.note = fetched.note;
   result.unavailable = fetched.unavailable;
@@ -408,6 +417,8 @@ export async function lookupCharacter(deps: LookupDeps, ref: CharacterRef): Prom
   const active = activeSpecOf(profile);
   const wearsGear = (spec: SpecEntry): boolean =>
     active !== null && specSlug(active) === specSlug(spec);
+
+  const notes = result.note ? [result.note] : [];
 
   const seasonOf = seasonResolver(deps.client);
 
@@ -449,15 +460,23 @@ export async function lookupCharacter(deps: LookupDeps, ref: CharacterRef): Prom
       // temporada. Es rotación, un dato más, no un error.
       if (typeof stats.rating !== "number") continue;
 
-      const talents = specializations ? findTalentLoadout(specializations, bracketRef.spec) : null;
+      // Sin spec activa que el catálogo reconozca no hay con qué guardar una
+      // observación de arena, y el schema no admite una búsqueda sin spec.
+      const spec = observationSpec(bracketRef, active);
+      if (!spec) {
+        notes.push(`${bracketRef.bracket}: sin spec activa reconocible, no se guarda`);
+        continue;
+      }
+
+      const talents = specializations ? findTalentLoadout(specializations, spec) : null;
       if (talents?.code) result.talentCodes++;
 
       // Los talentos PvP se piden aparte porque cuelgan de la spec y no del
       // loadout: existen aunque el personaje no lleve activa esta spec, que es
       // justo lo contrario que el gear (ADR 0026).
-      const pvpTalents = specializations ? mapPvpTalents(specializations, bracketRef.spec) : null;
+      const pvpTalents = specializations ? mapPvpTalents(specializations, spec) : null;
 
-      const bracketGear = wearsGear(bracketRef.spec) ? gear : [];
+      const bracketGear = wearsGear(spec) ? gear : [];
       result.gearRows += bracketGear.length;
 
       const { isNew } = await insertProfileSnapshot(client, {
@@ -469,7 +488,7 @@ export async function lookupCharacter(deps: LookupDeps, ref: CharacterRef): Prom
         source: "search",
         seasonId: await seasonOf(stats),
         bracket: bracketRef.bracket,
-        spec: bracketRef.spec,
+        spec,
         rating: stats.rating,
         matchesPlayed: stats.season_match_statistics?.played ?? null,
         matchesWon: stats.season_match_statistics?.won ?? null,
@@ -493,6 +512,7 @@ export async function lookupCharacter(deps: LookupDeps, ref: CharacterRef): Prom
     client.release();
   }
 
+  result.note = notes.length > 0 ? notes.join(" · ") : null;
   await recordLookup(deps.pool, deps.region, requestedAt, result);
   return result;
 }

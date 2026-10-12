@@ -75,7 +75,9 @@ El job programado: `fetch-leaderboard` + `ingest-leaderboard` en una sola ejecuc
 
 **Los JSON de `data/leaderboard/` son caché**, no histórico: se borran pasados `LEADERBOARD_RETENTION_DAYS` días (3 por defecto). El histórico está en Postgres, que es append-only.
 
-Para ejecutarlo en GitHub Actions hacen falta tres secrets en el repo (`BLIZZARD_CLIENT_ID`, `BLIZZARD_CLIENT_SECRET`, `DATABASE_URL`) y, opcionalmente, la variable `BLIZZARD_REGION`.
+**La arena va con interruptor.** Con `BLIZZARD_ARENA_BRACKETS=2v2,3v3` descarga también esos dos leaderboards, uno por bracket y no por spec, y sus filas entran sin clase ni spec: la entrada no la trae, y la pone después el perfil ([ADR 0048](../../docs/decisions/0048-la-spec-de-arena-sale-del-perfil.md)). Vacía por defecto, porque la arena entra en las dos cuotas de Supabase. Mientras los agregados y el refresco de perfiles no sepan darles spec, los dos se quedan en Solo Shuffle (`AGGREGATED_BRACKETS_LIKE`).
+
+Para ejecutarlo en GitHub Actions hacen falta tres secrets en el repo (`BLIZZARD_CLIENT_ID`, `BLIZZARD_CLIENT_SECRET`, `DATABASE_URL`) y, opcionalmente, las variables `BLIZZARD_REGION` y `BLIZZARD_ARENA_BRACKETS`.
 
 ### `lookup-character`
 
@@ -85,7 +87,7 @@ npm run pipeline -- lookup-character --character ragnaros/alice --character sang
 npm run pipeline -- lookup-character --character ragnaros/alice --force   # ignora la caché
 ```
 
-Busca un personaje y lo **añade a la población acumulada** con `source='search'`: identidad, rating de cada Solo Shuffle que juegue, gear y talentos. Es la segunda vía de población de §12 del plan y el motor que consumirá la búsqueda de la web (#19) — ver [ADR 0006](../../docs/decisions/0006-acumulacion-de-poblacion-por-busqueda.md).
+Busca un personaje y lo **añade a la población acumulada** con `source='search'`: identidad, rating de cada Solo Shuffle que juegue (y de la arena encendida en `BLIZZARD_ARENA_BRACKETS`), gear y talentos. Es la segunda vía de población de §12 del plan y el motor que consumirá la búsqueda de la web (#19) — ver [ADR 0006](../../docs/decisions/0006-acumulacion-de-poblacion-por-busqueda.md).
 
 **Existe porque el leaderboard no llega abajo.** El tope de 5.000 por spec deja fuera el rango bajo del ICP en las specs más jugadas (Frost Mage no baja de ~1800): un jugador de 1600 solo entra en nuestra base si alguien lo busca.
 
@@ -95,7 +97,7 @@ Busca un personaje y lo **añade a la población acumulada** con `source='search
 
 **El gear se le cuelga solo al bracket de la spec que lleva equipada.** La API devuelve un único equipo, el de ahora; atribuírselo también a las otras specs que juega sería registrar una build que nadie ha observado y que acabaría contando en el `adoption_rate` de un segmento.
 
-**Solo Solo Shuffle.** 2v2/3v3/RBG no nombran ninguna spec y `class_slug`/`spec_slug` se deducen del bracket; entran con #34.
+**La arena se guarda con la spec que lleva puesta.** 2v2 y 3v3 no nombran ninguna spec, así que su observación es la del `active_spec` del perfil, no la de su Solo Shuffle; sin spec activa reconocible, ese bracket no se guarda ([ADR 0048](../../docs/decisions/0048-la-spec-de-arena-sale-del-perfil.md)). Solo entran con `BLIZZARD_ARENA_BRACKETS` encendida, y RBG no entra.
 
 **Cada búsqueda queda registrada** en `character_lookups`, incluidas las que dan 404 o se sirven de caché. Es lo que permite responder a "¿cuánta población nueva aporta de verdad la búsqueda?", que §12 da por hecho y nadie ha medido.
 

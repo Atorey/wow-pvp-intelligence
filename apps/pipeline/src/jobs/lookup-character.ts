@@ -7,6 +7,7 @@ import {
 } from "@wowpvp/blizzard";
 import { formatCharacterRef, parseCharacterRef, type CharacterRef } from "@wowpvp/core";
 import {
+  getArenaBrackets,
   getCharacterLookupTtlMinutes,
   getDatabaseUrl,
   getNotFoundCacheTtlMinutes,
@@ -90,6 +91,7 @@ export async function lookupCharacters(args: string[] = []): Promise<void> {
   const region = getRegion();
   const ttlMinutes = getCharacterLookupTtlMinutes();
   const notFoundTtlMinutes = getNotFoundCacheTtlMinutes();
+  const arenaBrackets = getArenaBrackets();
 
   getDatabaseUrl();
 
@@ -110,7 +112,15 @@ export async function lookupCharacters(args: string[] = []): Promise<void> {
   try {
     for (const ref of options.refs) {
       const result = await lookupCharacter(
-        { pool, client, region, ttlMinutes, notFoundTtlMinutes, force: options.force },
+        {
+          pool,
+          client,
+          region,
+          ttlMinutes,
+          notFoundTtlMinutes,
+          arenaBrackets,
+          force: options.force,
+        },
         ref,
       );
       results.push(result);
