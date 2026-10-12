@@ -29,8 +29,13 @@ export interface CharacterSnapshotRead {
   faction: string | null;
   seasonId: number;
   bracket: string;
-  classSlug: string;
-  specSlug: string;
+  /**
+   * `null` solo en una fila de leaderboard de 2v2 o 3v3: esa entrada no trae
+   * clase ni spec, y la pone el perfil (ADR 0048). En Solo Shuffle nunca falta,
+   * porque la nombra el bracket.
+   */
+  classSlug: string | null;
+  specSlug: string | null;
   rating: number;
   /** Posición en el leaderboard oficial. null por debajo del corte de 5.000. */
   ladderRank: number | null;
@@ -63,8 +68,8 @@ interface SnapshotRow {
   faction: string | null;
   season_id: number;
   bracket: string;
-  class_slug: string;
-  spec_slug: string;
+  class_slug: string | null;
+  spec_slug: string | null;
   rating: number;
   ladder_rank: number | null;
   matches_played: number | null;

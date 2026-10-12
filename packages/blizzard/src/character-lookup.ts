@@ -5,7 +5,13 @@
  * se guarda y cuándo no hace falta preguntar a Blizzard; el job de al lado solo
  * lo ejecuta. Es la parte que la web de Phase 2 heredará tal cual.
  */
-import { findSpec, parseShuffleBracket, type SpecEntry } from "@wowpvp/core";
+import {
+  findSpec,
+  isArenaBracket,
+  parseShuffleBracket,
+  type ArenaBracket,
+  type SpecEntry,
+} from "@wowpvp/core";
 import { specNameToSlug, type ProfileResponse } from "./profile-mapping";
 
 // --- Brackets ---
@@ -14,27 +20,33 @@ export interface PvpSummaryResponse {
   brackets?: { href?: string }[];
 }
 
-/** Un bracket de Solo Shuffle que este personaje juega, listo para pedirlo. */
-export interface ShuffleBracketRef {
-  bracket: string;
-  spec: SpecEntry;
-  /** Ruta del endpoint, tal como la publica el propio pvp-summary. */
-  path: string;
-}
+/**
+ * Un bracket que este personaje juega, listo para pedirlo.
+ *
+ * Los dos tipos se separan porque la spec sale de sitios distintos: en Solo
+ * Shuffle la nombra el bracket, y en arena solo la sabe el perfil, con su
+ * `active_spec` (ADR 0048). Quien guarda la observación decide con cuál.
+ */
+export type BracketRef =
+  | { kind: "shuffle"; bracket: string; spec: SpecEntry; path: string }
+  | { kind: "arena"; bracket: ArenaBracket; path: string };
 
 /**
- * Brackets de Solo Shuffle que juega el personaje, sacados de su pvp-summary.
+ * Brackets que juega el personaje, sacados de su pvp-summary.
  *
  * No se adivina qué specs juega ni se prueban las 40 a ver cuál responde: se
  * siguen los enlaces que la propia API declara, que es lo mismo que hace
  * validate-endpoints y cuesta una petición por bracket real en vez de 40.
  *
- * Se filtra a shuffle porque es lo único que el modelo sabe representar hoy:
- * class_slug y spec_slug se deducen del bracket, y "2v2" no nombra ninguna spec.
- * 2v2/3v3/RBG entran con #34, no antes y no a medias.
+ * Entran los de Solo Shuffle que el catálogo reconoce y los de arena que estén
+ * encendidos en `arena`. RBG y Blitz se descartan: el modelo no los representa,
+ * y una modalidad nueva es una decisión (ADR 0048), no un enlace más.
  */
-export function shuffleBracketsFromSummary(summary: PvpSummaryResponse): ShuffleBracketRef[] {
-  const found = new Map<string, ShuffleBracketRef>();
+export function bracketsFromSummary(
+  summary: PvpSummaryResponse,
+  arena: readonly ArenaBracket[] = [],
+): BracketRef[] {
+  const found = new Map<string, BracketRef>();
 
   for (const link of summary.brackets ?? []) {
     if (!link.href) continue;
@@ -49,18 +61,32 @@ export function shuffleBracketsFromSummary(summary: PvpSummaryResponse): Shuffle
     }
 
     const bracket = path.split("/").filter(Boolean).pop();
-    if (!bracket) continue;
+    if (!bracket || found.has(bracket)) continue;
 
     const spec = parseShuffleBracket(bracket);
-    if (!spec) continue;
-
-    if (!found.has(bracket)) found.set(bracket, { bracket, spec, path });
+    if (spec) {
+      found.set(bracket, { kind: "shuffle", bracket, spec, path });
+    } else if (isArenaBracket(bracket) && arena.includes(bracket)) {
+      found.set(bracket, { kind: "arena", bracket, path });
+    }
   }
 
   return [...found.values()].sort((a, b) => a.bracket.localeCompare(b.bracket));
 }
 
 // --- Spec activa ---
+
+/**
+ * Con qué spec se guarda la observación de un bracket.
+ *
+ * En Solo Shuffle la nombra el bracket. En arena es la que lleva puesta ahora
+ * (`active`), y no la de su Solo Shuffle ni la de otro bracket: que juegue Frost
+ * en Shuffle no dice con qué juega 3v3 (ADR 0048). `null` = no hay con qué
+ * guardarla, porque el perfil no trae una spec activa que el catálogo reconozca.
+ */
+export function observationSpec(ref: BracketRef, active: SpecEntry | null): SpecEntry | null {
+  return ref.kind === "shuffle" ? ref.spec : active;
+}
 
 /**
  * Spec que el personaje lleva equipada ahora mismo, resuelta contra el catálogo.

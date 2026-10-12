@@ -1,5 +1,6 @@
 import {
   BlizzardClient,
+  getArenaBrackets,
   getCharacterLookupTtlMinutes,
   getNotFoundCacheTtlMinutes,
   getLookupTimeBudgetMs,
@@ -62,6 +63,7 @@ export async function refreshCharacter(route: PlayerRoute): Promise<RefreshStatu
       region: getRegion(),
       ttlMinutes: getCharacterLookupTtlMinutes(),
       notFoundTtlMinutes: getNotFoundCacheTtlMinutes(),
+      arenaBrackets: getArenaBrackets(),
       force: false,
     },
     { realmSlug: route.realmSlug, nameSlug: route.nameSlug },

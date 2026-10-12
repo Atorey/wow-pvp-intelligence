@@ -223,7 +223,7 @@ export async function refreshLeaderboard(): Promise<void> {
         // No se pudo mirar. Se registra igual: un hueco en la bitácora sin
         // explicación se confundiría después con "Blizzard no publicó nada".
         await recordFetch(pool, batch, result, { changed: false, published: null, snapshots: 0 });
-        console.log(`→ ${result.spec}: descarga fallida, no se ingiere`);
+        console.log(`→ ${result.label}: descarga fallida, no se ingiere`);
         outcomes.push({ result, changed: false, snapshots: 0, redundant: 0 });
         continue;
       }
@@ -249,7 +249,7 @@ export async function refreshLeaderboard(): Promise<void> {
         const detail = published
           ? "republicado pero sin cambios de población"
           : "sin cambios desde la última descarga";
-        console.log(`→ ${result.spec}: ${detail}, no se ingiere`);
+        console.log(`→ ${result.label}: ${detail}, no se ingiere`);
         outcomes.push({ result, changed: false, snapshots: 0, redundant: 0 });
         continue;
       }
@@ -258,13 +258,13 @@ export async function refreshLeaderboard(): Promise<void> {
         const { snapshots, redundant } = await ingestFile(pool, batch.region, result.file.content);
         await recordFetch(pool, batch, result, { changed: true, published, snapshots, redundant });
         console.log(
-          `→ ${result.spec}: población nueva, ${snapshots} snapshots insertados ` +
+          `→ ${result.label}: población nueva, ${snapshots} snapshots insertados ` +
             `(${redundant} entradas sin cambio, descartadas)`,
         );
         outcomes.push({ result, changed: true, snapshots, redundant });
       } catch (err) {
-        // Una spec que revienta no puede llevarse por delante a las otras 39. Son
-        // 39 transacciones independientes y el runner es efímero (ADR 0004): lo que
+        // Un bracket que revienta no puede llevarse por delante a los demás. Son
+        // transacciones independientes y el runner es efímero (ADR 0004): lo que
         // no se ingiere aquí no se reintenta, se pierde esa publicación entera.
         //
         // Se anota con population_hash null a propósito: la comparación de la
@@ -273,7 +273,7 @@ export async function refreshLeaderboard(): Promise<void> {
         // El content_hash sí se conserva: la publicación se vio, y eso es cierto
         // aunque la ingesta fallara.
         const reason = err instanceof Error ? err.message : String(err);
-        failures.push(`${result.spec}: ${reason}`);
+        failures.push(`${result.label}: ${reason}`);
         await recordFetch(pool, batch, result, {
           changed: false,
           published,
@@ -281,14 +281,14 @@ export async function refreshLeaderboard(): Promise<void> {
           populationHash: null,
           note: `ingesta fallida — ${reason}`,
         });
-        console.error(`→ ${result.spec}: ❌ la ingesta falló (${reason})`);
+        console.error(`→ ${result.label}: ❌ la ingesta falló (${reason})`);
         outcomes.push({ result, changed: false, snapshots: 0, redundant: 0 });
       }
     }
 
     if (outcomes.every((o) => !o.result.file)) {
       throw new Error(
-        "Ninguna spec se pudo descargar. Revisa credenciales, cuota o estado de la API de Blizzard.",
+        "Ningún leaderboard se pudo descargar. Revisa credenciales, cuota o estado de la API de Blizzard.",
       );
     }
 
@@ -314,7 +314,9 @@ export async function refreshLeaderboard(): Promise<void> {
     // El job termina en rojo si algo falló, pero después de haber ingerido todo lo
     // demás: una corrida a medias que se anuncia verde es peor que una que falla.
     if (failures.length > 0) {
-      throw new Error(`${failures.length} spec(s) no se pudieron ingerir: ${failures.join(" | ")}`);
+      throw new Error(
+        `${failures.length} bracket(s) no se pudieron ingerir: ${failures.join(" | ")}`,
+      );
     }
   } finally {
     await pool.end();

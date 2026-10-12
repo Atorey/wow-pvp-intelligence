@@ -5,9 +5,11 @@ import {
   DEFAULT_SEGMENT_SCALE,
   confidenceFor,
   formatSegment,
+  isArenaBracket,
   nameSlug,
   parseShuffleBracket,
   segmentFor,
+  type SpecEntry,
 } from "@wowpvp/core";
 import { LEADERBOARD_DIR, getRegion } from "../config";
 import { identityKey, writeCharacters } from "@wowpvp/blizzard";
@@ -61,6 +63,23 @@ export function dedupeEntries(entries: LeaderboardEntry[]): LeaderboardEntry[] {
   return kept;
 }
 
+/**
+ * La spec con la que entran las filas de la publicación de un bracket.
+ *
+ * En Solo Shuffle la nombra el bracket. En arena el leaderboard es uno para
+ * todas y su entrada no la trae, así que la fila va sin clase ni spec y la pone
+ * después el perfil (ADR 0048). Lo que no es ninguna de las dos cosas no se
+ * ingiere: inventarle una spec rompería el agregado en silencio.
+ */
+export function leaderboardSpec(bracket: string): SpecEntry | null {
+  const spec = parseShuffleBracket(bracket);
+  if (spec) return spec;
+  if (isArenaBracket(bracket)) return null;
+  throw new Error(
+    `Bracket "${bracket}" no está en el catálogo de specs de @wowpvp/core ni es de arena.`,
+  );
+}
+
 function readLeaderboardFiles(): { file: string; content: LeaderboardFile }[] {
   if (!fs.existsSync(LEADERBOARD_DIR)) return [];
 
@@ -91,12 +110,7 @@ export async function ingestFile(
   region: string,
   content: LeaderboardFile,
 ): Promise<IngestResult> {
-  const spec = parseShuffleBracket(content.bracket);
-  if (!spec) {
-    throw new Error(
-      `Bracket "${content.bracket}" no está en el catálogo de specs de @wowpvp/core.`,
-    );
-  }
+  const spec = leaderboardSpec(content.bracket);
 
   const received = (
     (content.leaderboard as { entries?: LeaderboardEntry[] })?.entries ?? []
@@ -213,8 +227,8 @@ export async function ingestFile(
         entries.map(() => "leaderboard"),
         entries.map(() => content.seasonId),
         entries.map(() => content.bracket),
-        entries.map(() => spec.classSlug),
-        entries.map(() => spec.specSlug),
+        entries.map(() => spec?.classSlug ?? null),
+        entries.map(() => spec?.specSlug ?? null),
         entries.map((e) => e.rating),
         entries.map((e) => e.rank),
         entries.map((e) => e.season_match_statistics?.played ?? null),

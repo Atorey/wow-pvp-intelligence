@@ -16,3 +16,17 @@ import { ALL_SPECS, type SpecEntry } from "@wowpvp/core";
  * recorte no debe tocar el catálogo canónico.
  */
 export const SPECS_TO_INGEST: readonly SpecEntry[] = ALL_SPECS;
+
+/**
+ * Patrón `like` de los brackets que agregan `refresh-aggregates` y muestrea
+ * `refresh-profiles`: solo los de Solo Shuffle.
+ *
+ * La arena se ingiere desde el ADR 0048, pero sus filas de leaderboard no
+ * tienen spec y ninguno de los dos jobs sabe todavía darles una. Sin este
+ * filtro, el agregado etiquetaría el bracket `3v3` con la spec de su primer
+ * miembro, y el planificador de perfiles reservaría presupuesto para pares que
+ * después no puede muestrear. Se quita cuando cada job aprenda a leer la spec
+ * del perfil (ADR 0048, puntos 6 y 7). Filtrar en la consulta, y no después,
+ * es además lo que evita bajar de Postgres filas que nadie va a usar.
+ */
+export const AGGREGATED_BRACKETS_LIKE = "shuffle-%";

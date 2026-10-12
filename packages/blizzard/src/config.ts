@@ -13,7 +13,14 @@
  * fichero que leer. Cargarlas desde este módulo obligaría a inventar una raíz
  * de repo que en serverless no existe.
  */
-import { REGIONS, isRegion, type Region } from "@wowpvp/core";
+import {
+  ARENA_BRACKETS,
+  REGIONS,
+  isArenaBracket,
+  isRegion,
+  type ArenaBracket,
+  type Region,
+} from "@wowpvp/core";
 
 function required(name: string, hint: string): string {
   const value = process.env[name];
@@ -164,6 +171,40 @@ export function getNotFoundCacheTtlMinutes(): number {
     throw new Error(`CHARACTER_NOT_FOUND_TTL_MINUTES="${raw}" no es un número de minutos válido.`);
   }
   return parsed;
+}
+
+/**
+ * Brackets de arena que se descargan y se buscan, leídos de
+ * `BLIZZARD_ARENA_BRACKETS` ("2v2,3v3"). Vacío por defecto (ADR 0048).
+ *
+ * Es un interruptor y no código que se activa al mergear porque la arena entra
+ * en las dos cuotas de Supabase a la vez: filas en la base y lecturas diarias
+ * del pipeline. Se enciende cuando se ha medido que hay margen, y lo leen los
+ * dos procesos que llaman a Blizzard —el job del leaderboard y la búsqueda de la
+ * web— para que no ingiera uno lo que el otro no sabe pedir.
+ */
+export function getArenaBrackets(): readonly ArenaBracket[] {
+  return parseArenaBrackets(process.env["BLIZZARD_ARENA_BRACKETS"]);
+}
+
+export function parseArenaBrackets(raw: string | undefined): readonly ArenaBracket[] {
+  const values = (raw ?? "")
+    .split(",")
+    .map((value) => value.trim().toLowerCase())
+    .filter((value) => value.length > 0);
+
+  const unknown = values.filter((value) => !isArenaBracket(value));
+  if (unknown.length > 0) {
+    // Un valor mal escrito que se ignorase dejaría el bracket sin ingerir y sin
+    // aviso, que es como se descubre meses después.
+    throw new Error(
+      `BLIZZARD_ARENA_BRACKETS="${raw}": ${unknown.join(", ")} no es un bracket de arena. ` +
+        `Opciones: ${ARENA_BRACKETS.join(", ")}.`,
+    );
+  }
+  // El orden es el del catálogo, no el del entorno: la descarga y el log salen
+  // siempre igual escriba quien escriba la variable.
+  return ARENA_BRACKETS.filter((bracket) => values.includes(bracket));
 }
 
 export function getBlizzardCredentials(): { clientId: string; clientSecret: string } {

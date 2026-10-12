@@ -31,6 +31,10 @@ jobs:
       BLIZZARD_CLIENT_ID: ${{ secrets.BLIZZARD_CLIENT_ID }}
       BLIZZARD_CLIENT_SECRET: ${{ secrets.BLIZZARD_CLIENT_SECRET }}
       BLIZZARD_REGION: ${{ vars.BLIZZARD_REGION || 'eu' }}
+      # Arena (ADR 0048): sin la variable del repositorio no se descarga. Se
+      # enciende con "2v2,3v3" cuando se ha medido que la cuota de Supabase lo
+      # aguanta; son dos peticiones más por corrida y 10.000 entradas.
+      BLIZZARD_ARENA_BRACKETS: ${{ vars.BLIZZARD_ARENA_BRACKETS }}
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
     steps:
       - uses: actions/checkout@v4

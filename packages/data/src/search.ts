@@ -70,6 +70,10 @@ export interface SearchCharactersOptions {
  * candidatos son cientos, y sin `order by` el primer sugerido cambiaría entre
  * dos pulsaciones idénticas. Manda el rating más alto que le conozcamos, que es
  * lo que separa al personaje que alguien busca del homónimo que nadie mira.
+ *
+ * Ese rating es el de Solo Shuffle. Un 2v2 o un 3v3 no se compara con él ni
+ * trae siempre la spec (ADR 0048), así que mezclarlo enseñaría un número de otra
+ * modalidad como si fuera de esta.
  */
 export async function searchCharacters(
   db: Queryable,
@@ -93,6 +97,7 @@ export async function searchCharacters(
          select rating, spec_slug
            from latest_snapshot_per_character_bracket
           where character_id = c.id
+            and bracket like 'shuffle-%'
           order by rating desc
           limit 1
        ) s on true

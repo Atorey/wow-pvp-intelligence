@@ -4,6 +4,7 @@ import {
   ALL_SPECS,
   CLASS_LABELS,
   CLASS_SLUGS,
+  isArenaBracket,
   isClassSlug,
   parseShuffleBracket,
   parseSpecSlug,
@@ -39,6 +40,15 @@ test("un bracket aplastado se resuelve de vuelta a su spec", () => {
   const dk = requireSpec("death-knight", "frost");
   assert.deepEqual(parseShuffleBracket("shuffle-deathknight-frost"), dk);
   assert.equal(parseShuffleBracket("shuffle-death-knight-frost"), undefined);
+});
+
+test("los brackets de arena no nombran spec y no se confunden con los de shuffle", () => {
+  assert.equal(isArenaBracket("2v2"), true);
+  assert.equal(isArenaBracket("3v3"), true);
+  // RBG tampoco nombra spec, pero entrar es una decisión aparte (ADR 0048).
+  assert.equal(isArenaBracket("rbg"), false);
+  assert.equal(isArenaBracket("shuffle-mage-frost"), false);
+  assert.equal(parseShuffleBracket("3v3"), undefined);
 });
 
 test("un bracket desconocido no se adivina, devuelve undefined", () => {

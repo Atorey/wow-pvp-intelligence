@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { dedupeEntries, type LeaderboardEntry } from "./ingest-leaderboard";
+import { dedupeEntries, leaderboardSpec, type LeaderboardEntry } from "./ingest-leaderboard";
 
 function entry(overrides: {
   id?: number;
@@ -59,4 +59,16 @@ test("dedupeEntries no depende del orden en que llegan las entradas", () => {
   const b = entry({ id: 7, realm: "sanguino", name: "Oldname", rank: 340 });
 
   assert.deepEqual(dedupeEntries([a, b]), dedupeEntries([b, a]));
+});
+
+test("leaderboardSpec saca la spec del bracket de shuffle y deja la de arena sin poner", () => {
+  assert.equal(leaderboardSpec("shuffle-deathknight-frost")?.classSlug, "death-knight");
+  // La entrada de 2v2/3v3 no trae spec: la pone el perfil, nunca la ingesta (ADR 0048).
+  assert.equal(leaderboardSpec("3v3"), null);
+  assert.equal(leaderboardSpec("2v2"), null);
+});
+
+test("leaderboardSpec no ingiere un bracket que no sabe representar", () => {
+  assert.throws(() => leaderboardSpec("rbg"), /ni es de arena/);
+  assert.throws(() => leaderboardSpec("shuffle-mage-arcane-frost"), /ni es de arena/);
 });

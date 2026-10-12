@@ -1,5 +1,6 @@
 import {
   BlizzardClient,
+  getArenaBrackets,
   getCharacterLookupTtlMinutes,
   getNotFoundCacheTtlMinutes,
   getLookupTimeBudgetMs,
@@ -148,6 +149,7 @@ export async function resolveSearch(query: SearchQuery): Promise<SearchResolutio
       region,
       ttlMinutes: getCharacterLookupTtlMinutes(),
       notFoundTtlMinutes: getNotFoundCacheTtlMinutes(),
+      arenaBrackets: getArenaBrackets(),
       force: false,
     },
     { realmSlug: realm, nameSlug: name },
