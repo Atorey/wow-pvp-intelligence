@@ -29,6 +29,9 @@ jobs:
     env:
       BLIZZARD_REGION: ${{ vars.BLIZZARD_REGION || 'eu' }}
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      # Arena (ADR 0048): la misma variable que el leaderboard y los perfiles,
+      # para que no se agregue lo que no se ingiere. Sin ella, solo Solo Shuffle.
+      BLIZZARD_ARENA_BRACKETS: ${{ vars.BLIZZARD_ARENA_BRACKETS }}
       # Solo la usa el archivado (ADR 0034): el bucket es privado.
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
     steps:

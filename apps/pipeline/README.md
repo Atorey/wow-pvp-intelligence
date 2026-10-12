@@ -75,7 +75,7 @@ El job programado: `fetch-leaderboard` + `ingest-leaderboard` en una sola ejecuc
 
 **Los JSON de `data/leaderboard/` son caché**, no histórico: se borran pasados `LEADERBOARD_RETENTION_DAYS` días (3 por defecto). El histórico está en Postgres, que es append-only.
 
-**La arena va con interruptor.** Con `BLIZZARD_ARENA_BRACKETS=2v2,3v3` descarga también esos dos leaderboards, uno por bracket y no por spec, y sus filas entran sin clase ni spec: la entrada no la trae, y la pone después el perfil ([ADR 0048](../../docs/decisions/0048-la-spec-de-arena-sale-del-perfil.md)). Vacía por defecto, porque la arena entra en las dos cuotas de Supabase. `refresh-profiles` les baja el perfil con su parte del presupuesto, y mientras los agregados no sepan darles spec se quedan en Solo Shuffle (`SHUFFLE_BRACKETS_LIKE`).
+**La arena va con interruptor.** Con `BLIZZARD_ARENA_BRACKETS=2v2,3v3` descarga también esos dos leaderboards, uno por bracket y no por spec, y sus filas entran sin clase ni spec: la entrada no la trae, y la pone después el perfil ([ADR 0048](../../docs/decisions/0048-la-spec-de-arena-sale-del-perfil.md)). Vacía por defecto, porque la arena entra en las dos cuotas de Supabase. `refresh-profiles` les baja el perfil con su parte del presupuesto, y `refresh-aggregates` los cuenta en la spec de ese perfil.
 
 Para ejecutarlo en GitHub Actions hacen falta tres secrets en el repo (`BLIZZARD_CLIENT_ID`, `BLIZZARD_CLIENT_SECRET`, `DATABASE_URL`) y, opcionalmente, las variables `BLIZZARD_REGION` y `BLIZZARD_ARENA_BRACKETS`.
 
@@ -224,6 +224,8 @@ npm run pipeline -- refresh-aggregates --window 30  # fuerza la ventana de "seas
 **Se guarda también lo que no se puede enseñar**: segmentos con n insuficiente e items que lleva una sola persona. Guardar no es mostrar —la puerta sigue siendo `canShowComparison()`— y sin esas filas no se puede saber cuánto le falta a una spec de tanque para llegar a n=30 ni calcular el poder discriminante de §13.3.
 
 **Los personajes que solo vienen de búsquedas (`source='search'`) no entran** en el agregado, pero se cuentan en `excluded_search`. Entran por sesgo de selección (ADR 0006) y meterlos contaminaría el `n` que sostiene la confianza; el contador está para revisar esa decisión con dato delante, porque el precio es dejar 1400-1800 sin agregados.
+
+**En arena la spec la pone el perfil** ([ADR 0048](../../docs/decisions/0048-la-spec-de-arena-sale-del-perfil.md)). Con `BLIZZARD_ARENA_BRACKETS` encendida, un personaje de 2v2 o 3v3 cuenta en la spec de su perfil más reciente de la ventana, el mismo del que sale su gear, y un segmento de arena es `(bracket, clase, spec, tramo)`. Quien no tiene perfil en la ventana está en el tramo pero en ninguna spec, y se cuenta en `without_spec`, igual en todas las filas de spec del tramo. De arena solo se guardan las variables cuyo denominador pasa `canShowComparison()`: son cuarenta specs por bracket con pocos perfiles cada una, y lo que no se puede enseñar no compensa su cuota. La cobertura de arena cuenta solo a los sujetos con spec conocida, así que es un suelo: el tramo de debajo del primer objetivo casi nunca tiene perfil.
 
 **Sin perfiles dentro de la ventana solo se publica la distribución.** El job lo avisa al terminar. La solución es muestrear con la cadencia de la ventana —eso es `refresh-profiles`— y no ensanchar la ventana.
 

@@ -4,10 +4,13 @@ import {
   DEFAULT_SEGMENT_SCALE,
   aggregateSegment,
   buildCoverage,
+  canShowComparison,
   confidenceFor,
+  findSpec,
   formatSegment,
   groupBySegment,
   isActiveWithin,
+  isArenaBracket,
   isLeaderboardCapped,
   parseShuffleBracket,
   pickActivityWindow,
@@ -23,7 +26,7 @@ import {
   type SegmentSummary,
   type TalentSelection,
 } from "@wowpvp/core";
-import { getRegion } from "../config";
+import { getArenaBrackets, getRegion } from "../config";
 import { createPool } from "../db/pool";
 import { SHUFFLE_BRACKETS_LIKE } from "../specs-to-ingest";
 import { printCoverage } from "./coverage";
@@ -56,6 +59,12 @@ import { printActivitySummary, rebuildActivity } from "./refresh-activity";
  *   distintas del mismo personaje (leaderboard vs. muestreo de perfiles), así
  *   que la fila guarda el rango temporal de los perfiles usados en vez de
  *   dejarlo suponer.
+ *
+ * - **En arena la spec la pone el perfil** (ADR 0048). El bracket `3v3` lleva
+ *   las cuarenta specs dentro: un personaje cuenta en la de su perfil más
+ *   reciente de la ventana, y sin perfil se queda en el tramo pero en ninguna
+ *   spec, contado en `without_spec`. Sus variables solo se guardan donde se
+ *   pueden servir.
  *
  * Y publica una tercera cosa además de las dos tablas de §28: la **cobertura
  * servible por par `(spec, segmento objetivo)`** (ADR 0032). Sale de los
@@ -139,8 +148,9 @@ export function parseOptions(args: string[]): Options {
 export interface ActiveRow {
   characterId: string;
   bracket: string;
-  classSlug: string;
-  specSlug: string;
+  /** null en una fila de leaderboard de arena: la spec la pone el perfil (ADR 0048). */
+  classSlug: string | null;
+  specSlug: string | null;
   rating: number;
   capturedAt: Date;
   /** `last_active_snapshot_date` (§27), materializado por refresh-activity. */
@@ -152,6 +162,9 @@ export interface ActiveRow {
 export interface ProfileRow {
   characterId: string;
   bracket: string;
+  /** La spec del perfil: en arena, la que llevaba puesta al bajarlo (ADR 0048). */
+  classSlug: string;
+  specSlug: string;
   capturedAt: Date;
   equippedItemLevel: number | null;
   averageItemLevel: number | null;
@@ -193,8 +206,16 @@ function memberKey(characterId: string, bracket: string): string {
   return `${characterId}|${bracket}`;
 }
 
-function segmentKey(bracket: string, segmentId: string): string {
-  return `${bracket}|${segmentId}`;
+/**
+ * La serie que se reparte en tramos: el bracket y su spec. En Solo Shuffle es lo
+ * mismo que el bracket; en arena, un bracket son cuarenta series (ADR 0048).
+ */
+function seriesKey(row: { bracket: string; classSlug: string; specSlug: string }): string {
+  return `${row.bracket}|${row.classSlug}|${row.specSlug}`;
+}
+
+function segmentKey(series: string, segmentId: string): string {
+  return `${series}|${segmentId}`;
 }
 
 /**
@@ -212,17 +233,47 @@ export function buildMembers(
   active: readonly ActiveRow[],
   profiles: readonly ProfileRow[],
 ): Member[] {
+  return splitMembers(active, profiles).members;
+}
+
+/**
+ * Lo mismo que `buildMembers`, separando a quien no tiene spec.
+ *
+ * En Solo Shuffle la spec la nombra el bracket y nadie se queda fuera. En arena
+ * la pone el perfil más reciente de la ventana, el mismo del que sale el gear, y
+ * no la de su Solo Shuffle ni la de otro bracket (ADR 0048). Quien no tiene
+ * perfil en la ventana no está en ninguna spec: se devuelve aparte para que se
+ * cuente en `without_spec` en vez de desaparecer.
+ */
+export function splitMembers(
+  active: readonly ActiveRow[],
+  profiles: readonly ProfileRow[],
+): { members: Member[]; withoutSpec: ActiveRow[] } {
   const byKey = new Map<string, ProfileRow>();
   for (const profile of profiles)
     byKey.set(memberKey(profile.characterId, profile.bracket), profile);
 
-  return active.map((row) => {
+  const members: Member[] = [];
+  const withoutSpec: ActiveRow[] = [];
+  for (const row of active) {
     const profile = byKey.get(memberKey(row.characterId, row.bracket));
-    return {
+    const spec = isArenaBracket(row.bracket)
+      ? profile
+        ? { classSlug: profile.classSlug, specSlug: profile.specSlug }
+        : null
+      : row.classSlug !== null && row.specSlug !== null
+        ? { classSlug: row.classSlug, specSlug: row.specSlug }
+        : null;
+    if (!spec) {
+      withoutSpec.push(row);
+      continue;
+    }
+
+    members.push({
       characterId: row.characterId,
       bracket: row.bracket,
-      classSlug: row.classSlug,
-      specSlug: row.specSlug,
+      classSlug: spec.classSlug,
+      specSlug: spec.specSlug,
       rating: row.rating,
       capturedAt: row.capturedAt,
       lastActiveAt: row.lastActiveAt,
@@ -237,8 +288,10 @@ export function buildMembers(
       heroTalentTree: profile?.heroTalentTree ?? null,
       equippedItemLevel: profile?.equippedItemLevel ?? null,
       averageItemLevel: profile?.averageItemLevel ?? null,
-    };
-  });
+    });
+  }
+
+  return { members, withoutSpec };
 }
 
 // --- Ventana de actividad ---
@@ -321,11 +374,19 @@ export async function resolveSeason(
   return { seasonId, seasons };
 }
 
+/**
+ * Los brackets que se agregan: los de Solo Shuffle y la arena encendida (ADR
+ * 0048). Con el interruptor apagado la arena no se agrega aunque queden filas
+ * suyas en la ventana, por lo mismo que no se descarga ni se muestrea.
+ */
+const AGGREGATED_BRACKETS = `(s.bracket like '${SHUFFLE_BRACKETS_LIKE}' or s.bracket = any($4::text[]))`;
+
 async function loadActive(
   pool: pg.Pool,
   region: string,
   seasonId: number,
   cutoff: Date,
+  arenaBrackets: readonly string[],
 ): Promise<ActiveRow[]> {
   // distinct on = la observación más reciente de cada personaje en cada bracket.
   // Un personaje puede jugar varias specs: la clave es (personaje, bracket), no
@@ -338,8 +399,8 @@ async function loadActive(
   const { rows } = await pool.query<{
     character_id: string;
     bracket: string;
-    class_slug: string;
-    spec_slug: string;
+    class_slug: string | null;
+    spec_slug: string | null;
     rating: number;
     captured_at: Date;
     last_active_at: Date;
@@ -355,9 +416,9 @@ async function loadActive(
         and a.season_id = s.season_id
       where c.region = $1 and s.season_id = $2 and s.captured_at >= $3
         and s.source <> 'search'
-        and s.bracket like '${SHUFFLE_BRACKETS_LIKE}'
+        and ${AGGREGATED_BRACKETS}
       order by s.character_id, s.bracket, s.captured_at desc`,
-    [region, seasonId, cutoff],
+    [region, seasonId, cutoff, arenaBrackets],
   );
 
   return rows.map((row) => ({
@@ -390,10 +451,17 @@ async function loadSearchOnly(
   region: string,
   seasonId: number,
   cutoff: Date,
-): Promise<{ bracket: string; rating: number }[]> {
-  const { rows } = await pool.query<{ bracket: string; rating: number }>(
+  arenaBrackets: readonly string[],
+): Promise<SearchOnlyRow[]> {
+  const { rows } = await pool.query<{
+    bracket: string;
+    class_slug: string;
+    spec_slug: string;
+    rating: number;
+  }>(
     `with active as (
-       select s.character_id, s.bracket, s.source, s.rating, s.captured_at
+       select s.character_id, s.bracket, s.class_slug, s.spec_slug, s.source, s.rating,
+              s.captured_at
          from character_snapshots s
          join characters c on c.id = s.character_id
          join character_activity a
@@ -401,7 +469,7 @@ async function loadSearchOnly(
           and a.season_id = s.season_id
         where c.region = $1 and s.season_id = $2 and s.captured_at >= $3
           and a.last_active_at >= $3
-          and s.bracket like '${SHUFFLE_BRACKETS_LIKE}'
+          and ${AGGREGATED_BRACKETS}
      ),
      search_only as (
        select character_id, bracket
@@ -409,13 +477,28 @@ async function loadSearchOnly(
         group by character_id, bracket
        having bool_and(source = 'search')
      )
-     select distinct on (a.character_id, a.bracket) a.bracket, a.rating
+     select distinct on (a.character_id, a.bracket) a.bracket, a.class_slug, a.spec_slug, a.rating
        from active a
        join search_only so on so.character_id = a.character_id and so.bracket = a.bracket
       order by a.character_id, a.bracket, a.captured_at desc`,
-    [region, seasonId, cutoff],
+    [region, seasonId, cutoff, arenaBrackets],
   );
-  return rows;
+  // Una búsqueda siempre trae spec, también en arena: la de su spec activa
+  // (ADR 0048). Por eso se cuenta en la serie de su spec y no en el bracket.
+  return rows.map((row) => ({
+    bracket: row.bracket,
+    classSlug: row.class_slug,
+    specSlug: row.spec_slug,
+    rating: row.rating,
+  }));
+}
+
+/** Un personaje que en la ventana solo existe porque alguien lo buscó. */
+export interface SearchOnlyRow {
+  bracket: string;
+  classSlug: string;
+  specSlug: string;
+  rating: number;
 }
 
 /**
@@ -468,11 +551,16 @@ async function loadProfiles(
   region: string,
   seasonId: number,
   cutoff: Date,
+  arenaBrackets: readonly string[],
 ): Promise<{ profiles: ProfileRow[]; itemNames: Map<number, string> }> {
   const { rows: snapshots } = await pool.query<{
     id: string;
     character_id: string;
     bracket: string;
+    // Un perfil siempre lleva spec: el check de la migración 0027 solo deja sin
+    // ella a las filas de leaderboard de arena.
+    class_slug: string;
+    spec_slug: string;
     captured_at: Date;
     average_item_level: number | null;
     equipped_item_level: number | null;
@@ -481,16 +569,16 @@ async function loadProfiles(
     hero_talent_tree_name: string | null;
   }>(
     `select distinct on (s.character_id, s.bracket)
-            s.id, s.character_id, s.bracket, s.captured_at,
+            s.id, s.character_id, s.bracket, s.class_slug, s.spec_slug, s.captured_at,
             s.average_item_level, s.equipped_item_level, s.talent_loadout_code,
             s.hero_talent_tree_id, s.hero_talent_tree_name
        from character_snapshots s
        join characters c on c.id = s.character_id
       where c.region = $1 and s.season_id = $2 and s.captured_at >= $3
         and s.source = 'profile'
-        and s.bracket like '${SHUFFLE_BRACKETS_LIKE}'
+        and ${AGGREGATED_BRACKETS}
       order by s.character_id, s.bracket, s.captured_at desc`,
-    [region, seasonId, cutoff],
+    [region, seasonId, cutoff, arenaBrackets],
   );
 
   const snapshotIds = snapshots.map((row) => row.id);
@@ -545,6 +633,8 @@ async function loadProfiles(
   const profiles = snapshots.map((row) => ({
     characterId: row.character_id,
     bracket: row.bracket,
+    classSlug: row.class_slug,
+    specSlug: row.spec_slug,
     capturedAt: row.captured_at,
     equippedItemLevel: row.equipped_item_level,
     averageItemLevel: row.average_item_level,
@@ -697,6 +787,11 @@ export interface ComputedSegment {
    * hay ninguna descarga buena: no se sabe, que no es lo mismo que cero.
    */
   leaderboardEntries: number | null;
+  /**
+   * Activos del mismo bracket y tramo sin spec conocida (ADR 0048, punto 6).
+   * null en Solo Shuffle, donde la spec la nombra el bracket.
+   */
+  withoutSpec: number | null;
 }
 
 function profileRange(members: readonly Member[]): { from: Date | null; to: Date | null } {
@@ -711,27 +806,40 @@ function profileRange(members: readonly Member[]): { from: Date | null; to: Date
 
 export function computeSegments(
   members: readonly Member[],
-  searchOnly: readonly { bracket: string; rating: number }[],
+  searchOnly: readonly SearchOnlyRow[],
   now: Date,
   forcedWindow: ActivityWindowDays | null,
   leaderboardEntries: ReadonlyMap<string, number> = new Map(),
+  withoutSpec: readonly ActiveRow[] = [],
 ): ComputedSegment[] {
   const excluded = new Map<string, number>();
   for (const row of searchOnly) {
-    const key = segmentKey(row.bracket, segmentFor(row.rating, DEFAULT_SEGMENT_SCALE).id);
+    const key = segmentKey(seriesKey(row), segmentFor(row.rating, DEFAULT_SEGMENT_SCALE).id);
     excluded.set(key, (excluded.get(key) ?? 0) + 1);
   }
 
-  const byBracket = new Map<string, Member[]>();
+  // Sin spec se cuenta por (bracket, tramo), con la ventana más ancha de la
+  // corrida, igual que los de búsqueda: es cuánta población se queda fuera, y
+  // cada tramo de spec elige después su propia ventana.
+  const widest = forcedWindow ?? ACTIVITY_WINDOWS.fallback;
+  const unknown = new Map<string, number>();
+  for (const row of withoutSpec) {
+    if (!isActiveWithin(row, now, widest)) continue;
+    const key = segmentKey(row.bracket, segmentFor(row.rating, DEFAULT_SEGMENT_SCALE).id);
+    unknown.set(key, (unknown.get(key) ?? 0) + 1);
+  }
+
+  const bySeries = new Map<string, Member[]>();
   for (const member of members) {
-    const bucket = byBracket.get(member.bracket);
+    const key = seriesKey(member);
+    const bucket = bySeries.get(key);
     if (bucket) bucket.push(member);
-    else byBracket.set(member.bracket, [member]);
+    else bySeries.set(key, [member]);
   }
 
   const computed: ComputedSegment[] = [];
-  for (const [bracket, bracketMembers] of [...byBracket].sort(([a], [b]) => a.localeCompare(b))) {
-    const bySegment = groupBySegment(bracketMembers, (rating) =>
+  for (const [series, seriesMembers] of [...bySeries].sort(([a], [b]) => a.localeCompare(b))) {
+    const bySegment = groupBySegment(seriesMembers, (rating) =>
       segmentFor(rating, DEFAULT_SEGMENT_SCALE),
     );
 
@@ -748,8 +856,11 @@ export function computeSegments(
 
       const first = active[0];
       if (!first) continue;
+      const { bracket } = first;
+      const arena = isArenaBracket(bracket);
       const segment = segmentFor(first.rating, DEFAULT_SEGMENT_SCALE);
       const range = profileRange(active);
+      const variables = aggregateSegment(active);
 
       computed.push({
         bracket,
@@ -762,11 +873,17 @@ export function computeSegments(
         summary: summarizeSegment(active),
         activeByDelta: active.filter((m) => m.activityEvidence === "played-delta").length,
         activeByFirstSeen: active.filter((m) => m.activityEvidence === "first-seen").length,
-        variables: aggregateSegment(active),
+        // En arena solo se guarda la variable que se puede servir (ADR 0048,
+        // punto 8): son cuarenta specs por bracket con pocos perfiles cada una,
+        // y un tramo con 12 tiene casi tantas variables como uno con 60.
+        variables: arena
+          ? variables.filter((variable) => canShowComparison(variable.adoption.denominator))
+          : variables,
         profileFrom: range.from,
         profileTo: range.to,
-        excludedSearch: excluded.get(segmentKey(bracket, segmentId)) ?? 0,
+        excludedSearch: excluded.get(segmentKey(series, segmentId)) ?? 0,
         leaderboardEntries: leaderboardEntries.get(bracket) ?? null,
+        withoutSpec: arena ? (unknown.get(segmentKey(bracket, segmentId)) ?? 0) : null,
       });
     }
   }
@@ -955,9 +1072,9 @@ async function writeSegments(
             item_level_sample, gear_sample, talent_sample, talent_code_distinct,
             talent_node_sample, pvp_talent_sample,
             profile_data_from, profile_data_to, excluded_search,
-            active_by_delta, active_by_first_seen, leaderboard_entries)
+            active_by_delta, active_by_first_seen, leaderboard_entries, without_spec)
          values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
-                 $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29)
+                 $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30)
          returning id`,
         [
           computedAt,
@@ -989,6 +1106,7 @@ async function writeSegments(
           segment.activeByDelta,
           segment.activeByFirstSeen,
           segment.leaderboardEntries,
+          segment.withoutSpec,
         ],
       );
 
@@ -1014,6 +1132,14 @@ async function writeSegments(
 
 // --- Salida ---
 
+/** "Frost Mage" en Solo Shuffle; "3v3 · Frost Mage" en arena, donde el bracket no la nombra. */
+function seriesLabel(segment: Pick<ComputedSegment, "bracket" | "classSlug" | "specSlug">): string {
+  const shuffle = parseShuffleBracket(segment.bracket);
+  if (shuffle) return shuffle.label;
+  const spec = findSpec(segment.classSlug, segment.specSlug);
+  return `${segment.bracket} · ${spec?.label ?? `${segment.classSlug}/${segment.specSlug}`}`;
+}
+
 function printSegments(segments: readonly ComputedSegment[]): void {
   console.log("\n=== AGREGADOS POR SEGMENTO ===");
   console.log(
@@ -1021,17 +1147,17 @@ function printSegments(segments: readonly ComputedSegment[]): void {
       "comparación sale del gear, que tiene su propio denominador)\n",
   );
 
-  let currentBracket = "";
+  let currentSeries = "";
   for (const segment of segments) {
-    if (segment.bracket !== currentBracket) {
-      currentBracket = segment.bracket;
+    if (seriesKey(segment) !== currentSeries) {
+      currentSeries = seriesKey(segment);
       // El tope se dice aquí, en el log del día, para que el día que una spec lo
       // toque no haga falta ir a buscarlo: desde ese momento `/meta` declara su
       // población como un suelo (ADR 0045).
       const cap = isLeaderboardCapped(segment.leaderboardEntries)
         ? ` ⚠️  leaderboard en el tope (${segment.leaderboardEntries} entradas): población recortada`
         : "";
-      console.log(`${parseShuffleBracket(segment.bracket)?.label ?? segment.bracket}:${cap}`);
+      console.log(`${seriesLabel(segment)}:${cap}`);
     }
 
     const { summary } = segment;
@@ -1053,10 +1179,13 @@ function printSegments(segments: readonly ComputedSegment[]): void {
         ? "ninguno con partidas vistas"
         : `${segment.activeByDelta} con partidas vistas`;
 
+    const sinSpec =
+      segment.withoutSpec === null ? "" : ` · ${segment.withoutSpec} del tramo sin spec conocida`;
+
     console.log(
       `  ${label}: n=${summary.sampleSize} (${confidenceFor(summary.sampleSize)}, ` +
         `ventana ${segment.window}d, ` +
-        `${evidencia}) · mediana ${summary.ratingMedian ?? "—"} CR · ${perfiles}`,
+        `${evidencia}) · mediana ${summary.ratingMedian ?? "—"} CR · ${perfiles}${sinSpec}`,
     );
   }
   console.log("");
@@ -1077,6 +1206,7 @@ export async function refreshAggregates(args: string[], borrowedPool?: pg.Pool):
   const startedAt = Date.now();
   const options = parseOptions(args);
   const region = getRegion();
+  const arenaBrackets = getArenaBrackets();
   const now = new Date();
   // Se carga con la ventana más ancha que pueda usarse y se recorta después por
   // segmento: una consulta, no una por ventana.
@@ -1125,9 +1255,9 @@ export async function refreshAggregates(args: string[], borrowedPool?: pg.Pool):
 
     const loadStart = Date.now();
     const [active, searchOnly, { profiles, itemNames }, leaderboardEntries] = await Promise.all([
-      loadActive(pool, region, seasonId, cutoff),
-      loadSearchOnly(pool, region, seasonId, cutoff),
-      loadProfiles(pool, region, seasonId, cutoff),
+      loadActive(pool, region, seasonId, cutoff, arenaBrackets),
+      loadSearchOnly(pool, region, seasonId, cutoff, arenaBrackets),
+      loadProfiles(pool, region, seasonId, cutoff, arenaBrackets),
       loadLeaderboardEntries(pool, region, seasonId),
     ]);
     const loadMs = Date.now() - loadStart;
@@ -1138,8 +1268,15 @@ export async function refreshAggregates(args: string[], borrowedPool?: pg.Pool):
     );
 
     const computeStart = Date.now();
-    const members = buildMembers(active, profiles);
-    const segments = computeSegments(members, searchOnly, now, options.window, leaderboardEntries);
+    const { members, withoutSpec } = splitMembers(active, profiles);
+    const segments = computeSegments(
+      members,
+      searchOnly,
+      now,
+      options.window,
+      leaderboardEntries,
+      withoutSpec,
+    );
     const computeMs = Date.now() - computeStart;
     if (segments.length === 0) {
       throw new Error(
@@ -1151,6 +1288,14 @@ export async function refreshAggregates(args: string[], borrowedPool?: pg.Pool):
     }
 
     printSegments(segments);
+    if (withoutSpec.length > 0) {
+      // El total va aparte de las filas porque un tramo en el que nadie tiene
+      // spec no tiene fila de spec donde declararlo.
+      console.log(
+        `Arena: ${withoutSpec.length} activos sin perfil en la ventana, sin spec conocida. ` +
+          `Cuentan en su tramo y en ninguna spec (ADR 0048).\n`,
+      );
+    }
 
     const coverage = coverageOf(segments);
     printCoverage(coverage);
