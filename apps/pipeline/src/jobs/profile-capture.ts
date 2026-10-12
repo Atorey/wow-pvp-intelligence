@@ -42,7 +42,7 @@ export interface ProfileParts {
 export interface ProfileTarget {
   realmSlug: string;
   nameSlug: string;
-  /** Bracket de shuffle del que se quiere el rating (`shuffle-mage-frost`). */
+  /** Bracket del que se quiere el rating (`shuffle-mage-frost`, `3v3`). */
   bracket: string;
 }
 

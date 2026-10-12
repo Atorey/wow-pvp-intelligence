@@ -38,6 +38,11 @@ jobs:
       # para poder subirlo o bajarlo sin desplegar nada, que es lo que hará
       # falta cuando la ladder madure y la población se multiplique.
       PROFILE_REFRESH_BUDGET: ${{ vars.PROFILE_REFRESH_BUDGET }}
+      # Arena (ADR 0048, ADR 0049): la misma variable que el job del
+      # leaderboard, para que no se muestree lo que no se ingiere. Sin ella, el
+      # presupuesto entero es de Solo Shuffle.
+      BLIZZARD_ARENA_BRACKETS: ${{ vars.BLIZZARD_ARENA_BRACKETS }}
+      PROFILE_REFRESH_ARENA_SHARE: ${{ vars.PROFILE_REFRESH_ARENA_SHARE }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
