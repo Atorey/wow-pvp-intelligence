@@ -87,6 +87,28 @@ export function getProfileRefreshBudget(): number {
 }
 
 /**
+ * Parte del presupuesto de `refresh-profiles` reservada a la arena encendida
+ * (ADR 0049). Entre 0 y 1; 0,2 por defecto.
+ *
+ * Es una parte del mismo presupuesto y no uno aparte porque lo que ocupa en
+ * Supabase crece con los perfiles que se bajan al día, no con los brackets. El
+ * 20 % son ~300 perfiles diarios: con la ventana de 14 días, un censo de los
+ * activos de arena de los tramos que sirven al ICP. Lo que la arena no gasta
+ * vuelve a Solo Shuffle, y con la arena apagada no se reserva nada.
+ */
+export function getProfileRefreshArenaShare(): number {
+  return parseArenaShare(process.env["PROFILE_REFRESH_ARENA_SHARE"], "PROFILE_REFRESH_ARENA_SHARE");
+}
+
+export function parseArenaShare(raw: string | undefined, source: string): number {
+  const parsed = raw ? Number(raw) : 0.2;
+  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 1) {
+    throw new Error(`${source}="${raw}" debe ser una fracción entre 0 y 1 (p.ej. 0.2).`);
+  }
+  return parsed;
+}
+
+/**
  * Presupuesto de peticiones de una corrida de `revalidate-characters` (ADR 0043).
  *
  * Una petición por personaje sin prueba de existencia reciente. En régimen son

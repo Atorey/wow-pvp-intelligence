@@ -75,7 +75,7 @@ El job programado: `fetch-leaderboard` + `ingest-leaderboard` en una sola ejecuc
 
 **Los JSON de `data/leaderboard/` son caché**, no histórico: se borran pasados `LEADERBOARD_RETENTION_DAYS` días (3 por defecto). El histórico está en Postgres, que es append-only.
 
-**La arena va con interruptor.** Con `BLIZZARD_ARENA_BRACKETS=2v2,3v3` descarga también esos dos leaderboards, uno por bracket y no por spec, y sus filas entran sin clase ni spec: la entrada no la trae, y la pone después el perfil ([ADR 0048](../../docs/decisions/0048-la-spec-de-arena-sale-del-perfil.md)). Vacía por defecto, porque la arena entra en las dos cuotas de Supabase. Mientras los agregados y el refresco de perfiles no sepan darles spec, los dos se quedan en Solo Shuffle (`AGGREGATED_BRACKETS_LIKE`).
+**La arena va con interruptor.** Con `BLIZZARD_ARENA_BRACKETS=2v2,3v3` descarga también esos dos leaderboards, uno por bracket y no por spec, y sus filas entran sin clase ni spec: la entrada no la trae, y la pone después el perfil ([ADR 0048](../../docs/decisions/0048-la-spec-de-arena-sale-del-perfil.md)). Vacía por defecto, porque la arena entra en las dos cuotas de Supabase. `refresh-profiles` les baja el perfil con su parte del presupuesto, y mientras los agregados no sepan darles spec se quedan en Solo Shuffle (`SHUFFLE_BRACKETS_LIKE`).
 
 Para ejecutarlo en GitHub Actions hacen falta tres secrets en el repo (`BLIZZARD_CLIENT_ID`, `BLIZZARD_CLIENT_SECRET`, `DATABASE_URL`) y, opcionalmente, las variables `BLIZZARD_REGION` y `BLIZZARD_ARENA_BRACKETS`.
 
@@ -144,14 +144,15 @@ npm run pipeline -- refresh-profiles --budget 20000         # una puesta al día
 npm run pipeline -- refresh-profiles --specs frost-mage     # acotado a una spec
 ```
 
-| Opción       | Default                  | Qué hace                                                         |
-| ------------ | ------------------------ | ---------------------------------------------------------------- |
-| `--budget`   | `PROFILE_REFRESH_BUDGET` | Techo de peticiones de la corrida; el plan se recorta para caber |
-| `--dry-run`  | —                        | Planifica e imprime, sin llamar a Blizzard ni escribir           |
-| `--window`   | la de cada par           | Fuerza la ventana de actividad: `7` o `14`                       |
-| `--specs`    | todas                    | Acota la corrida a estas specs                                   |
-| `--segments` | todos                    | Acota a los segmentos objetivo con este rating de entrada        |
-| `--seed`     | constante                | Semilla del muestreo dentro de cada par                          |
+| Opción          | Default                       | Qué hace                                                         |
+| --------------- | ----------------------------- | ---------------------------------------------------------------- |
+| `--budget`      | `PROFILE_REFRESH_BUDGET`      | Techo de peticiones de la corrida; el plan se recorta para caber |
+| `--dry-run`     | —                             | Planifica e imprime, sin llamar a Blizzard ni escribir           |
+| `--window`      | la de cada par                | Fuerza la ventana de actividad: `7` o `14`                       |
+| `--specs`       | todas                         | Acota la corrida a estas specs de Solo Shuffle, sin arena        |
+| `--segments`    | todos                         | Acota a los segmentos objetivo con este rating de entrada        |
+| `--seed`        | constante                     | Semilla del muestreo dentro de cada par                          |
+| `--arena-share` | `PROFILE_REFRESH_ARENA_SHARE` | Parte del presupuesto para la arena encendida, entre 0 y 1       |
 
 **No es `sample-profiles` en bucle.** Aquel congela una muestra en disco para que un hallazgo se pueda auditar; este recalcula en cada corrida quién ha caducado. Comparten las cuatro llamadas y la escritura del snapshot (`profile-capture.ts`), no el estado.
 
@@ -164,6 +165,8 @@ Las dos mitades hacen falta. Ordenando solo por sujetos debajo, el presupuesto s
 **La ventana la elige cada par**, con la misma función que el agregado (`pickActivityWindow`), y decide dos cosas a la vez: quién es candidato y qué perfil sigue contando como fresco. Muestrear con una ventana más estrecha que la del agregado sesgaría el gear del segmento hacia sus jugadores más activos sin que ningún número lo delatara.
 
 **Sin estado propio.** Qué falta por bajar se deriva de la población activa cruzada con el último perfil de cada personaje. No hay manifiesto ni tabla de progreso que pueda desincronizarse de lo que publica el agregado — y por eso el job funciona igual en un runner efímero.
+
+**La arena tiene su parte del presupuesto, y se baja en censo** ([ADR 0049](../../docs/decisions/0049-los-perfiles-de-arena-van-en-censo-con-cuota-fija.md)). Con `BLIZZARD_ARENA_BRACKETS` encendida, `PROFILE_REFRESH_ARENA_SHARE` (0,2 por defecto) reserva esa fracción para los pares `(bracket, segmento)` de 2v2 y 3v3, y lo que no gasta vuelve a Solo Shuffle en la misma corrida. Dentro de la cuota no hay objetivo por par: la spec de arena la trae el perfil, así que 100 perfiles de un tramo serían unos pocos por spec y solo el censo da base por spec. El orden sí es el mismo, ICP primero y más sujetos debajo después. La spec de cada perfil es su `active_spec`, y uno sin spec reconocible no se guarda. Solo Shuffle se baja primero, para que si la corrida se corta lo perdido sea arena.
 
 El plan se imprime siempre antes de gastar: cuántos pares suben, cuántos se quedan cortos por presupuesto y cuántos no llegan al suelo porque no hay tanta gente activa. Ese último número es cobertura real, no un fallo.
 

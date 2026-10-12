@@ -5,6 +5,8 @@ import {
   buildPairs,
   hasFreshProfile,
   parseOptions,
+  planArenaCensus,
+  planProfiles,
   planRun,
   type Candidate,
   type PairState,
@@ -13,6 +15,7 @@ import {
 const NOW = new Date("2026-08-26T12:00:00Z");
 const DAY = 86_400_000;
 const DEFAULT_BUDGET = 6_000;
+const DEFAULT_ARENA_SHARE = 0.2;
 
 function daysAgo(days: number): Date {
   return new Date(NOW.getTime() - days * DAY);
@@ -55,18 +58,30 @@ function pair(overrides: Partial<PairState> & { subjectsBelow: number }): PairSt
 // --- Argumentos ---
 
 test("el presupuesto se puede acotar por línea de comandos, pero no a cualquier cosa", () => {
-  assert.equal(parseOptions([], DEFAULT_BUDGET).budget, DEFAULT_BUDGET);
-  assert.equal(parseOptions(["--budget", "800"], DEFAULT_BUDGET).budget, 800);
-  assert.throws(() => parseOptions(["--budget", "0"], DEFAULT_BUDGET), /mayor que 0/);
-  assert.throws(() => parseOptions(["--budget", "mucho"], DEFAULT_BUDGET), /peticiones/);
-  assert.throws(() => parseOptions(["--presupuesto", "10"], DEFAULT_BUDGET), /Opción desconocida/);
+  assert.equal(parseOptions([], DEFAULT_BUDGET, DEFAULT_ARENA_SHARE).budget, DEFAULT_BUDGET);
+  assert.equal(parseOptions(["--budget", "800"], DEFAULT_BUDGET, DEFAULT_ARENA_SHARE).budget, 800);
+  assert.throws(
+    () => parseOptions(["--budget", "0"], DEFAULT_BUDGET, DEFAULT_ARENA_SHARE),
+    /mayor que 0/,
+  );
+  assert.throws(
+    () => parseOptions(["--budget", "mucho"], DEFAULT_BUDGET, DEFAULT_ARENA_SHARE),
+    /peticiones/,
+  );
+  assert.throws(
+    () => parseOptions(["--presupuesto", "10"], DEFAULT_BUDGET, DEFAULT_ARENA_SHARE),
+    /Opción desconocida/,
+  );
 });
 
 test("la ventana de 30 días no vale para muestrear una base de comparación", () => {
   // 30 días es "season active" (ranking): un segmento muestreado con ella
   // mezclaría el meta de dos parches en el mismo adoption_rate.
-  assert.equal(parseOptions(["--window", "14"], DEFAULT_BUDGET).window, 14);
-  assert.throws(() => parseOptions(["--window", "30"], DEFAULT_BUDGET), /season active/);
+  assert.equal(parseOptions(["--window", "14"], DEFAULT_BUDGET, DEFAULT_ARENA_SHARE).window, 14);
+  assert.throws(
+    () => parseOptions(["--window", "30"], DEFAULT_BUDGET, DEFAULT_ARENA_SHARE),
+    /season active/,
+  );
 });
 
 // --- Frescura ---
@@ -286,4 +301,90 @@ test("el presupuesto es un techo, no una sugerencia", () => {
 
   assert.equal(plan.requests <= 500, true);
   assert.equal(plan.profiles, 125);
+});
+
+// --- Arena (ADR 0049) ---
+
+function arenaPair(
+  overrides: Partial<PairState> & { subjectsBelow: number; rating: number },
+): PairState {
+  const { rating, ...rest } = overrides;
+  return pair({
+    bracket: "3v3",
+    segment: segmentFor(rating),
+    stale: crowd(300, { bracket: "3v3", rating }),
+    ...rest,
+  });
+}
+
+test("la cuota de arena se lee como fracción y no admite más del total", () => {
+  assert.equal(parseOptions([], DEFAULT_BUDGET, 0.2).arenaShare, 0.2);
+  assert.equal(parseOptions(["--arena-share", "0"], DEFAULT_BUDGET, 0.2).arenaShare, 0);
+  assert.throws(() => parseOptions(["--arena-share", "1.5"], DEFAULT_BUDGET, 0.2), /entre 0 y 1/);
+  assert.throws(() => parseOptions(["--arena-share", "20%"], DEFAULT_BUDGET, 0.2), /entre 0 y 1/);
+});
+
+test("la arena se baja en censo: sin objetivo por par, todo el tramo", () => {
+  // 100 perfiles de (3v3, 2000-2200) serían unos pocos por spec. Lo que da
+  // base por spec es bajárselo a todos los activos del tramo.
+  const plan = planArenaCensus([arenaPair({ rating: 2000, subjectsBelow: 700 })], 4_000);
+
+  assert.equal(plan.profiles, 300);
+  assert.equal(plan.pending, 0);
+});
+
+test("la cuota de arena es un techo, y lo que no cabe queda pendiente", () => {
+  const short = planArenaCensus([arenaPair({ rating: 2000, subjectsBelow: 700 })], 400);
+  assert.equal(short.profiles, 100);
+  assert.equal(short.pending, 200);
+});
+
+test("dentro de la arena manda el ICP, y no se muestrea un tramo sin nadie debajo", () => {
+  const plan = planArenaCensus(
+    [
+      arenaPair({ rating: 2600, subjectsBelow: 900 }),
+      arenaPair({ rating: 2200, subjectsBelow: 400 }),
+      // Por debajo del corte del leaderboard no hay sujetos de arena.
+      arenaPair({ rating: 1800, subjectsBelow: 0 }),
+    ],
+    800,
+  );
+
+  assert.deepEqual(
+    plan.pairs.map((p) => [p.state.segment.id, p.profiles]),
+    [["2200-2400", 200]],
+  );
+  assert.equal(plan.servesNobody, 1);
+});
+
+test("el reparto da a la arena su cuota y a Shuffle el resto", () => {
+  const states = [pair({ subjectsBelow: 474 }), arenaPair({ rating: 2000, subjectsBelow: 700 })];
+
+  // 500 peticiones: 100 de arena (25 perfiles) y 400 para Shuffle, que es
+  // justo su objetivo de 100 perfiles en el par.
+  const { shuffle, arena } = planProfiles(states, 500, 0.2);
+
+  assert.equal(arena.requests, 100);
+  assert.equal(shuffle.requests, 400);
+  assert.ok(shuffle.pairs.every((p) => p.state.bracket === "shuffle-mage-frost"));
+});
+
+test("lo que la arena no gasta vuelve a Shuffle", () => {
+  // Arena al día: nadie sin perfil fresco. Shuffle se lleva el presupuesto entero.
+  const states = [
+    pair({ subjectsBelow: 474, stale: crowd(500, { rating: 2000 }) }),
+    arenaPair({ rating: 2000, subjectsBelow: 700, fresh: 300, stale: [] }),
+  ];
+
+  // Con 450 y la cuota retenida, Shuffle tendría 360 (90 perfiles). Con la
+  // cuota devuelta llega a su objetivo de 100.
+  const { shuffle, arena } = planProfiles(states, 450, 0.2);
+
+  assert.equal(arena.requests, 0);
+  assert.equal(shuffle.requests, 400);
+});
+
+test("con la cuota a cero la arena no recibe nada", () => {
+  const { arena } = planProfiles([arenaPair({ rating: 2000, subjectsBelow: 700 })], 6_000, 0);
+  assert.equal(arena.profiles, 0);
 });

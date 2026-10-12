@@ -8,6 +8,7 @@ import {
   canShowComparison,
   formatSegment,
   isActiveWithin,
+  isArenaBracket,
   parseShuffleBracket,
   pickActivityWindow,
   segmentFor,
@@ -19,6 +20,7 @@ import {
 } from "@wowpvp/core";
 import {
   BlizzardClient,
+  activeSpecOf,
   blizzardUsage,
   findTalentLoadout,
   formatUsage,
@@ -27,14 +29,17 @@ import {
   markCharactersVerified,
 } from "@wowpvp/blizzard";
 import {
+  getArenaBrackets,
   getBlizzardCredentials,
   getDatabaseUrl,
+  getProfileRefreshArenaShare,
   getProfileRefreshBudget,
   getRegion,
+  parseArenaShare,
 } from "../config";
 import { createPool } from "../db/pool";
 import { takeSample } from "../sampling";
-import { AGGREGATED_BRACKETS_LIKE } from "../specs-to-ingest";
+import { SHUFFLE_BRACKETS_LIKE } from "../specs-to-ingest";
 import { REQUESTS_PER_PROFILE, fetchProfileParts, saveProfileSnapshot } from "./profile-capture";
 import { printActivitySummary, rebuildActivity } from "./refresh-activity";
 import { resolveSeason } from "./refresh-aggregates";
@@ -73,6 +78,14 @@ import { parseSpecSelection } from "./sample-profiles";
  * ancha se gastaría cuota en gente que no cuenta; con una más estrecha, el gear
  * del segmento quedaría sesgado hacia sus jugadores más activos — que es peor
  * que gastar de más, porque no se ve.
+ *
+ * **La arena va aparte, con su parte del presupuesto** (ADR 0049). Un par de
+ * 2v2 o 3v3 es `(bracket, segmento)` con las cuarenta specs dentro, porque la
+ * spec no se sabe hasta bajar el perfil (ADR 0048). Como par corriente pasaría
+ * por delante de cualquier spec de Solo Shuffle por número de sujetos, y su
+ * objetivo de 100 perfiles repartidos entre cuarenta specs no daría 30 en
+ * ninguna. Por eso la arena tiene una cuota fija (`PROFILE_REFRESH_ARENA_SHARE`)
+ * y dentro de ella se hace censo; lo que no gasta vuelve a Solo Shuffle.
  */
 
 const MS_PER_DAY = 86_400_000;
@@ -103,13 +116,22 @@ export interface Options {
   dryRun: boolean;
   /** Ventana forzada. null = la elige pickActivityWindow por par, como el agregado. */
   window: ActivityWindowDays | null;
-  /** Brackets a los que acotar la corrida. null = todos los que tengan población. */
+  /**
+   * Brackets de Solo Shuffle a los que acotar la corrida. null = todos los que
+   * tengan población. Acotar deja fuera la arena, que no nombra spec.
+   */
   specs: SpecEntry[] | null;
+  /** Parte del presupuesto para la arena encendida (ADR 0049), entre 0 y 1. */
+  arenaShare: number;
   /** Rating de entrada de los segmentos objetivo. null = todos. */
   segmentEntries: number[] | null;
 }
 
-export function parseOptions(args: string[], defaultBudget: number): Options {
+export function parseOptions(
+  args: string[],
+  defaultBudget: number,
+  defaultArenaShare: number,
+): Options {
   const options: Options = {
     budget: defaultBudget,
     seed: DEFAULT_SEED,
@@ -117,6 +139,7 @@ export function parseOptions(args: string[], defaultBudget: number): Options {
     window: null,
     specs: null,
     segmentEntries: null,
+    arenaShare: defaultArenaShare,
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -159,6 +182,9 @@ export function parseOptions(args: string[], defaultBudget: number): Options {
       case "--specs":
         options.specs = parseSpecSelection(value);
         break;
+      case "--arena-share":
+        options.arenaShare = parseArenaShare(value, "--arena-share");
+        break;
       case "--segments": {
         const entries = value.split(",").map((v) => Number(v.trim()));
         if (entries.some((v) => !Number.isFinite(v))) {
@@ -170,7 +196,7 @@ export function parseOptions(args: string[], defaultBudget: number): Options {
       default:
         throw new Error(
           `Opción desconocida: ${flag}. Disponibles: --budget, --seed, --window, --specs, ` +
-            `--segments, --dry-run.`,
+            `--segments, --arena-share, --dry-run.`,
         );
     }
   }
@@ -430,6 +456,88 @@ export function planRun(states: readonly PairState[], budgetRequests: number): R
   };
 }
 
+/** Lo que se baja de arena en esta corrida: censo dentro de su cuota (ADR 0049). */
+export interface ArenaPlan {
+  pairs: PlannedPair[];
+  profiles: number;
+  requests: number;
+  /** Activos sin perfil fresco que se quedan fuera por la cuota, en pares que sirven a alguien. */
+  pending: number;
+  /** Pares sin nadie debajo, que no se muestrean por lo mismo que en Solo Shuffle. */
+  servesNobody: number;
+}
+
+/**
+ * Censo de los pares de arena, hasta donde llegue su cuota.
+ *
+ * Sin objetivo ni suelo por par: los de Solo Shuffle hablan de un par
+ * `(spec, segmento)`, y en arena la spec la trae el perfil, así que 100 perfiles
+ * de `(3v3, 2000-2200)` serían unos pocos por spec y ninguna llegaría a 30. Lo
+ * único que da base por spec es bajárselo a todos los activos del tramo. El
+ * orden sí es el de Solo Shuffle: el ICP antes que nada de fuera y, dentro,
+ * más sujetos debajo primero. Los sujetos cuentan las cuarenta specs, que entre
+ * pares de arena es una comparación justa.
+ */
+export function planArenaCensus(states: readonly PairState[], budgetRequests: number): ArenaPlan {
+  const eligible = states.filter((state) => state.subjectsBelow > 0);
+  const ordered = [...eligible].sort(
+    (a, b) =>
+      Number(servesIcpSubjects(b.segment, DEFAULT_SEGMENT_SCALE)) -
+        Number(servesIcpSubjects(a.segment, DEFAULT_SEGMENT_SCALE)) ||
+      b.subjectsBelow - a.subjectsBelow ||
+      a.bracket.localeCompare(b.bracket) ||
+      a.segment.min - b.segment.min,
+  );
+
+  let remaining = Math.floor(budgetRequests / REQUESTS_PER_PROFILE);
+  const pairs: PlannedPair[] = [];
+  let pending = 0;
+  for (const state of ordered) {
+    const take = Math.min(state.stale.length, remaining);
+    remaining -= take;
+    pending += state.stale.length - take;
+    // Sin suelo por par no hay perfiles "para llegar al suelo": todo es censo.
+    if (take > 0) pairs.push({ state, profiles: take, toFloor: 0 });
+  }
+
+  const profiles = pairs.reduce((total, pair) => total + pair.profiles, 0);
+  return {
+    pairs,
+    profiles,
+    requests: profiles * REQUESTS_PER_PROFILE,
+    pending,
+    servesNobody: states.length - eligible.length,
+  };
+}
+
+export interface ProfilePlan {
+  shuffle: RunPlan;
+  arena: ArenaPlan;
+}
+
+/**
+ * El plan entero: la arena con su cuota y Solo Shuffle con el resto.
+ *
+ * La arena se planifica primero solo para saber cuánto gasta: lo que no use de
+ * su cuota vuelve a Solo Shuffle en la misma corrida, así que con la arena
+ * apagada, o ya al día, el reparto es el de siempre.
+ */
+export function planProfiles(
+  states: readonly PairState[],
+  budgetRequests: number,
+  arenaShare: number,
+): ProfilePlan {
+  const arena = planArenaCensus(
+    states.filter((state) => isArenaBracket(state.bracket)),
+    Math.floor(budgetRequests * arenaShare),
+  );
+  const shuffle = planRun(
+    states.filter((state) => !isArenaBracket(state.bracket)),
+    budgetRequests - arena.requests,
+  );
+  return { shuffle, arena };
+}
+
 // --- Carga desde Postgres ---
 
 /**
@@ -447,6 +555,7 @@ async function loadCandidates(
   region: string,
   seasonId: number,
   cutoff: Date,
+  arenaBrackets: readonly string[],
 ): Promise<Candidate[]> {
   const { rows } = await pool.query<{
     character_id: string;
@@ -468,14 +577,14 @@ async function loadCandidates(
           and a.season_id = s.season_id
         where c.region = $1 and s.season_id = $2 and s.captured_at >= $3
           and s.source <> 'search'
-          and s.bracket like '${AGGREGATED_BRACKETS_LIKE}'
+          and (s.bracket like '${SHUFFLE_BRACKETS_LIKE}' or s.bracket = any($4::text[]))
         order by s.character_id, s.bracket, s.captured_at desc
      ),
      profiles as (
        select s.character_id, s.bracket, max(s.captured_at) as last_profile_at
          from character_snapshots s
         where s.season_id = $2 and s.source = 'profile' and s.captured_at >= $3
-          and s.bracket like '${AGGREGATED_BRACKETS_LIKE}'
+          and (s.bracket like '${SHUFFLE_BRACKETS_LIKE}' or s.bracket = any($4::text[]))
         group by s.character_id, s.bracket
      )
      select a.character_id, a.bracket, a.season_id, a.rating, a.last_active_at,
@@ -485,7 +594,7 @@ async function loadCandidates(
        left join profiles p
          on p.character_id = a.character_id and p.bracket = a.bracket
       order by a.character_id, a.bracket`,
-    [region, seasonId, cutoff],
+    [region, seasonId, cutoff, arenaBrackets],
   );
 
   return rows.map((row) => ({
@@ -517,6 +626,12 @@ interface RunReport {
   withPvpTalents: number;
   /** Ya no aparecen en su bracket: rotación, que es un dato y no un error. */
   noRating: number;
+  /**
+   * De arena, sin spec activa que el catálogo reconozca. No se guardan: la spec
+   * de una observación de arena es la del perfil, y sin ella no hay con qué
+   * (ADR 0048).
+   */
+  noSpec: number;
   apiErrors: number;
   /** Su rating de perfil ya no cae en el segmento por el que se les eligió. */
   movedSegment: number;
@@ -529,12 +644,15 @@ interface RunReport {
  * contra `idx_snapshots_unique_capture` en vez de duplicar población, y la
  * población duplicada infla los tamaños de muestra y con ellos la confianza que
  * declaramos.
+ *
+ * `bracketSpec` es la spec que nombra el bracket, o null en arena, donde la pone
+ * el `active_spec` de cada perfil (ADR 0048).
  */
 async function refreshPair(
   client: BlizzardClient,
   pool: pg.Pool,
   planned: PlannedPair,
-  spec: SpecEntry,
+  bracketSpec: SpecEntry | null,
   capturedAt: string,
   seed: string,
   report: RunReport,
@@ -547,7 +665,8 @@ async function refreshPair(
   );
 
   console.log(
-    `→ ${spec.label} ${formatSegment(state.segment)}: ${state.fresh} frescos, ` +
+    `→ ${bracketSpec?.label ?? state.bracket} ${formatSegment(state.segment)}: ` +
+      `${state.fresh} frescos, ` +
       `bajando ${chosen.length} (ventana ${state.window}d, ${state.subjectsBelow} sujetos debajo)...`,
   );
 
@@ -589,6 +708,12 @@ async function refreshPair(
     // explica que un par no llegue a su objetivo aunque se gastara lo previsto.
     if (segmentFor(stats.rating, DEFAULT_SEGMENT_SCALE).id !== state.segment.id) {
       report.movedSegment++;
+    }
+
+    const spec = bracketSpec ?? (parts.profile.data ? activeSpecOf(parts.profile.data) : null);
+    if (!spec) {
+      report.noSpec++;
+      continue;
     }
 
     // Un fallo del endpoint no es una observación sobre los talentos de nadie:
@@ -704,6 +829,31 @@ function printPlan(plan: RunPlan, states: readonly PairState[], budget: number):
   console.log("");
 }
 
+function printArenaPlan(plan: ArenaPlan, budget: number): void {
+  console.log("=== PLAN DE ARENA (ADR 0049) ===");
+  console.log(
+    `Cuota: ${budget} peticiones · plan: ${plan.requests} (${plan.profiles} perfiles) en ` +
+      `${plan.pairs.length} pares, en censo. Lo que no gasta vuelve a Solo Shuffle.`,
+  );
+  for (const pair of plan.pairs) {
+    const { state } = pair;
+    console.log(
+      `  ${state.bracket} ${formatSegment(state.segment)}: ${state.fresh} → ` +
+        `${state.fresh + pair.profiles} (+${pair.profiles}) · ${state.subjectsBelow} sujetos debajo`,
+    );
+  }
+  if (plan.pending > 0) {
+    console.log(
+      `${plan.pending} activos de arena siguen sin perfil fresco por la cuota. ` +
+        `Suben en las próximas corridas, o antes con --arena-share.`,
+    );
+  }
+  if (plan.servesNobody > 0) {
+    console.log(`${plan.servesNobody} pares de arena no se muestrean: nadie debajo.`);
+  }
+  console.log("");
+}
+
 function printReport(report: RunReport, plan: RunPlan): void {
   console.log("\n=== INGESTA CONTINUA DE PERFILES ===");
   console.log(
@@ -716,6 +866,9 @@ function printReport(report: RunReport, plan: RunPlan): void {
   );
   if (report.noRating > 0) {
     console.log(`${report.noRating} ya no aparecen en su bracket (rotación).`);
+  }
+  if (report.noSpec > 0) {
+    console.log(`${report.noSpec} de arena sin spec activa reconocible: no se guardan (ADR 0048).`);
   }
   if (report.movedSegment > 0) {
     console.log(
@@ -731,7 +884,9 @@ function printReport(report: RunReport, plan: RunPlan): void {
 // --- Job ---
 
 export async function refreshProfiles(args: string[] = []): Promise<void> {
-  const options = parseOptions(args, getProfileRefreshBudget());
+  const options = parseOptions(args, getProfileRefreshBudget(), getProfileRefreshArenaShare());
+  // Con `--specs` la corrida es de Solo Shuffle: la arena no nombra spec.
+  const arenaBrackets = options.specs ? [] : getArenaBrackets();
   const region = getRegion();
   const now = new Date();
 
@@ -785,7 +940,7 @@ export async function refreshProfiles(args: string[] = []): Promise<void> {
       console.log("");
     }
 
-    const all = await loadCandidates(pool, region, seasonId, cutoff);
+    const all = await loadCandidates(pool, region, seasonId, cutoff, arenaBrackets);
     const brackets = options.specs ? new Set(options.specs.map(shuffleBracketId)) : null;
     const candidates = brackets ? all.filter((row) => brackets.has(row.bracket)) : all;
 
@@ -801,14 +956,21 @@ export async function refreshProfiles(args: string[] = []): Promise<void> {
       `Población activa: ${candidates.length} personajes en ${states.length} pares (bracket, segmento).`,
     );
 
-    const plan = planRun(states, options.budget);
-    printPlan(plan, states, options.budget);
+    const { shuffle: plan, arena } = planProfiles(states, options.budget, options.arenaShare);
+    printPlan(
+      plan,
+      states.filter((state) => !isArenaBracket(state.bracket)),
+      options.budget - arena.requests,
+    );
+    if (arenaBrackets.length > 0) {
+      printArenaPlan(arena, Math.floor(options.budget * options.arenaShare));
+    }
 
     if (options.dryRun) {
       console.log("--dry-run: no se ha llamado a Blizzard ni se ha escrito nada.");
       return;
     }
-    if (plan.pairs.length === 0) {
+    if (plan.pairs.length === 0 && arena.pairs.length === 0) {
       console.log("Nada que bajar: todos los pares con sujetos debajo están al día.");
       return;
     }
@@ -827,6 +989,7 @@ export async function refreshProfiles(args: string[] = []): Promise<void> {
       withTalentNodes: 0,
       withPvpTalents: 0,
       noRating: 0,
+      noSpec: 0,
       apiErrors: 0,
       movedSegment: 0,
     };
@@ -844,8 +1007,13 @@ export async function refreshProfiles(args: string[] = []): Promise<void> {
       }
       await refreshPair(client, pool, planned, spec, capturedAt, options.seed, report);
     }
+    // La arena va detrás: si la corrida se corta, lo que se pierde es lo que
+    // todavía no sostiene ninguna pantalla.
+    for (const planned of arena.pairs) {
+      await refreshPair(client, pool, planned, null, capturedAt, options.seed, report);
+    }
 
-    printReport(report, plan);
+    printReport(report, { ...plan, profiles: plan.profiles + arena.profiles });
     console.log(`\nCuota: ${formatUsage(blizzardUsage())}`);
     console.log(
       `Los agregados no se recalculan aquí: lo hace el job diario (refresh-aggregates), que es ` +
