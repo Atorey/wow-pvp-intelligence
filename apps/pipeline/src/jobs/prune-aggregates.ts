@@ -22,10 +22,13 @@ import { createPool } from "../db/pool";
  *
  * 1. **La corrida más reciente se guarda entera.** Es la que sirve la web y la
  *    que decide `check-freshness`. Podarla sería podar el producto.
- * 2. **De las anteriores sobrevive una por semana**, y de ella solo las filas
- *    con al menos `minUsers` usuarios. Es lo que puede volver a aparecer en una
- *    pantalla: una adopción de una o dos personas no llega arriba de ningún
- *    ranking y `canShowComparison()` no la dejaría publicarse aunque llegara.
+ * 2. **De las anteriores sobrevive una por semana, durante `weeks` semanas**,
+ *    y de ella solo las filas con al menos `minUsers` usuarios. Es lo que puede
+ *    volver a aparecer en una pantalla: una adopción de una o dos personas no
+ *    llega arriba de ningún ranking y `canShowComparison()` no la dejaría
+ *    publicarse aunque llegara. Y la única pantalla que mira atrás compara con
+ *    la corrida anterior que conserve detalle (ADR 0037), así que lo que pasa
+ *    de unas semanas no lo lee nadie y solo ocupa cuota (ADR 0047).
  * 3. **`population_segments` no se poda nunca.** Son 4 MB para el histórico
  *    entero y es donde vive la distribución por escalón —mediana, cuartiles,
  *    denominadores—, que es la serie que sostiene la tendencia. Lo caro era el
@@ -46,15 +49,24 @@ import { createPool } from "../db/pool";
  */
 const DEFAULT_MIN_USERS = 5;
 
+/**
+ * Semanas hacia atrás en las que sobrevive una corrida semanal. Cuatro dan a la
+ * comparación del ADR 0037 margen de sobra para una racha sin corridas —la de
+ * finales de agosto duró quince días— sin guardar detalle que nadie lee.
+ */
+const DEFAULT_WEEKS = 4;
+
 export interface Options {
   /** Usuarios mínimos para conservar una fila de una corrida no vigente. */
   minUsers: number;
+  /** Semanas, contadas desde la corrida vigente, en las que sobrevive una semanal. */
+  weeks: number;
   /** Cuenta y explica lo que borraría, sin borrar nada. */
   dryRun: boolean;
 }
 
 export function parseOptions(args: string[]): Options {
-  const options: Options = { minUsers: DEFAULT_MIN_USERS, dryRun: false };
+  const options: Options = { minUsers: DEFAULT_MIN_USERS, weeks: DEFAULT_WEEKS, dryRun: false };
 
   for (let i = 0; i < args.length; i++) {
     const flag = args[i];
@@ -64,17 +76,18 @@ export function parseOptions(args: string[]): Options {
       continue;
     }
 
-    if (flag === "--min-users") {
+    if (flag === "--min-users" || flag === "--weeks") {
       const raw = args[++i];
       const value = Number(raw);
       if (!Number.isInteger(value) || value < 1) {
-        throw new Error(`--min-users pide un entero ≥ 1, no ${raw}.`);
+        throw new Error(`${flag} pide un entero ≥ 1, no ${raw}.`);
       }
-      options.minUsers = value;
+      if (flag === "--min-users") options.minUsers = value;
+      else options.weeks = value;
       continue;
     }
 
-    throw new Error(`Opción desconocida: ${flag}. Disponibles: --min-users, --dry-run.`);
+    throw new Error(`Opción desconocida: ${flag}. Disponibles: --min-users, --weeks, --dry-run.`);
   }
 
   return options;
@@ -92,22 +105,36 @@ export interface PruneReport {
 }
 
 /**
- * Las corridas que sobreviven: la última, y la última de cada semana ISO.
+ * Las corridas que sobreviven: la última, y la última de cada semana ISO de las
+ * `weeks` anteriores.
  *
  * Se resuelve en SQL y no en memoria porque la lista de corridas es la clave de
  * todo lo demás y tenerla en una sola expresión evita que el borrado y el
  * recuento puedan discrepar.
+ *
+ * Las semanas se cuentan desde la corrida vigente y no desde `now()`: si el
+ * pipeline se para, lo que queda no se va borrando solo mientras nadie calcula
+ * nada nuevo. `weeks` entra como literal porque la expresión se repite en
+ * consultas con parámetros distintos; por eso se valida aquí y no solo al leer
+ * la opción.
  */
-const KEPT_RUNS = `
+export function keptRunsSql(weeks: number): string {
+  if (!Number.isInteger(weeks) || weeks < 1) {
+    throw new Error(`weeks tiene que ser un entero ≥ 1, no ${weeks}.`);
+  }
+  return `
   select computed_at, computed_at = max(computed_at) over () as es_vigente
     from (
       select distinct on (date_trunc('week', computed_at)) computed_at
         from population_segments
+       where computed_at >= (select max(computed_at) from population_segments)
+                            - make_interval(weeks => ${weeks})
        order by date_trunc('week', computed_at), computed_at desc
     ) semanal
   union
   select max(computed_at), true from population_segments
 `;
+}
 
 export async function pruneAggregates(args: string[] = []): Promise<void> {
   const options = parseOptions(args);
@@ -132,7 +159,7 @@ export async function prune(pool: pg.Pool, options: Options): Promise<PruneRepor
 
   try {
     const { rows: counts } = await client.query<{ before: string; deleted: string }>(
-      `with conservadas as (${KEPT_RUNS})
+      `with conservadas as (${keptRunsSql(options.weeks)})
        select
          (select count(*) from aggregate_snapshots) as before,
          (select count(*)
@@ -147,7 +174,7 @@ export async function prune(pool: pg.Pool, options: Options): Promise<PruneRepor
     );
 
     const { rows: runs } = await client.query<{ kept: string; total: string }>(
-      `with conservadas as (${KEPT_RUNS})
+      `with conservadas as (${keptRunsSql(options.weeks)})
        select (select count(distinct computed_at) from conservadas) as kept,
               (select count(distinct computed_at) from population_segments) as total`,
     );
@@ -163,7 +190,7 @@ export async function prune(pool: pg.Pool, options: Options): Promise<PruneRepor
       // mandarla costaría más que la propia poda.
       await client.query("begin");
       await client.query(
-        `with conservadas as (${KEPT_RUNS})
+        `with conservadas as (${keptRunsSql(options.weeks)})
          delete from aggregate_snapshots a
           using population_segments ps
           where ps.id = a.population_segment_id
@@ -199,7 +226,8 @@ function printReport(report: PruneReport, options: Options): void {
   );
   console.log(
     `Corridas: ${runsKept} conservadas (la vigente entera, el resto una por semana ` +
-      `con users ≥ ${options.minUsers}), ${runsCollapsed} sin detalle por variable.`,
+      `de las últimas ${options.weeks} con users ≥ ${options.minUsers}), ` +
+      `${runsCollapsed} sin detalle por variable.`,
   );
   console.log("population_segments no se toca: la distribución por escalón se conserva entera.");
 

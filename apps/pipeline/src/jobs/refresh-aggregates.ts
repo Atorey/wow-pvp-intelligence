@@ -26,7 +26,7 @@ import {
 import { getRegion } from "../config";
 import { createPool } from "../db/pool";
 import { printCoverage } from "./coverage";
-import { prune } from "./prune-aggregates";
+import { prune, parseOptions as parsePruneOptions } from "./prune-aggregates";
 import { printActivitySummary, rebuildActivity } from "./refresh-activity";
 
 /**
@@ -1206,7 +1206,7 @@ export async function refreshAggregates(args: string[], borrowedPool?: pg.Pool):
     // escribirse es justo la que hay que respetar entera: separarlas dejaría una
     // ventana en la que el detalle por variable de la corrida vigente depende de
     // que alguien se acuerde de lanzar el segundo comando.
-    const pruned = await prune(pool, { minUsers: 5, dryRun: false });
+    const pruned = await prune(pool, parsePruneOptions([]));
     if (pruned.deleted > 0) {
       console.log(
         `Retención: ${pruned.deleted.toLocaleString("es-ES")} filas de agregados ` +

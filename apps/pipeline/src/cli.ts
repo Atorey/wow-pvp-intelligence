@@ -144,6 +144,9 @@ function printHelp(): void {
   console.log("  --seed S       semilla del muestreo dentro de cada par");
   console.log("\nOpciones de prune-aggregates:");
   console.log("  --min-users N  usuarios mínimos para conservar una fila no vigente (default 5)");
+  console.log(
+    "  --weeks N      semanas, desde la corrida vigente, con una corrida semanal (default 4)",
+  );
   console.log("  --dry-run      cuenta lo que borraría, sin borrar");
   console.log("\nOpciones de archive-snapshots:");
   console.log(
