@@ -52,6 +52,7 @@ function row(overrides: Partial<SegmentRow> = {}): SegmentRow & { confidence: st
     excluded_search: 4,
     active_by_delta: 120,
     active_by_first_seen: 2880,
+    without_spec: null,
     confidence: "high",
     ...overrides,
   };
@@ -111,6 +112,8 @@ describe("readSegment", () => {
       region: "eu",
       seasonId: 42,
       bracket: "shuffle-priest-holy",
+      classSlug: "priest",
+      specSlug: "holy",
       segmentId: "1800-2000",
     });
 
@@ -133,6 +136,8 @@ describe("readSegment", () => {
       region: "eu",
       seasonId: 42,
       bracket: "shuffle-priest-holy",
+      classSlug: "priest",
+      specSlug: "holy",
       segmentId: "1800-2000",
     });
 
@@ -148,13 +153,15 @@ describe("readSegment", () => {
       region: "eu",
       seasonId: 42,
       bracket: "shuffle-priest-holy",
+      classSlug: "priest",
+      specSlug: "holy",
       segmentId: "1800-2000",
     });
 
     const [call] = db.calls;
     assert.ok(call);
     assert.match(call.text, /order by computed_at desc/);
-    assert.deepEqual(call.values, ["eu", 42, "shuffle-priest-holy", "1800-2000"]);
+    assert.deepEqual(call.values, ["eu", 42, "shuffle-priest-holy", "priest", "holy", "1800-2000"]);
   });
 
   it("devuelve null cuando el par no se ha calculado nunca", async () => {
@@ -163,6 +170,8 @@ describe("readSegment", () => {
       region: "eu",
       seasonId: 42,
       bracket: "shuffle-warrior-arms",
+      classSlug: "warrior",
+      specSlug: "arms",
       segmentId: "2600-2800",
     });
 
@@ -177,6 +186,8 @@ describe("readSegment", () => {
       region: "eu",
       seasonId: 42,
       bracket: "shuffle-priest-holy",
+      classSlug: "priest",
+      specSlug: "holy",
       segmentId: "1800-2000",
     });
 
@@ -193,6 +204,8 @@ describe("readBracketSegments", () => {
       region: "eu",
       seasonId: 42,
       bracket: "shuffle-priest-holy",
+      classSlug: "priest",
+      specSlug: "holy",
     });
 
     assert.equal(reads.length, 2);
@@ -216,7 +229,7 @@ describe("readPreviousSegment", () => {
     const [call] = db.calls;
     assert.ok(call);
     assert.match(call.text, /exists \(select 1 from aggregate_snapshots/);
-    assert.match(call.text, /ps\.computed_at < \$5/);
+    assert.match(call.text, /ps\.computed_at < \$7/);
     assert.match(call.text, /order by ps\.computed_at desc/);
   });
 
@@ -226,10 +239,13 @@ describe("readPreviousSegment", () => {
     const db = fakeDb([]);
     await readPreviousSegment(db, current);
 
+    // La spec entra también: en arena el bracket lleva las cuarenta (ADR 0048).
     assert.deepEqual(db.calls[0]?.values, [
       "eu",
       42,
       "shuffle-priest-holy",
+      "priest",
+      "holy",
       "1800-2000",
       COMPUTED_AT,
     ]);
@@ -250,6 +266,7 @@ describe("readRunPopulation", () => {
         segment_min: 2000,
         population: 500,
         leaderboard_entries: 5000,
+        without_spec: null,
       },
       {
         season_id: 42,
@@ -258,6 +275,7 @@ describe("readRunPopulation", () => {
         segment_min: 2400,
         population: 162,
         leaderboard_entries: 5000,
+        without_spec: null,
       },
       {
         season_id: 42,
@@ -266,6 +284,7 @@ describe("readRunPopulation", () => {
         segment_min: 2000,
         population: 1817,
         leaderboard_entries: null,
+        without_spec: null,
       },
     ]);
 
@@ -279,17 +298,19 @@ describe("readRunPopulation", () => {
       {
         bracket: "shuffle-priest-holy",
         population: 1817,
-        segments: [{ segmentMin: 2000, population: 1817 }],
+        segments: [{ segmentMin: 2000, population: 1817, withoutSpec: null }],
         leaderboardEntries: null,
+        withoutSpec: null,
       },
       {
         bracket: "shuffle-mage-frost",
         population: 662,
         segments: [
-          { segmentMin: 2000, population: 500 },
-          { segmentMin: 2400, population: 162 },
+          { segmentMin: 2000, population: 500, withoutSpec: null },
+          { segmentMin: 2400, population: 162, withoutSpec: null },
         ],
         leaderboardEntries: 5000,
+        withoutSpec: null,
       },
     ]);
 
@@ -671,6 +692,41 @@ describe("toAggregatedVariable", () => {
   });
 });
 
+describe("readRunPopulation en arena", () => {
+  it("toma el sin spec de cada tramo una vez y no lo suma a la población", async () => {
+    // La consulta ya lo trae con `max` por tramo: es una cifra del tramo que se
+    // repite en cada fila de spec (migración 0028).
+    const db = fakeDb([
+      {
+        season_id: 42,
+        computed_at: COMPUTED_AT,
+        bracket: "3v3",
+        segment_min: 2000,
+        population: 120,
+        leaderboard_entries: 5002,
+        without_spec: 900,
+      },
+      {
+        season_id: 42,
+        computed_at: COMPUTED_AT,
+        bracket: "3v3",
+        segment_min: 2200,
+        population: 40,
+        leaderboard_entries: 5002,
+        without_spec: 300,
+      },
+    ]);
+
+    const run = await readRunPopulation(db, { region: "eu" });
+
+    assert.equal(run?.brackets[0]?.population, 160);
+    assert.equal(run?.brackets[0]?.withoutSpec, 1200);
+    const [call] = db.calls;
+    assert.ok(call);
+    assert.match(call.text, /max\(without_spec\) as without_spec/);
+  });
+});
+
 describe("readSegmentSamples", () => {
   it("trae las tres bases de comparación y ninguna otra cifra", async () => {
     const db = fakeDb([
@@ -697,8 +753,11 @@ describe("readSegmentSamples", () => {
 
     const [call] = db.calls;
     assert.ok(call);
-    assert.match(call.text, /distinct on \(region, bracket, segment_id\)/);
-    assert.match(call.text, /order by region, bracket, segment_id, computed_at desc/);
+    assert.match(call.text, /distinct on \(region, bracket, class_slug, spec_slug, segment_id\)/);
+    assert.match(
+      call.text,
+      /order by region, bracket, class_slug, spec_slug, segment_id, computed_at desc/,
+    );
     assert.match(call.text, /season_id = \(select max\(season_id\)/);
   });
 });

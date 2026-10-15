@@ -1,11 +1,12 @@
 import {
   BRACKET_LABELS,
-  BRACKET_SLUGS,
   CLASS_LABELS,
   formatSegment,
+  isArenaSlug,
   isClassSlug,
   methodologyPath,
   specPath,
+  type BracketSlug,
   type SpecRoute,
 } from "@wowpvp/core";
 import type { Metadata } from "next";
@@ -18,6 +19,7 @@ import { copyFor } from "../i18n/copy";
 import { formatCount, formatRating, formatShare } from "../i18n/format";
 import { type Locale, localizedPathname } from "../i18n/locales";
 import { robotsFor } from "../seo/indexable";
+import { publishedBrackets } from "../server/published";
 import { isSpecRouteIndexable, type SpecOverviewData, type SpecScope } from "../server/spec";
 import type { SpecOverview } from "../server/spec-view";
 import { FigureCard } from "./figure-card";
@@ -105,10 +107,10 @@ export async function specMetadata(route: SpecRoute, locale: Locale): Promise<Me
  * La cabecera de los tres niveles: migas, titular, ámbito y, en el resumen, la
  * modalidad.
  *
- * El selector de modalidad lista las del catálogo y ninguna más. El mockup
- * dibuja las cinco, pero cuatro llevarían a una página que no existe: una opción
- * que no lleva a ninguna parte promete un dato que no hay (regla 6). El día que
- * entre una segunda modalidad aparece sola, porque sale de `BRACKET_SLUGS`.
+ * El selector de modalidad lista las publicadas y ninguna más. El mockup dibuja
+ * las cinco, pero RBG y BG Blitz llevarían a una página que no existe, y la
+ * arena apagada a una sin datos: una opción que no lleva a ninguna parte promete
+ * un dato que no hay (regla 6).
  */
 export function SpecHeader({
   route,
@@ -159,7 +161,7 @@ export function SpecHeader({
         )}
         {showBrackets && (
           <nav aria-label={copy.nav.bracketsLabel} className="flex flex-wrap items-center gap-2">
-            {BRACKET_SLUGS.map((slug) => (
+            {publishedBrackets().map((slug) => (
               <Badge
                 key={slug}
                 asChild
@@ -209,6 +211,13 @@ export function SpecPage({
       ) : (
         <>
           <OverviewFigures locale={locale} overview={overview} bracket={bracket} />
+          {isArenaSlug(scope.bracket) && (
+            <ArenaSpecNotice
+              locale={locale}
+              bracket={scope.bracket}
+              withoutSpec={overview.withoutSpec}
+            />
+          )}
           <SpecSegmentsTable
             locale={locale}
             route={route}
@@ -276,6 +285,39 @@ function OverviewFigures({
             count(standing.of),
           )}
         />
+      )}
+    </div>
+  );
+}
+
+/**
+ * Lo que cambia en una página de arena: la spec de cada personaje la puso su
+ * perfil, y quien no lo tiene está en su tramo pero no aquí (ADR 0048).
+ *
+ * Va encima de las cifras y no al pie con el resto de notas porque cambia lo que
+ * significa cada una de ellas: «12 Frost Mage» en 3v3 son los que tienen perfil,
+ * no todos los que hay.
+ */
+export function ArenaSpecNotice({
+  locale,
+  bracket,
+  withoutSpec,
+}: {
+  locale: Locale;
+  bracket: BracketSlug;
+  /** Los activos del tramo, o de los tramos, sin spec conocida. */
+  withoutSpec: number | null;
+}) {
+  const copy = copyFor(locale).spec.arena;
+  const label = BRACKET_LABELS[bracket];
+
+  return (
+    <div className="flex flex-col gap-1">
+      <p className="text-muted-foreground max-w-measure text-sm">{copy.spec(label)}</p>
+      {withoutSpec !== null && withoutSpec > 0 && (
+        <p className="text-muted-foreground max-w-measure text-sm">
+          {copy.withoutSpec(formatCount(withoutSpec, locale), label)}
+        </p>
       )}
     </div>
   );

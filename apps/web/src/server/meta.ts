@@ -1,11 +1,12 @@
 import { getRegion } from "@wowpvp/blizzard";
-import type { BracketSlug, Region } from "@wowpvp/core";
+import { isArenaSlug, type BracketSlug, type Region } from "@wowpvp/core";
 import { connection } from "next/server";
 
 import { cachedRunPopulation } from "./aggregate-cache";
 import { getDb } from "./db";
 import "./env";
 import { ALL_SPEC_ROWS, representationFor, type RepresentationBoard } from "./home-view";
+import { arenaBoardFor, type ArenaBoard } from "./meta-view";
 
 /**
  * Lo que `/meta/{modalidad}` necesita de Postgres (ADR 0038).
@@ -41,6 +42,16 @@ export interface MetaData {
    * dirección sin cifras es thin content (ADR 0029).
    */
   board: RepresentationBoard | null;
+  /**
+   * En arena, la población del bracket por tramo en vez del reparto por spec,
+   * que no se publica (ADR 0048). `null` en Solo Shuffle, o sin nadie.
+   */
+  arena: ArenaBoard | null;
+}
+
+/** La fecha de lo que enseña la página, o `null` si no enseña nada. */
+export function metaComputedAt(data: MetaData): Date | null {
+  return data.board?.computedAt ?? data.arena?.computedAt ?? null;
 }
 
 export async function loadMetaData(bracket: BracketSlug): Promise<MetaData> {
@@ -51,9 +62,10 @@ export async function loadMetaData(bracket: BracketSlug): Promise<MetaData> {
 
   const region = getRegion();
   const run = await cachedRunPopulation(getDb(), region);
-  const board = representationFor(run, { limit: ALL_SPEC_ROWS });
+  const scope = { region, bracket, seasonId: run?.seasonId ?? null };
 
-  return { scope: { region, bracket, seasonId: run?.seasonId ?? null }, board };
+  if (isArenaSlug(bracket)) return { scope, board: null, arena: arenaBoardFor(run, bracket) };
+  return { scope, board: representationFor(run, { limit: ALL_SPEC_ROWS }), arena: null };
 }
 
 /**
@@ -72,8 +84,7 @@ export async function loadMetaData(bracket: BracketSlug): Promise<MetaData> {
  */
 export async function isMetaIndexable(bracket: BracketSlug): Promise<boolean> {
   try {
-    const { board } = await loadMetaData(bracket);
-    return board !== null;
+    return metaComputedAt(await loadMetaData(bracket)) !== null;
   } catch {
     return false;
   }

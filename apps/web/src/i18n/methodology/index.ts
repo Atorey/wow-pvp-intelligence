@@ -15,20 +15,26 @@
  * clave exenta.
  */
 import {
+  BRACKET_LABELS,
   DEFAULT_SEGMENT_SCALE,
   MIN_DISCRIMINATIVE_DELTA,
   MIN_SAMPLE_HIGH,
   MIN_SAMPLE_MEDIUM,
+  isArenaSlug,
+  type BracketSlug,
 } from "@wowpvp/core";
 
-import { formatCount, formatRating } from "../format";
+import { formatCount, formatList, formatRating } from "../format";
 import type { Locale } from "../locales";
 import { type MethodologyDocument, type Thresholds, en } from "./en";
 import { es } from "./es";
 
 export type { MethodologyDocument, Section, Thresholds } from "./en";
 
-const DOCUMENTS: Record<Locale, (thresholds: Thresholds) => MethodologyDocument> = { en, es };
+const DOCUMENTS: Record<
+  Locale,
+  (thresholds: Thresholds, arena: string | null) => MethodologyDocument
+> = { en, es };
 
 /**
  * Los umbrales del dominio, escritos en la lengua de la página.
@@ -47,8 +53,19 @@ export function methodologyThresholds(locale: Locale): Thresholds {
   };
 }
 
-export function methodologyFor(locale: Locale): MethodologyDocument {
-  return DOCUMENTS[locale](methodologyThresholds(locale));
+/**
+ * El documento, con la arena publicada (ADR 0048) o sin ella. Sin decirlo, sin:
+ * la página explica lo que el sitio lee, y lo que lee lo decide su interruptor.
+ */
+export function methodologyFor(
+  locale: Locale,
+  published: readonly BracketSlug[] = ["solo-shuffle"],
+): MethodologyDocument {
+  const arena = published.filter(isArenaSlug).map((slug) => BRACKET_LABELS[slug]);
+  return DOCUMENTS[locale](
+    methodologyThresholds(locale),
+    arena.length > 0 ? formatList(arena, locale) : null,
+  );
 }
 
 /**
@@ -60,4 +77,4 @@ export function methodologyFor(locale: Locale): MethodologyDocument {
  * que corre son lo mismo. Se mueve cuando cambia un umbral, una fuente o una
  * exclusión.
  */
-export const METHODOLOGY_UPDATED_AT = new Date("2026-09-06T00:00:00Z");
+export const METHODOLOGY_UPDATED_AT = new Date("2026-10-12T00:00:00Z");

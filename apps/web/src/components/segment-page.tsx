@@ -1,4 +1,10 @@
-import { MIN_SAMPLE_HIGH, MIN_SAMPLE_MEDIUM, formatSegment, type SpecRoute } from "@wowpvp/core";
+import {
+  MIN_SAMPLE_HIGH,
+  MIN_SAMPLE_MEDIUM,
+  formatSegment,
+  isArenaSlug,
+  type SpecRoute,
+} from "@wowpvp/core";
 import type { ReactNode } from "react";
 
 import { classColor } from "../design/class-color";
@@ -14,7 +20,7 @@ import { RunProvenance } from "./run-provenance";
 import { SectionCard } from "./section-card";
 import { SegmentNav } from "./segment-nav";
 import { SmallSampleNotice } from "./small-sample-notice";
-import { EmptyNotice, MethodologyLink, SpecHeader } from "./spec-page";
+import { ArenaSpecNotice, EmptyNotice, MethodologyLink, SpecHeader } from "./spec-page";
 import { Card } from "./ui/card";
 import { Separator } from "./ui/separator";
 
@@ -62,6 +68,13 @@ export function SegmentPage({
       ) : (
         <>
           <SegmentFigures locale={locale} detail={detail} />
+          {isArenaSlug(bracket) && (
+            <ArenaSpecNotice
+              locale={locale}
+              bracket={bracket}
+              withoutSpec={detail.segment.withoutSpec}
+            />
+          )}
           <GearSection locale={locale} detail={detail} segment={label} fill={fill} />
           <TalentsSection locale={locale} detail={detail} fill={fill} />
           <NotPublished locale={locale} />

@@ -65,6 +65,7 @@ function segment(
     profileData: { from: null, to: null },
     excludedSearch: 0,
     activity: { byDelta: 0, byFirstSeen: 0 },
+    withoutSpec: null,
   };
 }
 
@@ -212,8 +213,9 @@ describe("el puesto de la spec en la modalidad", () => {
     return {
       bracket,
       population,
-      segments: [{ segmentMin: 1800, population }],
+      segments: [{ segmentMin: 1800, population, withoutSpec: null }],
       leaderboardEntries,
+      withoutSpec: null,
     };
   }
 
@@ -610,5 +612,47 @@ describe("la variación desde la corrida anterior", () => {
     });
 
     assert.equal(gearOf(detail).gems[0]?.change, null);
+  });
+});
+
+describe("specOverviewFor en arena (ADR 0048)", () => {
+  const arenaRow = (min: number, population: number, withoutSpec: number) => ({
+    ...segment(min, { population, gear: population }),
+    bracket: "3v3",
+    withoutSpec,
+  });
+
+  it("no da puesto en la modalidad: el reparto por spec mide el muestreo", () => {
+    const rows = [arenaRow(2000, 40, 900)];
+    const run = {
+      seasonId: 42,
+      computedAt: COMPUTED_AT,
+      brackets: [
+        {
+          bracket: "3v3",
+          population: 40,
+          segments: [{ segmentMin: 2000, population: 40, withoutSpec: 900 }],
+          leaderboardEntries: 5_002,
+          withoutSpec: 900,
+        },
+      ],
+    };
+
+    const overview = specOverviewFor({ bracket: "3v3", segments: rows, run });
+    assert.equal(overview?.standing, null);
+  });
+
+  it("suma el sin spec de sus tramos, uno por tramo", () => {
+    const overview = specOverviewFor({
+      bracket: "3v3",
+      segments: [arenaRow(2000, 40, 900), arenaRow(2200, 12, 300)],
+      run: null,
+    });
+    assert.equal(overview?.withoutSpec, 1_200);
+  });
+
+  it("en Solo Shuffle no hay población sin spec que declarar", () => {
+    const overview = specOverviewFor({ bracket: "shuffle-mage-frost", segments: FROST, run: null });
+    assert.equal(overview?.withoutSpec, null);
   });
 });

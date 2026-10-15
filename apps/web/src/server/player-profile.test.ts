@@ -17,6 +17,7 @@ import {
   observedSpecs,
   pickSpec,
   standingFor,
+  unattributedBrackets,
   talentKeys,
   type PlayerSide,
 } from "./player-profile";
@@ -80,6 +81,7 @@ function segment(
     profileData: { from: null, to: null },
     excludedSearch: 0,
     activity: { byDelta: 0, byFirstSeen: 0 },
+    withoutSpec: null,
   };
 }
 
@@ -617,5 +619,87 @@ describe("standingFor", () => {
     assert.equal(view.ownPopulation, null);
     assert.equal(view.targetPopulation, null);
     assert.equal(view.activityWindowDays, null);
+  });
+});
+
+describe("arena en el perfil (ADR 0048)", () => {
+  const OBSERVED_AT = new Date("2026-10-10T12:00:00Z");
+  const published = ["solo-shuffle", "2v2", "3v3"] as const;
+  // La última fila de arena suele ser de leaderboard, sin spec.
+  const arena = (bracket: string, rating: number) =>
+    snapshot({ bracket, rating, classSlug: null, specSlug: null });
+  const resto = {
+    bracket: "3v3",
+    classSlug: "shaman",
+    specSlug: "restoration",
+    observedAt: OBSERVED_AT,
+  };
+
+  it("la spec de arena es la última observada en ese bracket, con su fecha", () => {
+    const specs = observedSpecs([snapshot(), arena("3v3", 2140)], { specs: [resto], published });
+
+    const threes = specs.find((entry) => entry.bracketSlug === "3v3");
+    assert.equal(threes?.slug, "restoration-shaman");
+    assert.equal(threes?.rating, 2140);
+    assert.equal(threes?.specObservedAt, OBSERVED_AT);
+  });
+
+  it("Solo Shuffle abre la página aunque la arena tenga más rating", () => {
+    // Un 2140 de 3v3 y un 1994 de Solo Shuffle no son la misma cifra: ordenarlos
+    // juntos haría que la página abriese en una modalidad u otra según el día.
+    const specs = observedSpecs([arena("3v3", 2140), snapshot()], { specs: [resto], published });
+    assert.equal(pickSpec(specs)?.bracketSlug, "solo-shuffle");
+  });
+
+  it("sin spec observada la arena no entra en el selector, pero su rating sí consta", () => {
+    const snapshots = [snapshot(), arena("2v2", 1900)];
+    const options = { specs: [], published };
+
+    assert.deepEqual(
+      observedSpecs(snapshots, options).map((entry) => entry.bracketSlug),
+      ["solo-shuffle"],
+    );
+    assert.deepEqual(unattributedBrackets(snapshots, options), [
+      { bracket: "2v2", bracketSlug: "2v2", rating: 1900 },
+    ]);
+  });
+
+  it("la arena que la web no publica no se enseña, ni con spec ni sin ella", () => {
+    const snapshots = [snapshot(), arena("3v3", 2140)];
+    const options = { specs: [resto], published: ["solo-shuffle"] as const };
+
+    assert.equal(observedSpecs(snapshots, options).length, 1);
+    assert.deepEqual(unattributedBrackets(snapshots, options), []);
+  });
+
+  it("la modalidad de la URL elige entre la misma spec en dos brackets", () => {
+    const specs = observedSpecs(
+      [
+        snapshot({
+          bracket: "shuffle-shaman-restoration",
+          classSlug: "shaman",
+          specSlug: "restoration",
+        }),
+        arena("3v3", 2140),
+      ],
+      { specs: [resto], published },
+    );
+
+    assert.equal(pickSpec(specs, "restoration-shaman", "3v3")?.bracketSlug, "3v3");
+    // Sin modalidad, la spec abre su Solo Shuffle.
+    assert.equal(pickSpec(specs, "restoration-shaman")?.bracketSlug, "solo-shuffle");
+  });
+
+  it("en arena la posición es del bracket y no pone al lado los tamaños de la spec", () => {
+    const view = standingFor({
+      rating: 1994,
+      standing: { observed: 4412, below: 3187, percentile: 72.2, highest: 3306 },
+      segments: [segment(1800, { population: 812, gear: 305 })],
+      wholeBracket: true,
+    });
+
+    assert.equal(view.counts.observed, 4412);
+    assert.equal(view.ownPopulation, null);
+    assert.equal(view.targetPopulation, null);
   });
 });

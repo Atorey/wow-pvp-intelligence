@@ -86,6 +86,26 @@ export const en = {
      */
     empty: (bracket: string) =>
       `The most recent aggregate run has nobody observed in ${bracket}, so there is no split to show.`,
+    /**
+     * `/meta` de arena: la población del bracket por tramo, sin reparto por
+     * spec (ADR 0048). Lo que no enseña se dice, con su porqué.
+     */
+    arena: {
+      lead: "The bracket's population by rating segment, split into who has a known spec and who doesn't, in the most recent run.",
+      segment: "Segment",
+      withSpec: "With known spec",
+      withoutSpec: "Without known spec",
+      /** Una cifra que la corrida no trae. Se dice, no se pinta como cero (regla 5). */
+      unknown: "not recorded",
+      totals: (withSpec: string, withoutSpec: string, bracket: string) =>
+        `${withSpec} characters observed in ${bracket} with a known spec and ${withoutSpec} without one, each in the active window of this run.`,
+      noSplit:
+        "There is no split by spec. The bracket doesn't name the spec: it comes from each character's profile, and whose profile gets read is our sampling, not the bracket. A share per spec would measure the sampling and read like the meta.",
+      windows:
+        "Each segment's known-spec count adds up specs counted with their own 7- or 14-day window; the count without a spec uses the widest window of the run.",
+      capped: (entries: string, bracket: string) =>
+        `The ${bracket} leaderboard is at its cap (${entries} entries): every figure here is a floor, not a measurement.`,
+    },
     table: {
       rank: "#",
       spec: "Spec",
@@ -182,7 +202,9 @@ export const en = {
      */
     subtitle:
       "We analyse thousands of players to show you what they use, how they play and what you can improve",
-    lead: "Population from the Solo Shuffle leaderboard, plus every character someone has looked up.",
+    /** Las modalidades llegan nombradas: la arena entra con un interruptor (ADR 0048). */
+    lead: (brackets: string) =>
+      `Population from the ${brackets} leaderboards, plus every character someone has looked up.`,
 
     recent: {
       title: "Recent searches",
@@ -223,8 +245,14 @@ export const en = {
          * no hay ninguna fila, y se dice con esas palabras (§1.5 del brief).
          */
         notIngested: "not ingested yet",
-        notIngestedNote:
-          "The four brackets without a figure don't have a low one: their leaderboards aren't ingested yet, so there isn't a single row of them in the database.",
+        notIngestedNote: (brackets: string) =>
+          `${brackets} have no figure, not a low one: their leaderboards aren't ingested yet, so there isn't a single row of them in the database.`,
+        /**
+         * La arena se cuenta igual que Solo Shuffle y se lee distinto: su
+         * leaderboard es uno para todas las specs (ADR 0048).
+         */
+        arenaNote: (brackets: string) =>
+          `${brackets}: distinct characters observed with activity in the same window. Their leaderboard is one for every spec together, so below its cut a character enters only when someone looks it up here.`,
         note: (observed: string, bracket: string, days: string) =>
           `Distinct characters observed in ${bracket} with activity in the ${days} days up to this run. One character counts once even if they play several of its specs, which is why ${observed} is not the sum of the specs above.`,
         /**
@@ -346,9 +374,9 @@ export const en = {
      * clasificación—, y de ese no se puede decir que nadie lo haya consultado:
      * hay una fila en la bitácora que dice lo contrario.
      *
-     * Lo que se nombra es el Solo Shuffle y no "PvP": es la única modalidad que
-     * el MVP modela (§25), así que de sus 2v2 o sus RBG no consta nada ni a
-     * favor ni en contra.
+     * Lo que se nombra son las modalidades que el sitio lee y no "PvP": de sus
+     * RBG no consta nada ni a favor ni en contra. La lista llega de fuera porque
+     * la arena entra con un interruptor (ADR 0048).
      */
     absent: {
       unknown: {
@@ -357,7 +385,8 @@ export const en = {
       },
       noRating: {
         title: "No rating on record for this character",
-        body: "They are in the population: Blizzard answered about them and listed no rated Solo Shuffle. Rotation, a return, and a season without rated play all look like this.",
+        body: (read: string) =>
+          `They are in the population: Blizzard answered about them and listed no rating in ${read}. Rotation, a return, and a season without rated play all look like this.`,
         asked: (when: string) => `Blizzard was last asked about them on ${when}.`,
       },
       /**
@@ -378,7 +407,8 @@ export const en = {
        */
       action: "Ask Blizzard about them",
       /** Se preguntó, contestó, y sigue sin haber rating. No es un fallo. */
-      stillNoRating: "Blizzard answered, and there is still no rated Solo Shuffle on record.",
+      stillNoRating: (read: string) =>
+        `Blizzard answered, and there is still no rating on record in ${read}.`,
       /**
        * Los dos que no pueden reusar el aviso del perfil: ahí la frase remata con
        * "lo de abajo es la última observación registrada", y aquí abajo no hay
@@ -406,6 +436,13 @@ export const en = {
 
     /** La observación de la que sale la ficha, fechada. */
     observedAt: (when: string) => `Observed ${when}`,
+    /**
+     * En arena la spec no la nombra el bracket: es la que llevaba puesta al
+     * bajarle el perfil (ADR 0048). Se dice con su fecha y sin juzgar si es la
+     * que juega, que es justo lo que no sabemos.
+     */
+    arenaSpec: (bracket: string, when: string) =>
+      `In ${bracket} the spec is the one this character had equipped when their profile was read, on ${when}. It may not be the one they play there.`,
     season: (id: string) => `Season ${id}`,
 
     figures: {
@@ -422,6 +459,8 @@ export const en = {
       itemLevel: "item level (equipped)",
       itemLevelMedian: (segment: string, median: string) => `${segment} median: ${median}`,
       percentile: "percentile in the spec",
+      /** En arena, la posición cuenta el bracket entero (ADR 0048). */
+      percentileBracket: "percentile in the bracket",
       below: (below: string, observed: string) => `${below} of ${observed} below`,
     },
 
@@ -567,6 +606,12 @@ export const en = {
       title: "Where you stand",
       sentence: (below: string, observed: string, spec: string, rating: string) =>
         `${below} of the ${observed} ${spec} observed this season are below ${rating}.`,
+      /**
+       * En arena: el bracket entero, todas las specs. Su leaderboard no trae
+       * spec, y por spec solo contaría a quien tiene perfil (ADR 0048).
+       */
+      sentenceBracket: (below: string, observed: string, bracket: string, rating: string) =>
+        `${below} of the ${observed} characters observed in ${bracket} this season, across every spec, are below ${rating}.`,
       /** La fracción manda y el porcentaje acompaña, nunca al revés (§2.5). */
       percentile: (value: string) => `That's the ${value}th percentile.`,
       segment: (segment: string) => `Segment ${segment}`,
@@ -592,11 +637,21 @@ export const en = {
        */
       ladderCap:
         "Blizzard's leaderboard publishes the top 5,000 per spec and bracket. Below that cut, a character enters this dataset only when someone looks it up here.",
+      /** El de arena es uno para todas las specs: el corte es del bracket entero. */
+      ladderCapArena: (bracket: string) =>
+        `Blizzard's ${bracket} leaderboard publishes the top 5,000 of every spec together. Below that cut, a character enters this dataset only when someone looks it up here.`,
     },
 
     brackets: {
       title: "Other brackets",
-      none: "This site only reads Solo Shuffle. 2v2, 3v3, RBG and BG Blitz aren't observed in this release.",
+      /** El alcance del sitio, con lo que lee y lo que no, en listas que llegan hechas. */
+      scope: (read: string, unread: string) =>
+        `This site reads ${read}. ${unread} aren't observed in this release.`,
+      /**
+       * Una modalidad de arena con rating y sin spec: solo la ha visto el
+       * leaderboard, que no la trae (ADR 0048).
+       */
+      withoutSpec: "spec not observed: the leaderboard doesn't carry it, a profile lookup does",
     },
 
     /** Una línea por ausencia, con su causa y su denominador. Sin fechas (§2.3). */
@@ -788,6 +843,19 @@ export const en = {
      */
     ladderCap:
       "Blizzard's leaderboard publishes the top 5,000 per spec and bracket. Below that cut, a character enters this dataset only when someone looks it up here.",
+    ladderCapArena: (bracket: string) =>
+      `Blizzard's ${bracket} leaderboard publishes the top 5,000 of every spec together. Below that cut, a character enters this dataset only when someone looks it up here.`,
+    /**
+     * Lo que cambia en una página de arena (ADR 0048). Va encima de las cifras
+     * porque cambia lo que significa cada una: los observados de una spec son
+     * los que tienen perfil, no todos los que hay.
+     */
+    arena: {
+      spec: (bracket: string) =>
+        `In ${bracket} the bracket doesn't name the spec. Each character counts in the spec they had equipped when their profile was read; whoever has no recent profile is in their segment but in no spec.`,
+      withoutSpec: (count: string, bracket: string) =>
+        `${count} active characters in these ${bracket} segments have no known spec, and they aren't counted here.`,
+    },
     /** Una spec o un tramo sin nadie. La ausencia es de una corrida concreta, y se dice. */
     empty: {
       spec: (spec: string, bracket: string) =>

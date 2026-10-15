@@ -1,11 +1,12 @@
 import { getRegion } from "@wowpvp/blizzard";
-import { HOME_PATH, METHODOLOGY_PATH, PRIVACY_PATH } from "@wowpvp/core";
+import { HOME_PATH, METHODOLOGY_PATH, PRIVACY_PATH, metaPath } from "@wowpvp/core";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { copyFor } from "../i18n/copy";
 import { type Locale, localizedPathname } from "../i18n/locales";
-import { BRACKET_NAMES, isPublishedBracket } from "./brackets";
+import { publishedBrackets } from "../server/published";
+import { BRACKETS, isPublished } from "./brackets";
 import { ClassNav } from "./class-nav";
 import { LanguageSwitch } from "./language-switch";
 import { MobileMenu } from "./mobile-menu";
@@ -54,30 +55,31 @@ export function SiteSidebar({ locale }: { locale: Locale }) {
    * Nunca están los dos a la vez en el documento: el `Sheet` no monta su
    * contenido hasta que se abre, y la columna se oculta por debajo de `lg`.
    */
+  const published = publishedBrackets();
   const panel = (
     <>
       <QuickSearch locale={locale} region={region} />
 
       <SidebarBlock label={copy.nav.bracketsLabel}>
-        {BRACKET_NAMES.map((bracket) => {
-          const published = isPublishedBracket(bracket);
-
-          return (
-            <li key={bracket}>
-              {/*
-               * Solo Shuffle es la única publicada, y es además donde ya está
-               * el visitante: se marca como actual en vez de enlazar a la
-               * página en la que ya se encuentra el sitio entero.
-               */}
-              <span
-                aria-current={published ? "true" : undefined}
-                className={`${SIDEBAR_ROW} ${published ? "bg-accent text-accent-foreground" : "text-muted-foreground"}`}
+        {BRACKETS.map((bracket) => (
+          <li key={bracket.name}>
+            {/*
+             * Lo publicado lleva a su página de meta, que es la de primer nivel
+             * de cada modalidad. Lo que no se ingiere se nombra y no enlaza: un
+             * enlace a una página sin datos prometería un dato que no hay.
+             */}
+            {isPublished(bracket, published) ? (
+              <Link
+                href={localizedPathname(metaPath(bracket.slug), locale)}
+                className={`${SIDEBAR_ROW} text-muted-foreground hover:text-foreground transition-colors`}
               >
-                {bracket}
-              </span>
-            </li>
-          );
-        })}
+                {bracket.name}
+              </Link>
+            ) : (
+              <span className={`${SIDEBAR_ROW} text-subtle-foreground`}>{bracket.name}</span>
+            )}
+          </li>
+        ))}
       </SidebarBlock>
 
       <SidebarBlock label={copy.nav.classesLabel}>

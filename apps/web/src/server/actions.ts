@@ -1,6 +1,6 @@
 "use server";
 
-import { playerPath, resolvePlayerRoute, searchPath } from "@wowpvp/core";
+import { isBracketSlug, playerPath, resolvePlayerRoute, searchPath } from "@wowpvp/core";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { SOURCE_LOCALE, isLocale, localizedPathname } from "../i18n/locales";
@@ -100,6 +100,10 @@ export async function refreshPlayer(formData: FormData): Promise<never> {
   const query = new URLSearchParams({ refresh: status });
   const spec = field("spec");
   if (spec) query.set("spec", spec);
+  // La modalidad viaja con la spec solo en arena (ver `PlayerPage`): sin ella,
+  // la spec abre su Solo Shuffle. Lo que no es una modalidad no se reenvía.
+  const bracket = field("bracket");
+  if (spec && isBracketSlug(bracket)) query.set("bracket", bracket);
   const tab = field("tab");
   if (tab) query.set("tab", tab);
 

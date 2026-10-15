@@ -49,6 +49,8 @@ const skip = !TEST_DATABASE_URL
 const region = getRegion();
 const frostMage = shuffleBracketId(requireSpecSlug("frost-mage"));
 const restoShaman = shuffleBracketId(requireSpecSlug("restoration-shaman"));
+const FROST_MAGE = { classSlug: "mage", specSlug: "frost" } as const;
+const RESTO_SHAMAN = { classSlug: "shaman", specSlug: "restoration" } as const;
 
 describe("lecturas de @wowpvp/data contra el schema real", { skip }, () => {
   let pool: pg.Pool;
@@ -84,6 +86,7 @@ describe("lecturas de @wowpvp/data contra el schema real", { skip }, () => {
         region,
         seasonId: CURRENT_SEASON,
         bracket: frostMage,
+        ...FROST_MAGE,
         segmentId: "2000-2200",
       });
 
@@ -112,6 +115,7 @@ describe("lecturas de @wowpvp/data contra el schema real", { skip }, () => {
         region,
         seasonId: CURRENT_SEASON,
         bracket: frostMage,
+        ...FROST_MAGE,
         segmentId: "2200-2400",
       });
 
@@ -129,6 +133,7 @@ describe("lecturas de @wowpvp/data contra el schema real", { skip }, () => {
         region,
         seasonId: CURRENT_SEASON,
         bracket: restoShaman,
+        ...RESTO_SHAMAN,
         segmentId: "1800-2000",
       });
 
@@ -146,6 +151,7 @@ describe("lecturas de @wowpvp/data contra el schema real", { skip }, () => {
         region,
         seasonId: CURRENT_SEASON,
         bracket: frostMage,
+        ...FROST_MAGE,
         segmentId: "2800-3000",
       });
       assert.equal(segment, null);
@@ -156,6 +162,7 @@ describe("lecturas de @wowpvp/data contra el schema real", { skip }, () => {
         region,
         seasonId: CURRENT_SEASON,
         bracket: frostMage,
+        ...FROST_MAGE,
         segmentId: "1600-1800",
       });
 
@@ -170,6 +177,7 @@ describe("lecturas de @wowpvp/data contra el schema real", { skip }, () => {
         region,
         seasonId: CURRENT_SEASON,
         bracket: frostMage,
+        ...FROST_MAGE,
       });
 
       assert.ok(segments.length >= 4);
@@ -192,6 +200,7 @@ describe("lecturas de @wowpvp/data contra el schema real", { skip }, () => {
         region,
         seasonId: CURRENT_SEASON,
         bracket: frostMage,
+        ...FROST_MAGE,
         segmentId: "2000-2200",
       });
       assert.ok(segment);
@@ -289,6 +298,7 @@ describe("lecturas de @wowpvp/data contra el schema real", { skip }, () => {
         region,
         seasonId: CURRENT_SEASON,
         bracket: frostMage,
+        ...FROST_MAGE,
         segmentId: "1800-2000",
       });
       assert.ok(own);
@@ -313,6 +323,7 @@ describe("lecturas de @wowpvp/data contra el schema real", { skip }, () => {
         region,
         seasonId: CURRENT_SEASON,
         bracket: restoShaman,
+        ...RESTO_SHAMAN,
         segmentId: "1800-2000",
       });
       assert.ok(segment);

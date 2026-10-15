@@ -2,6 +2,7 @@ import { getCharacterLookupTtlMinutes } from "@wowpvp/blizzard";
 import {
   BRACKET_LABELS,
   formatSegment,
+  isArenaSlug,
   methodologyPath,
   parseShuffleBracket,
   playerPath,
@@ -12,13 +13,21 @@ import type { ReactNode } from "react";
 
 import { classColor } from "../design/class-color";
 import { copyFor } from "../i18n/copy";
-import { formatCount, formatDate, formatPercentile, formatRating } from "../i18n/format";
+import {
+  formatCount,
+  formatDate,
+  formatList,
+  formatPercentile,
+  formatRating,
+} from "../i18n/format";
 import { type Locale, localizedPathname } from "../i18n/locales";
 import { refreshPlayer } from "../server/actions";
 import type { PlayerAbsence, PlayerProfile } from "../server/player";
-import type { StandingView } from "../server/player-profile";
+import type { ObservedSpec, StandingView, UnattributedBracket } from "../server/player-profile";
+import { publishedBrackets } from "../server/published";
 import type { RatingHistoryView } from "../server/rating-history-view";
 import type { RefreshStatus } from "../server/refresh";
+import { readBracketNames, unreadBracketNames } from "./brackets";
 import { CountRow, CountedFigure, DeclaredAbsence } from "./counted-figure";
 import { FigureCard } from "./figure-card";
 import { GearList } from "./gear-list";
@@ -68,20 +77,30 @@ export function PlayerPage({
 }) {
   const copy = copyFor(locale).player;
   const { snapshot, active, gap, standing } = profile;
-  const color = classColor(snapshot.classSlug);
-  const bracketLabel = BRACKET_LABELS["solo-shuffle"];
+  // La clase sale de la spec que se enseña y no de la fila: en arena la última
+  // observación suele ser de leaderboard, que no la trae (ADR 0048).
+  const color = classColor(active.spec.classSlug);
+  const bracketLabel = BRACKET_LABELS[active.bracketSlug];
+  const arena = isArenaSlug(active.bracketSlug);
+  // Con una sola modalidad el selector no la repite en cada spec: diría lo mismo
+  // cuatro veces. Con varias, una spec sin su modalidad es ambigua.
+  const severalBrackets = new Set(profile.specs.map((entry) => entry.bracketSlug)).size > 1;
 
   /**
    * Las dos vistas y las specs viven en la query y no en tramos de ruta: el
    * mapa del ADR 0020 tiene una sola URL por recurso, y el recurso es el
    * personaje. La canónica que se anuncia sigue siendo la ruta sin query.
    */
-  const href = (params: { spec?: string; tab?: PlayerTab }): string => {
+  const href = (params: { entry?: ObservedSpec; tab?: PlayerTab }): string => {
     const query = new URLSearchParams();
-    const spec = params.spec ?? active.slug;
+    const entry = params.entry ?? active;
     // Solo se escribe lo que no es el defecto: así el enlace de la spec
-    // principal y el de la pestaña de resumen son la ruta limpia.
-    if (spec !== profile.specs[0]?.slug) query.set("spec", spec);
+    // principal y el de la pestaña de resumen son la ruta limpia. La modalidad
+    // solo hace falta en arena: una spec sin ella abre su Solo Shuffle.
+    if (entry !== profile.specs[0]) {
+      query.set("spec", entry.slug);
+      if (isArenaSlug(entry.bracketSlug)) query.set("bracket", entry.bracketSlug);
+    }
     const target = params.tab ?? tab;
     if (target !== "summary") query.set("tab", target);
     const path = localizedPathname(playerPath(route), locale);
@@ -108,6 +127,7 @@ export function PlayerPage({
             locale={locale}
             route={route}
             spec={active.slug}
+            {...(arena ? { bracket: active.bracketSlug } : {})}
             tab={tab}
             label={copy.refresh.action}
           />
@@ -116,6 +136,16 @@ export function PlayerPage({
         <p className="text-subtle-foreground text-sm">
           {copy.observedAt(formatDate(snapshot.provenance.observedAt, locale))}
         </p>
+        {/*
+         * En arena la spec es la que llevaba puesta al bajarle el perfil, no
+         * necesariamente con la que juega esa modalidad (ADR 0048). Se dice
+         * arriba, con su fecha, porque de ella cuelga todo lo de debajo.
+         */}
+        {active.specObservedAt !== null && (
+          <p className="text-subtle-foreground max-w-measure text-sm">
+            {copy.arenaSpec(bracketLabel, formatDate(active.specObservedAt, locale))}
+          </p>
+        )}
         {refresh !== null && <RefreshNotice locale={locale} status={refresh} />}
       </header>
 
@@ -123,18 +153,17 @@ export function PlayerPage({
 
       {profile.specs.length > 1 && (
         <nav aria-label={copy.specs.label} className="flex flex-wrap items-center gap-2">
-          {profile.specs.map((spec) => (
+          {profile.specs.map((entry) => (
             <Badge
-              key={spec.slug}
+              key={`${entry.bracketSlug}|${entry.slug}`}
               asChild
-              variant={spec.slug === active.slug ? "secondary" : "outline"}
+              variant={entry === active ? "secondary" : "outline"}
               className="px-3 py-1"
             >
-              <Link
-                href={href({ spec: spec.slug })}
-                aria-current={spec.slug === active.slug ? "page" : undefined}
-              >
-                {spec.spec.label} · {formatRating(spec.rating, locale)}
+              <Link href={href({ entry })} aria-current={entry === active ? "page" : undefined}>
+                {entry.spec.label}
+                {severalBrackets && ` · ${BRACKET_LABELS[entry.bracketSlug]}`} ·{" "}
+                {formatRating(entry.rating, locale)}
               </Link>
             </Badge>
           ))}
@@ -171,7 +200,7 @@ export function PlayerPage({
                 bracket: bracketLabel,
                 rating: snapshot.rating,
               }}
-              measured={{ spec: active.slug, bracket: "solo-shuffle" }}
+              measured={{ spec: active.slug, bracket: active.bracketSlug }}
             />
           </div>
           {/*
@@ -185,11 +214,12 @@ export function PlayerPage({
             <Standing
               locale={locale}
               spec={active.spec.label}
+              wholeBracket={arena ? bracketLabel : null}
               standing={standing}
               rating={snapshot.rating}
             />
             <SectionCard title={copy.brackets.title}>
-              <p className="text-muted-foreground text-sm">{copy.brackets.none}</p>
+              <OtherBrackets locale={locale} withoutSpec={profile.withoutSpec} />
             </SectionCard>
             {gap.state === "insufficient" && (
               <SectionCard title={copy.missing.title}>
@@ -307,7 +337,7 @@ export function PlayerNotObserved({
       ? copy.unknown
       : closed
         ? { title: copy.closedSeason.title(closed.seasonId), body: copy.closedSeason.body }
-        : copy.noRating;
+        : { title: copy.noRating.title, body: copy.noRating.body(readList(locale)) };
 
   return (
     <main className="mx-auto flex max-w-measure flex-col gap-4 px-5 py-10">
@@ -355,7 +385,7 @@ export function PlayerNotObserved({
          * redacciones de un mismo límite acabarían diciendo cosas distintas.
          */}
         {absence.state === "no-rating" && (
-          <p className="text-subtle-foreground text-sm">{player.brackets.none}</p>
+          <p className="text-subtle-foreground text-sm">{scopeSentence(locale)}</p>
         )}
         {/*
          * Cuándo se le preguntó, que es lo que convierte "no le consta rating" en
@@ -390,7 +420,7 @@ function AbsenceNotice({ locale, status }: { locale: Locale; status: RefreshStat
 
   const text =
     status === "updated"
-      ? absent.stillNoRating
+      ? absent.stillNoRating(readList(locale))
       : status === "cached"
         ? // El mismo TTL que decidió no llamar (§28). Un personaje sin rating lo
           // tiene igual: su frescura se mide sobre la bitácora, que es lo único
@@ -472,7 +502,7 @@ function Figures({ locale, profile }: { locale: Locale; profile: PlayerProfile }
       {percentile !== null && (
         <FigureCard
           value={formatPercentile(percentile, locale)}
-          label={copy.percentile}
+          label={isArenaSlug(profile.active.bracketSlug) ? copy.percentileBracket : copy.percentile}
           note={copy.below(
             formatCount(standing.counts.below, locale),
             formatCount(standing.counts.observed, locale),
@@ -494,26 +524,35 @@ function Figures({ locale, profile }: { locale: Locale; profile: PlayerProfile }
 function Standing({
   locale,
   spec,
+  wholeBracket,
   standing,
   rating,
 }: {
   locale: Locale;
   spec: string;
+  /**
+   * La modalidad cuando la posición cuenta el bracket entero, que es lo que
+   * pasa en arena: su leaderboard no trae spec (ADR 0048). `null` en Solo
+   * Shuffle, donde la población es la de la spec.
+   */
+  wholeBracket: string | null;
   standing: StandingView;
   rating: number;
 }) {
   const copy = copyFor(locale).player.standing;
   const counts = standing.counts;
+  const below = formatCount(counts.below, locale);
+  const observed = formatCount(counts.observed, locale);
+  const at = formatRating(rating, locale);
 
   return (
     <SectionCard title={copy.title}>
       <CountedFigure
-        fraction={copy.sentence(
-          formatCount(counts.below, locale),
-          formatCount(counts.observed, locale),
-          spec,
-          formatRating(rating, locale),
-        )}
+        fraction={
+          wholeBracket === null
+            ? copy.sentence(below, observed, spec, at)
+            : copy.sentenceBracket(below, observed, wholeBracket, at)
+        }
         {...(counts.percentile !== null
           ? { derived: copy.percentile(formatPercentile(counts.percentile, locale)) }
           : {})}
@@ -559,8 +598,61 @@ function Standing({
         fracción se apoya en la misma población recortada y arrastra el mismo
         techo (§14 del plan).
       */}
-      <p className="text-subtle-foreground text-sm">{copy.ladderCap}</p>
+      <p className="text-subtle-foreground text-sm">
+        {wholeBracket === null ? copy.ladderCap : copy.ladderCapArena(wholeBracket)}
+      </p>
     </SectionCard>
+  );
+}
+
+/** Lo que el sitio lee, nombrado con las modalidades publicadas. */
+function readList(locale: Locale): string {
+  return formatList(readBracketNames(publishedBrackets()), locale);
+}
+
+/**
+ * El alcance del sitio en una frase: qué modalidades lee y cuáles no. Sale de lo
+ * publicado y no de un texto fijo, porque la arena entra con un interruptor
+ * (ADR 0048) y una frase escrita a mano diría lo de antes o lo de después.
+ */
+function scopeSentence(locale: Locale): string {
+  const published = publishedBrackets();
+  return copyFor(locale).player.brackets.scope(
+    formatList(readBracketNames(published), locale),
+    formatList(unreadBracketNames(published), locale),
+  );
+}
+
+/**
+ * Las modalidades de arena con rating y sin spec observada, y el alcance del
+ * sitio. Su rating es un dato del personaje; lo que no tienen es spec, y sin
+ * ella no hay página de spec ni comparación que abrir.
+ */
+function OtherBrackets({
+  locale,
+  withoutSpec,
+}: {
+  locale: Locale;
+  withoutSpec: readonly UnattributedBracket[];
+}) {
+  const copy = copyFor(locale).player.brackets;
+
+  return (
+    <div className="flex flex-col gap-3">
+      {withoutSpec.length > 0 && (
+        <ul className="flex flex-col gap-1">
+          {withoutSpec.map((entry) => (
+            <li key={entry.bracket} className="text-sm">
+              <span className="text-foreground">
+                {`${BRACKET_LABELS[entry.bracketSlug]} · ${formatRating(entry.rating, locale)}`}
+              </span>
+              <span className="text-muted-foreground">{` · ${copy.withoutSpec}`}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="text-muted-foreground text-sm">{scopeSentence(locale)}</p>
+    </div>
   );
 }
 
@@ -577,12 +669,15 @@ function RefreshForm({
   locale,
   route,
   spec,
+  bracket,
   tab,
   label,
 }: {
   locale: Locale;
   route: PlayerRoute;
   spec?: string;
+  /** Solo en arena: sin ella, la spec abre su Solo Shuffle. */
+  bracket?: string;
   tab?: PlayerTab;
   label: string;
 }) {
@@ -593,6 +688,7 @@ function RefreshForm({
       <input type="hidden" name="realm" value={route.realmSlug} />
       <input type="hidden" name="name" value={route.nameSlug} />
       {spec !== undefined && <input type="hidden" name="spec" value={spec} />}
+      {bracket !== undefined && <input type="hidden" name="bracket" value={bracket} />}
       {tab !== undefined && <input type="hidden" name="tab" value={tab} />}
       <Button type="submit" variant="outline">
         {label}

@@ -3,11 +3,19 @@ import { toNumber, toNumberOrNull } from "./columns";
 import { provenanceFor, type Provenance } from "./provenance";
 import type { Queryable } from "./queryable";
 
-/** Qué escalón se está pidiendo. `segmentId` es la clave estable de BD y de URL. */
+/**
+ * Qué escalón se está pidiendo. `segmentId` es la clave estable de BD y de URL.
+ *
+ * La spec va en la clave aunque en Solo Shuffle la nombre el bracket: en 2v2 y
+ * 3v3 el bracket lleva las cuarenta dentro (ADR 0048), y pedir `3v3` a secas
+ * devolvería el escalón de una spec cualquiera.
+ */
 export interface SegmentKey {
   region: Region;
   seasonId: number;
   bracket: string;
+  classSlug: string;
+  specSlug: string;
   segmentId: string;
 }
 
@@ -83,6 +91,13 @@ export interface SegmentRead {
    * domina la segunda, y eso cambia lo que se puede afirmar del escalón (§27).
    */
   activity: { byDelta: number; byFirstSeen: number };
+  /**
+   * En arena, cuántos activos del mismo tramo no tienen spec conocida: no tienen
+   * perfil en la ventana, así que no cuentan en esta spec ni en ninguna (ADR
+   * 0048). Es del tramo y no de la spec. `null` en Solo Shuffle, donde la spec
+   * la nombra el bracket, y en filas anteriores a la migración 0028.
+   */
+  withoutSpec: number | null;
 }
 
 export interface SegmentRow {
@@ -114,6 +129,7 @@ export interface SegmentRow {
   excluded_search: number;
   active_by_delta: number;
   active_by_first_seen: number;
+  without_spec: number | null;
 }
 
 /**
@@ -130,7 +146,7 @@ const SEGMENT_COLUMNS = `id, computed_at, region, season_id, bracket, class_slug
        item_level_sample,
        rating_median, rating_p25, rating_p75, rating_min, rating_max,
        equipped_item_level_median, profile_data_from, profile_data_to,
-       excluded_search, active_by_delta, active_by_first_seen`;
+       excluded_search, active_by_delta, active_by_first_seen, without_spec`;
 
 /**
  * `segment_max` es null en el tramo abierto de arriba. `Infinity` es lo que usa
@@ -170,6 +186,7 @@ export function toSegmentRead(row: SegmentRow): SegmentRead {
     profileData: { from: row.profile_data_from, to: row.profile_data_to },
     excludedSearch: row.excluded_search,
     activity: { byDelta: row.active_by_delta, byFirstSeen: row.active_by_first_seen },
+    withoutSpec: row.without_spec,
   };
 }
 
@@ -190,10 +207,11 @@ export async function readSegment(db: Queryable, key: SegmentKey): Promise<Segme
   const { rows } = await db.query<SegmentRow>(
     `select ${SEGMENT_COLUMNS}
        from population_segments
-      where region = $1 and season_id = $2 and bracket = $3 and segment_id = $4
+      where region = $1 and season_id = $2 and bracket = $3
+        and class_slug = $4 and spec_slug = $5 and segment_id = $6
       order by computed_at desc
       limit 1`,
-    [key.region, key.seasonId, key.bracket, key.segmentId],
+    [key.region, key.seasonId, key.bracket, key.classSlug, key.specSlug, key.segmentId],
   );
 
   const row = rows[0];
@@ -201,11 +219,13 @@ export async function readSegment(db: Queryable, key: SegmentKey): Promise<Segme
 }
 
 /**
- * Todos los escalones calculados de un bracket, de una sola corrida.
+ * Todos los escalones calculados de una spec en un bracket, de una sola corrida.
  *
  * De una sola porque mezclar corridas sería pintar juntos escalones calculados
  * sobre poblaciones distintas: la página diría que un tramo creció cuando lo
- * que cambió fue la fecha de la que viene cada fila.
+ * que cambió fue la fecha de la que viene cada fila. La corrida es la más
+ * reciente **de esa spec**, también en arena, donde otra spec del bracket pudo
+ * tener fila en una corrida en la que esta no tuvo a nadie.
  */
 export async function readBracketSegments(
   db: Queryable,
@@ -215,12 +235,14 @@ export async function readBracketSegments(
     `select ${SEGMENT_COLUMNS}
        from population_segments
       where region = $1 and season_id = $2 and bracket = $3
+        and class_slug = $4 and spec_slug = $5
         and computed_at = (
           select max(computed_at) from population_segments
            where region = $1 and season_id = $2 and bracket = $3
+             and class_slug = $4 and spec_slug = $5
         )
       order by segment_min`,
-    [key.region, key.seasonId, key.bracket],
+    [key.region, key.seasonId, key.bracket, key.classSlug, key.specSlug],
   );
 
   return rows.map(toSegmentRead);
@@ -253,8 +275,9 @@ export async function readPreviousSegment(
   const { rows } = await db.query<SegmentRow>(
     `select ${SEGMENT_COLUMNS}
        from population_segments ps
-      where ps.region = $1 and ps.season_id = $2 and ps.bracket = $3 and ps.segment_id = $4
-        and ps.computed_at < $5
+      where ps.region = $1 and ps.season_id = $2 and ps.bracket = $3
+        and ps.class_slug = $4 and ps.spec_slug = $5 and ps.segment_id = $6
+        and ps.computed_at < $7
         and exists (select 1 from aggregate_snapshots a where a.population_segment_id = ps.id)
       order by ps.computed_at desc
       limit 1`,
@@ -262,6 +285,8 @@ export async function readPreviousSegment(
       segment.region,
       segment.seasonId,
       segment.bracket,
+      segment.classSlug,
+      segment.specSlug,
       segment.segment.id,
       segment.population.computedAt,
     ],
@@ -275,7 +300,13 @@ export async function readPreviousSegment(
 export interface SegmentPopulation {
   /** El suelo del tramo: la clave con la que se decide qué es "la parte alta". */
   segmentMin: number;
+  /** La suma de sus filas de spec. En arena, solo quien tiene spec conocida. */
   population: number;
+  /**
+   * En arena, los activos del tramo sin spec conocida, que no están en
+   * `population` (ADR 0048). `null` en Solo Shuffle.
+   */
+  withoutSpec: number | null;
 }
 
 /** La población de un bracket dentro de una corrida. */
@@ -298,6 +329,11 @@ export interface BracketPopulation {
    * la de otra fecha.
    */
   leaderboardEntries: number | null;
+  /**
+   * La suma de `withoutSpec` de sus tramos: en arena, cuánta población del
+   * bracket no está en ninguna spec. `null` en Solo Shuffle.
+   */
+  withoutSpec: number | null;
 }
 
 /**
@@ -318,6 +354,7 @@ interface RunPopulationRow {
   segment_min: number;
   population: number;
   leaderboard_entries: number | null;
+  without_spec: number | null;
 }
 
 /**
@@ -343,6 +380,10 @@ interface RunPopulationRow {
  *
  * `null` es que la región no tiene ninguna corrida todavía, y es lo que también
  * responde a "qué temporada enseñar": sin corrida no hay ninguna.
+ *
+ * `without_spec` va con `max` y no con `sum`: es una cifra del tramo que se
+ * repite en cada fila de spec (migración 0028), y sumarla la contaría cuarenta
+ * veces.
  */
 export async function readRunPopulation(
   db: Queryable,
@@ -350,7 +391,8 @@ export async function readRunPopulation(
 ): Promise<RunPopulationRead | null> {
   const { rows } = await db.query<RunPopulationRow>(
     `select season_id, computed_at, bracket, segment_min, sum(sample_size)::int as population,
-            max(leaderboard_entries) as leaderboard_entries
+            max(leaderboard_entries) as leaderboard_entries,
+            max(without_spec) as without_spec
        from population_segments
       where region = $1
         and computed_at = (
@@ -371,9 +413,15 @@ export async function readRunPopulation(
       population: 0,
       segments: [],
       leaderboardEntries: null,
+      withoutSpec: null,
     };
     entry.population += row.population;
-    entry.segments.push({ segmentMin: row.segment_min, population: row.population });
+    entry.segments.push({
+      segmentMin: row.segment_min,
+      population: row.population,
+      withoutSpec: row.without_spec,
+    });
+    if (row.without_spec !== null) entry.withoutSpec = (entry.withoutSpec ?? 0) + row.without_spec;
     // Todas las filas de un bracket en una corrida llevan la misma cifra; la
     // primera que la tenga vale para el bracket.
     entry.leaderboardEntries ??= row.leaderboard_entries;
@@ -400,6 +448,9 @@ export async function readRunPopulation(
  */
 export interface SegmentSampleRead {
   bracket: string;
+  /** La spec de la fila: en arena el bracket no la nombra (ADR 0048). */
+  classSlug: string;
+  specSlug: string;
   segmentId: string;
   gear: Provenance;
   talentNodes: Provenance;
@@ -408,6 +459,8 @@ export interface SegmentSampleRead {
 
 interface SegmentSampleRow {
   bracket: string;
+  class_slug: string;
+  spec_slug: string;
   segment_id: string;
   computed_at: Date;
   sample_size: number;
@@ -436,18 +489,20 @@ interface SegmentSampleRow {
  */
 export async function readSegmentSamples(db: Queryable): Promise<SegmentSampleRead[]> {
   const { rows } = await db.query<SegmentSampleRow>(
-    `select distinct on (region, bracket, segment_id)
-            bracket, segment_id, computed_at, sample_size,
+    `select distinct on (region, bracket, class_slug, spec_slug, segment_id)
+            bracket, class_slug, spec_slug, segment_id, computed_at, sample_size,
             gear_sample, talent_node_sample, pvp_talent_sample
        from population_segments
       where season_id = (select max(season_id) from population_segments)
-      order by region, bracket, segment_id, computed_at desc`,
+      order by region, bracket, class_slug, spec_slug, segment_id, computed_at desc`,
   );
 
   return rows.map((row) => {
     const base = { computedAt: row.computed_at, sampleSize: row.sample_size };
     return {
       bracket: row.bracket,
+      classSlug: row.class_slug,
+      specSlug: row.spec_slug,
       segmentId: row.segment_id,
       gear: provenanceFor({ ...base, denominator: row.gear_sample }),
       talentNodes: provenanceFor({ ...base, denominator: row.talent_node_sample }),

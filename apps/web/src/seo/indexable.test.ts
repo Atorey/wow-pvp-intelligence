@@ -18,6 +18,8 @@ function sample(overrides: Partial<Record<"gear" | "talentNodes" | "pvpTalents",
   const base = { computedAt: COMPUTED_AT, sampleSize: 3000 };
   const read: SegmentSampleRead = {
     bracket: "shuffle-mage-frost",
+    classSlug: "mage",
+    specSlug: "frost",
     segmentId: "2000-2200",
     gear: provenanceFor({ ...base, denominator: overrides.gear ?? 0 }),
     talentNodes: provenanceFor({ ...base, denominator: overrides.talentNodes ?? 0 }),
@@ -147,5 +149,30 @@ describe("robotsFor", () => {
 
   it("una página no indexable no se indexa ni en producción", () => {
     assert.deepEqual(robotsFor(false, production), { index: false, follow: false });
+  });
+});
+
+describe("rutas de arena (ADR 0048)", () => {
+  const arenaSample = (): SegmentSampleRead => ({
+    ...sample({ gear: 120 }),
+    bracket: "3v3",
+    classSlug: "shaman",
+    specSlug: "restoration",
+  });
+
+  it("una fila de arena es la página de su spec en esa modalidad", () => {
+    const routes = specRoutesWithSample([arenaSample()], ["solo-shuffle", "3v3"]);
+    assert.deepEqual(
+      routes.map((route) => route.path),
+      [
+        "/spec/restoration-shaman",
+        "/spec/restoration-shaman/3v3",
+        "/spec/restoration-shaman/3v3/2000-2200",
+      ],
+    );
+  });
+
+  it("con la arena sin publicar no se anuncia ninguna de sus páginas", () => {
+    assert.deepEqual(specRoutesWithSample([arenaSample()], ["solo-shuffle"]), []);
   });
 });

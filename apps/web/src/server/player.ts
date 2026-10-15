@@ -7,6 +7,7 @@ import {
   readLatestObservedSeason,
   readLatestSnapshotsByBracket,
   readLatestTalents,
+  readObservedSpecs,
   readPeakRating,
   readStanding,
   type ActivityRead,
@@ -19,6 +20,7 @@ import {
 import { cache } from "react";
 import { cachedAdoptionFor, cachedBracketSegments } from "./aggregate-cache";
 import { getDb } from "./db";
+import { publishedBrackets } from "./published";
 import { loadClosedSeason, type ClosedSeasonView } from "./rating-history";
 import "./env";
 import {
@@ -26,10 +28,12 @@ import {
   observedSpecs,
   pickSpec,
   standingFor,
+  unattributedBrackets,
   type AdoptionSides,
   type GapView,
   type ObservedSpec,
   type StandingView,
+  type UnattributedBracket,
 } from "./player-profile";
 
 /**
@@ -44,9 +48,11 @@ export interface PlayerProfile {
   seasonId: number;
   /** La observación más reciente de la spec que se está enseñando. */
   snapshot: CharacterSnapshotRead;
-  /** Todas las specs observadas del personaje, para el selector. */
+  /** Todas las specs observadas del personaje, por modalidad, para el selector. */
   specs: ObservedSpec[];
   active: ObservedSpec;
+  /** Las modalidades de arena con rating y sin spec observada (ADR 0048). */
+  withoutSpec: UnattributedBracket[];
   /** El rating más alto que le hemos visto en esta spec y temporada. */
   peakRating: number | null;
   /**
@@ -75,6 +81,7 @@ export interface PlayerProfile {
 export async function loadPlayerProfile(
   route: PlayerRoute,
   requestedSpec?: string,
+  requestedBracket?: string,
 ): Promise<PlayerProfile | null> {
   const db = getDb();
   const key = { region: route.region, realmSlug: route.realmSlug, nameSlug: route.nameSlug };
@@ -85,29 +92,44 @@ export async function loadPlayerProfile(
   const seasonId = await readLatestObservedSeason(db, key);
   if (seasonId === null) return null;
 
-  const snapshots = await readLatestSnapshotsByBracket(db, { ...key, seasonId });
-  const specs = observedSpecs(snapshots);
-  const active = pickSpec(specs, requestedSpec);
+  // La spec de cada bracket va aparte porque en arena la última observación suele
+  // ser de leaderboard, que no la trae (ADR 0048).
+  const [snapshots, specsByBracket] = await Promise.all([
+    readLatestSnapshotsByBracket(db, { ...key, seasonId }),
+    readObservedSpecs(db, { ...key, seasonId }),
+  ]);
+  const options = { specs: specsByBracket, published: publishedBrackets() };
+  const specs = observedSpecs(snapshots, options);
+  const active = pickSpec(specs, requestedSpec, requestedBracket);
   if (!active) return null;
 
   const snapshot = snapshots.find((row) => row.bracket === active.bracket);
   if (!snapshot) return null;
 
   const bracket = active.bracket;
-  const own = { region: route.region, seasonId, bracket };
+  const own = {
+    region: route.region,
+    seasonId,
+    bracket,
+    classSlug: active.spec.classSlug,
+    specSlug: active.spec.specSlug,
+  };
+  const arena = active.specObservedAt !== null;
 
   const [peakRating, activity, gear, talents, standing, segments] = await Promise.all([
     readPeakRating(db, { characterId: snapshot.characterId, bracket, seasonId }),
     readActivity(db, { characterId: snapshot.characterId, bracket, seasonId }),
     readLatestGear(db, { ...key, bracket, seasonId }),
     readLatestTalents(db, { ...key, bracket, seasonId }),
-    readStanding(db, { ...own, rating: snapshot.rating }),
+    // En arena cuenta el bracket entero: la lectura filtra por bracket y no por
+    // spec, y eso es lo que se declara en pantalla.
+    readStanding(db, { region: own.region, seasonId, bracket, rating: snapshot.rating }),
     // Las tres lecturas de agregado van por la caché de proceso: son las mismas
     // para todo el que mire esta spec y cambian una vez al día (ADR 0031).
     cachedBracketSegments(db, own),
   ]);
 
-  const view = standingFor({ rating: snapshot.rating, standing, segments });
+  const view = standingFor({ rating: snapshot.rating, standing, segments, wholeBracket: arena });
   // El segmento objetivo se busca en lo ya leído y no se pide aparte: una fila
   // de otra corrida junto a las de esta pintaría dos poblaciones en la misma
   // página. Que no esté significa que esa corrida no lo calculó, y eso es una
@@ -123,6 +145,7 @@ export async function loadPlayerProfile(
     snapshot,
     specs,
     active,
+    withoutSpec: unattributedBrackets(snapshots, options),
     peakRating,
     equippedItemLevel,
     activity,
@@ -237,6 +260,7 @@ export const cachedPlayerProfile = cache(
     realmSlug: string,
     nameSlug: string,
     requestedSpec: string | undefined,
+    requestedBracket: string | undefined,
   ): Promise<PlayerProfile | null> =>
-    loadPlayerProfile({ region, realmSlug, nameSlug }, requestedSpec),
+    loadPlayerProfile({ region, realmSlug, nameSlug }, requestedSpec, requestedBracket),
 );

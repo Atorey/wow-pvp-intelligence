@@ -118,16 +118,23 @@ const segmentsCache = new AggregateCache<SegmentRead[]>(
   (segments) => segments[0]?.gear.computedAt ?? null,
 );
 
+/**
+ * Una spec en un bracket. La spec va siempre, también en Solo Shuffle, donde la
+ * nombra el bracket: en arena el bracket lleva las cuarenta (ADR 0048).
+ */
 export interface BracketKey {
   region: Region;
   seasonId: number;
   bracket: string;
+  classSlug: string;
+  specSlug: string;
 }
 
-/** Los escalones del bracket, de una sola corrida y recordados hasta la siguiente. */
+/** Los escalones de la spec en el bracket, de una sola corrida y recordados hasta la siguiente. */
 export function cachedBracketSegments(db: Queryable, key: BracketKey): Promise<SegmentRead[]> {
-  return segmentsCache.read(`${key.region}|${key.seasonId}|${key.bracket}`, () =>
-    readBracketSegments(db, key),
+  return segmentsCache.read(
+    `${key.region}|${key.seasonId}|${key.bracket}|${key.classSlug}|${key.specSlug}`,
+    () => readBracketSegments(db, key),
   );
 }
 
@@ -229,8 +236,10 @@ export function cachedActiveCharacters(
 ): Promise<ActiveCharactersRead> {
   return activeCache.read(
     // La fecha de la corrida entra en la clave: la de mañana pregunta por una
-    // clave que no existe y la de hoy caduca sola, sin invalidación escrita.
-    `${key.region}|${key.seasonId}|${key.computedAt.getTime()}`,
+    // clave que no existe y la de hoy caduca sola, sin invalidación escrita. Y
+    // los brackets también, desde que la portada cuenta más de una modalidad:
+    // sin ellos, 3v3 recibiría la cifra de Solo Shuffle cacheada.
+    `${key.region}|${key.seasonId}|${key.computedAt.getTime()}|${[...key.brackets].join(",")}`,
     () => readActiveCharacters(db, key),
     key.computedAt,
   );

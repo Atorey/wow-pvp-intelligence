@@ -1,4 +1,4 @@
-import { BRACKET_LABELS, metaPath, type BracketSlug } from "@wowpvp/core";
+import { BRACKET_LABELS, isArenaSlug, metaPath, type BracketSlug } from "@wowpvp/core";
 import type { Metadata } from "next";
 
 import { alternatesFor } from "../i18n/alternates";
@@ -7,6 +7,7 @@ import { formatRating } from "../i18n/format";
 import type { Locale } from "../i18n/locales";
 import { robotsFor } from "../seo/indexable";
 import { isMetaIndexable, type MetaData, type MetaScope } from "../server/meta";
+import { ArenaPopulationTable } from "./arena-population-table";
 import { SpecRepresentationTable } from "./spec-representation-table";
 import { Badge } from "./ui/badge";
 import { Card } from "./ui/card";
@@ -31,7 +32,7 @@ export async function metaMetadata(bracket: BracketSlug, locale: Locale): Promis
   const copy = copyFor(locale).meta;
   return {
     title: copy.title(BRACKET_LABELS[bracket]),
-    description: copy.lead,
+    description: isArenaSlug(bracket) ? copy.arena.lead : copy.lead,
     alternates: alternatesFor(metaPath(bracket), locale),
     // Sin reparto no hay contenido, y una dirección sin contenido no se indexa
     // (ADR 0029). Es la misma condición que decide qué se pinta.
@@ -48,7 +49,7 @@ function scopeLabel(scope: MetaScope, locale: Locale): string | null {
 
 export function MetaPage({ locale, data }: { locale: Locale; data: MetaData }) {
   const copy = copyFor(locale);
-  const { scope, board } = data;
+  const { scope, board, arena } = data;
   const bracketLabel = BRACKET_LABELS[scope.bracket];
   const scoped = scopeLabel(scope, locale);
 
@@ -57,7 +58,9 @@ export function MetaPage({ locale, data }: { locale: Locale; data: MetaData }) {
       <header className="flex flex-col gap-4">
         <div className="flex flex-col gap-2">
           <h1 className="text-foreground text-2xl">{copy.meta.title(bracketLabel)}</h1>
-          <p className="text-muted-foreground max-w-measure text-base">{copy.meta.lead}</p>
+          <p className="text-muted-foreground max-w-measure text-base">
+            {isArenaSlug(scope.bracket) ? copy.meta.arena.lead : copy.meta.lead}
+          </p>
         </div>
 
         {/*
@@ -71,7 +74,15 @@ export function MetaPage({ locale, data }: { locale: Locale; data: MetaData }) {
         )}
       </header>
 
-      {board === null ? (
+      {isArenaSlug(scope.bracket) ? (
+        arena === null ? (
+          <Card className="text-muted-foreground border-dashed p-5 text-sm shadow-none">
+            {copy.meta.empty(bracketLabel)}
+          </Card>
+        ) : (
+          <ArenaPopulationTable locale={locale} board={arena} />
+        )
+      ) : board === null ? (
         /*
          * Discontinuo y sin `role="alert"`, como en la portada: no ha pasado
          * nada, esa corrida no tiene a nadie y lo estaba igual antes de entrar.

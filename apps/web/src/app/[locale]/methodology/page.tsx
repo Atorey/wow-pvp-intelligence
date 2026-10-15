@@ -6,10 +6,12 @@ import { alternatesFor } from "../../../i18n/alternates";
 import { formatDate } from "../../../i18n/format";
 import { LOCALES, isLocale } from "../../../i18n/locales";
 import { METHODOLOGY_UPDATED_AT, methodologyFor } from "../../../i18n/methodology";
+import { publishedBrackets } from "../../../server/published";
 
 // La única página del MVP sin tramos dinámicos, y obligatoria desde el día 1
 // (§24): es la que sostiene la promesa de método. Existe en las dos lenguas y
-// se genera en build, porque su contenido no depende de ningún dato.
+// se genera en build, porque su contenido no depende de ningún dato: lo único
+// que lee es qué arena está publicada, que es configuración del despliegue.
 export function generateStaticParams(): { locale: string }[] {
   return LOCALES.map((locale) => ({ locale }));
 }
@@ -22,7 +24,7 @@ export async function generateMetadata({
   const { locale } = await params;
   if (!isLocale(locale)) return {};
 
-  const doc = methodologyFor(locale);
+  const doc = methodologyFor(locale, publishedBrackets());
   return {
     title: doc.title,
     description: doc.lead,
@@ -34,7 +36,7 @@ export default async function MethodologyPage({ params }: { params: Promise<{ lo
   const { locale } = await params;
   if (!isLocale(locale)) notFound();
 
-  const doc = methodologyFor(locale);
+  const doc = methodologyFor(locale, publishedBrackets());
 
   return (
     <main className="mx-auto flex max-w-measure flex-col gap-8 px-5 py-8">

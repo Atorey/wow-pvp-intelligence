@@ -25,10 +25,12 @@ interface PlayerParams {
 /**
  * Lo que puede venir en la query. Ninguno es parte de la identidad del recurso:
  * la URL canónica del personaje es la ruta a secas (ADR 0020, decisión 7), y
- * estos tres solo eligen qué se enseña de él.
+ * estos cuatro solo eligen qué se enseña de él. `bracket` acompaña a `spec` en
+ * arena, donde una misma spec puede estar en 2v2 y en 3v3 (ADR 0048).
  */
 interface PlayerQuery {
   spec?: string;
+  bracket?: string;
   tab?: string;
   refresh?: string;
 }
@@ -51,7 +53,9 @@ export async function generateMetadata({
   const { route } = resolution;
   // La misma spec que pintará la página: sin ella, la carga memoizada sería otra
   // y el perfil se leería dos veces por visita.
-  const spec = first(((await searchParams) as PlayerQuery).spec);
+  const asked = (await searchParams) as PlayerQuery;
+  const spec = first(asked.spec);
+  const bracket = first(asked.bracket);
 
   /*
    * Una lectura que falla aquí no puede tumbar la página, y sin este `catch` lo
@@ -66,7 +70,13 @@ export async function generateMetadata({
    */
   let profile: Awaited<ReturnType<typeof cachedPlayerProfile>> = null;
   try {
-    profile = await cachedPlayerProfile(route.region, route.realmSlug, route.nameSlug, spec);
+    profile = await cachedPlayerProfile(
+      route.region,
+      route.realmSlug,
+      route.nameSlug,
+      spec,
+      bracket,
+    );
   } catch {
     // Sin perfil no se puede afirmar que haya comparación, así que no se indexa:
     // es la misma respuesta que para un perfil sin ella, y por el mismo motivo.
@@ -76,7 +86,7 @@ export async function generateMetadata({
   return {
     title: `${route.nameSlug} · ${route.realmSlug}`,
     description: copyFor(locale).player.lead,
-    // La canónica no lleva la query: `?spec=` y `?tab=` son vistas del mismo
+    // La canónica no lleva la query: `?spec=`, `?bracket=` y `?tab=` son vistas del mismo
     // personaje, y anunciarlas como URL propias multiplicaría por cuatro las
     // direcciones indexables de cada perfil sin una sola página nueva.
     alternates: alternatesFor(playerPath(route), locale),
@@ -109,8 +119,15 @@ export default async function PlayerRoutePage({
   const { route } = resolution;
   const query = (await searchParams) as PlayerQuery;
   const spec = first(query.spec);
+  const bracket = first(query.bracket);
 
-  const profile = await cachedPlayerProfile(route.region, route.realmSlug, route.nameSlug, spec);
+  const profile = await cachedPlayerProfile(
+    route.region,
+    route.realmSlug,
+    route.nameSlug,
+    spec,
+    bracket,
+  );
   const tab = first(query.tab);
   const refresh = first(query.refresh);
   const status = refresh && isRefreshStatus(refresh) ? refresh : null;
