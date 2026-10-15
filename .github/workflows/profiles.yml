@@ -54,3 +54,10 @@ jobs:
       # job falle contra un schema viejo.
       - run: npm run db:migrate
       - run: npm run pipeline -- refresh-profiles
+      # El catálogo de iconos (ADR 0022) va detrás y en el mismo job: los items
+      # nuevos salen de los perfiles que acaban de bajar, y las dos cosas comparten
+      # credenciales y prioridad `aggregate`. Sin este paso `item_media` no se
+      # llena nunca y cada fila de equipo sale con el hueco del icono vacío.
+      # Corre aunque falle el paso de arriba: lo pendiente no depende de él.
+      - if: ${{ !cancelled() }}
+        run: npm run pipeline -- resolve-item-media

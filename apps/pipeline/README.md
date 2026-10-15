@@ -231,7 +231,7 @@ npm run pipeline -- refresh-aggregates --window 30  # fuerza la ventana de "seas
 
 ### `resolve-item-media`
 
-Rellena el catálogo `item_media`: la URL del icono de cada item observado en el gear equipado y en sus gemas (issue #67, [ADR 0022](../../docs/decisions/0022-catalogo-de-iconos-de-item.md)). Una petición por item a `/data/wow/media/item/{id}`, en prioridad `aggregate`.
+Rellena el catálogo `item_media`: la URL del icono de cada item observado en el gear equipado y en sus gemas (issue #67, [ADR 0022](../../docs/decisions/0022-catalogo-de-iconos-de-item.md)). Una petición por item a `/data/wow/media/item/{id}`, en prioridad `aggregate`. Corre a diario detrás de `refresh-profiles` en [.github/workflows/profiles.yml](../../.github/workflows/profiles.yml), que es de donde salen los items nuevos.
 
 ```bash
 npm run pipeline -- resolve-item-media --dry-run       # cuenta lo pendiente, sin gastar nada
