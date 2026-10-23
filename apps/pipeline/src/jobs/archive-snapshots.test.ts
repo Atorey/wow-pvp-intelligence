@@ -58,3 +58,13 @@ test("un catálogo se poda contra los ids desplegados una vez, no fila a fila", 
   assert.equal(sql.where, "not exists (select 1 from used where used.id = t.id)");
   assert.doesNotMatch(`${sql.with} ${sql.where}`, /any\(/);
 });
+
+test("el ancla de leaderboard solo sale si la presencia la copia y la actividad tiene su contador", () => {
+  const sql = candidatesSql(new Date("2026-10-23T00:00:00Z"), []);
+
+  assert.match(sql, /anchor\.source = 'leaderboard'/);
+  assert.match(sql, /p\.changed_at = anchor\.captured_at/);
+  assert.match(sql, /a\.leaderboard_observed_at >= anchor\.captured_at/);
+  // Las dos condiciones a la vez: la presencia sola no le basta a la actividad.
+  assert.match(sql, /where not \(\s+anchor\.source = 'leaderboard'\s+and exists[\s\S]+and exists/);
+});

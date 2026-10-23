@@ -176,7 +176,10 @@ export interface ArchivedActivity {
  *
  * - **La serie caliente conserva el ancla**: la última observación anterior al
  *   corte de cada origen. Sin ella, la primera subida dentro de la ventana no
- *   tendría contra qué compararse y se leería como un arranque.
+ *   tendría contra qué compararse y se leería como un arranque. La de
+ *   leaderboard puede llegar como copia —desde `character_presence`, o como el
+ *   último contador que guardó el recálculo anterior (ADR 0054)—, y para esta
+ *   función es lo mismo: una observación con su instante y su contador.
  * - **Solo se archiva lo que `previous` ya había visto**, o sea, filas anteriores
  *   al último cálculo de esa fila. Si no, lo archivado se perdería sin haber
  *   dejado rastro en ella.
