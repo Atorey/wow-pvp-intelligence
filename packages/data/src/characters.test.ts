@@ -256,6 +256,15 @@ describe("readPeakRating", () => {
     assert.equal(peak, 2012);
     assert.match(db.calls[0]?.text ?? "", /max\(rating\)/);
   });
+
+  it("une lo caliente con el pico de lo archivado (ADR 0053)", async () => {
+    const db = fakeDb([{ peak: 2140 }]);
+    await readPeakRating(db, { characterId: "0f1c…", bracket: "shuffle-priest-holy", seasonId: 42 });
+
+    const text = db.calls[0]?.text ?? "";
+    assert.match(text, /greatest\(/);
+    assert.match(text, /archived_peak_rating\s+from character_activity/);
+  });
 });
 
 describe("readRatingPoints", () => {
