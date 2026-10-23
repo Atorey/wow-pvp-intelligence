@@ -1,4 +1,4 @@
-# ADR 0052 — Lo que solo se lee por su última fila se poda, y el índice que repite a otro sale
+# ADR 0052 — Lo que solo se lee por su última fila se poda, y los índices que repiten a otro salen
 
 **Fecha**: 23 de octubre de 2026 · **Estado**: aceptada · **Revisa el punto 3 del [ADR 0047](0047-los-agregados-semanales-se-guardan-cuatro-semanas.md)**, que dejaba `population_segments` sin podar · Se apoya en el [ADR 0034](0034-historico-frio-archivado-en-storage.md) y el [ADR 0037](0037-la-tendencia-se-mide-contra-el-ruido-de-su-propia-base.md)
 
@@ -11,18 +11,19 @@ El 12 de octubre `compact` dejó la base en 332 MB. El 23 estaba en 457 de una c
 
 A ese ritmo la cuota se acaba hacia el 2 de noviembre. Pagar o cambiar de proveedor está descartado. Lo que se puede recortar sin perder nada que lea una pantalla está en dos sitios:
 
-| Qué                       |  Tamaño |                     Crece | Quién lee lo antiguo                                                     |
-| ------------------------- | ------: | ------------------------: | ------------------------------------------------------------------------ |
-| `idx_snapshots_character` | 17,4 MB | con `character_snapshots` | nadie: 169 lecturas en toda su vida                                      |
-| `population_segments`     | 13,7 MB |               ~0,3 MB/día | nadie: se lee la última corrida de cada spec y la anterior con agregados |
-| `leaderboard_fetches`     |  6,7 MB |               ~0,1 MB/día | el informe de cadencia de `refresh-leaderboard`                          |
-| `segment_coverage`        |  5,8 MB |               ~0,1 MB/día | `coverage`, que enseña las últimas 7 corridas                            |
+| Qué                        |  Tamaño |                     Crece | Quién lee lo antiguo                                                     |
+| -------------------------- | ------: | ------------------------: | ------------------------------------------------------------------------ |
+| `idx_snapshots_character`  | 17,4 MB | con `character_snapshots` | nadie: 169 lecturas en toda su vida                                      |
+| `idx_characters_name_fold` |  7,9 MB |          con `characters` | nadie: el autocompletado usa el de prefijo                               |
+| `population_segments`      | 13,7 MB |               ~0,3 MB/día | nadie: se lee la última corrida de cada spec y la anterior con agregados |
+| `leaderboard_fetches`      |  6,7 MB |               ~0,1 MB/día | el informe de cadencia de `refresh-leaderboard`                          |
+| `segment_coverage`         |  5,8 MB |               ~0,1 MB/día | `coverage`, que enseña las últimas 7 corridas                            |
 
-`idx_snapshots_character` es `(character_id, captured_at desc)`, de la migración 0001. La 0002 añadió el único `(character_id, bracket, captured_at)`, que empieza por la misma columna, y toda lectura de snapshots por personaje filtra también por bracket.
+`idx_snapshots_character` es `(character_id, captured_at desc)`, de la migración 0001. La 0002 añadió el único `(character_id, bracket, captured_at)`, que empieza por la misma columna, y toda lectura de snapshots por personaje filtra también por bracket. `idx_characters_name_fold` es `(region, realm_slug, name_fold)`, de la 0008, para resolver un personaje por su nombre plegado, una consulta que no llegó a existir: la única que lee `name_fold` es el autocompletado, con `like 'prefijo%'`, y eso solo lo sirve el índice con `text_pattern_ops` de la 0011.
 
 ## Decisión
 
-1. **`idx_snapshots_character` sale** (migración 0030). Lo que buscaba solo por personaje lo sirve la primera columna del índice único.
+1. **`idx_snapshots_character` e `idx_characters_name_fold` salen** (migraciones 0030 y 0033). Lo que buscaba solo por personaje lo sirve la primera columna del índice único de snapshots, y la búsqueda por nombre, el índice de prefijo.
 2. **De `population_segments` sale lo que cumple las tres condiciones**:
    - es anterior a las cuatro semanas de la retención de agregados (`--weeks`, contadas desde la corrida vigente);
    - no conserva ningún agregado;
@@ -36,11 +37,11 @@ A ese ritmo la cuota se acaba hacia el 2 de noviembre. Pagar o cambiar de provee
 
 **Porque el «se conserva por la tendencia» del ADR 0047 no tenía consumidor, y la cuota es fija.** La serie de mediana y cuartiles por escalón se guardaba por si algún día sostenía una tendencia. Ese día no ha llegado, y mientras tanto la tabla había pasado de los 4 MB que la justificaban a 13,7. Si llega —la tendencia anti-FOTM de #126 es la candidata—, la serie se reconstruye desde el archivo de Storage o se guarda resumida, con su propio ADR.
 
-**Porque el índice cuesta dos veces.** Cada snapshot nuevo lo pagaba en un segundo índice, en la tabla que más crece. Quitarlo devuelve espacio hoy y también frena el crecimiento.
+**Porque un índice de más cuesta dos veces.** Cada snapshot nuevo pagaba el primero en un segundo índice, en la tabla que más crece. Quitarlo devuelve espacio hoy y también frena el crecimiento.
 
 ## Consecuencias
 
-- **Medido con `--dry-run` el 23 de octubre**, la primera corrida borra 13.025 filas de 29.062 en `population_segments`, 11.305 de 20.899 en `leaderboard_fetches` y 2.657 de 19.182 en `segment_coverage`: unos 10,5 MB en proporción al tamaño de cada tabla. Con los 17,4 MB del índice, unos 28 MB en total, y deja de crecer ~0,5 MB al día en las tres tablas. El índice vuelve a la cuota en el acto. **Lo borrado no vuelve hasta un `compact`** de las tres tablas ([ADR 0034](0034-historico-frio-archivado-en-storage.md)).
+- **Medido con `--dry-run` el 23 de octubre**, la primera corrida borra 13.025 filas de 29.062 en `population_segments`, 11.305 de 20.899 en `leaderboard_fetches` y 2.657 de 19.182 en `segment_coverage`: unos 10,5 MB en proporción al tamaño de cada tabla. Con los 25,3 MB de los dos índices, unos 36 MB en total, y deja de crecer ~0,5 MB al día en las tres tablas. Los índices vuelven a la cuota en el acto. **Lo borrado no vuelve hasta un `compact`** de las tres tablas ([ADR 0034](0034-historico-frio-archivado-en-storage.md)).
 - **No es una solución para toda la temporada.** Al ritmo actual da algo más de una semana. Lo que sigue creciendo es población, y esa se recorta con otra decisión.
 - **`coverage` ya no puede enseñar la caída de un cambio de temporada si pasó hace más de 30 días.** Las 7 corridas que enseña por defecto quedan de sobra dentro.
 - **El informe de cadencia de `refresh-leaderboard` mide sobre 30 días**, no sobre toda la historia.

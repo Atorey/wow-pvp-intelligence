@@ -1,0 +1,16 @@
+-- Quita idx_characters_name_fold, que no sirve a ninguna consulta (ADR 0052).
+--
+-- Es (region, realm_slug, name_fold), de la migración 0008, para resolver un
+-- personaje concreto por su nombre plegado. Esa consulta no llegó a existir: la
+-- única que lee name_fold es el autocompletado, con `like 'prefijo%'`, y un
+-- B-tree sin text_pattern_ops no sirve para eso en nuestra collation (migración
+-- 0011). Con reino o sin él, la sirve idx_characters_name_fold_prefix. Eran
+-- 7,9 MB el 23 de octubre de 2026.
+--
+-- Va aparte de la 0030, que quitó el otro índice redundante, porque la 0030 ya
+-- estaba en main y puede estar aplicada: cambiarle el nombre o el contenido
+-- haría que migrate la viera como nueva, o que no viera nunca lo añadido.
+--
+-- Un drop index sin concurrently bloquea la tabla el rato que tarda en soltar
+-- el fichero, que es un instante: no reescribe nada.
+drop index if exists idx_characters_name_fold;
