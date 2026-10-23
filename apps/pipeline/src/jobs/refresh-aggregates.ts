@@ -388,7 +388,9 @@ async function loadActive(
   cutoff: Date,
   arenaBrackets: readonly string[],
 ): Promise<ActiveRow[]> {
-  // distinct on = la observación más reciente de cada personaje en cada bracket.
+  // distinct on = la observación más reciente de cada personaje en cada bracket,
+  // leída de `character_observations`: la de quien lleva más de 3 días sin
+  // cambiar ya no es un snapshot sino el ancla copiada en la presencia (ADR 0054).
   // Un personaje puede jugar varias specs: la clave es (personaje, bracket), no
   // el personaje solo (§27: el spec activo cambia entre snapshots).
   // El join con character_activity es interno a propósito: sin fila de
@@ -409,7 +411,7 @@ async function loadActive(
     `select distinct on (s.character_id, s.bracket)
             s.character_id, s.bracket, s.class_slug, s.spec_slug, s.rating, s.captured_at,
             a.last_active_at, a.evidence
-       from character_snapshots s
+       from character_observations s
        join characters c on c.id = s.character_id
        join character_activity a
          on a.character_id = s.character_id and a.bracket = s.bracket
@@ -462,7 +464,7 @@ async function loadSearchOnly(
     `with active as (
        select s.character_id, s.bracket, s.class_slug, s.spec_slug, s.source, s.rating,
               s.captured_at
-         from character_snapshots s
+         from character_observations s
          join characters c on c.id = s.character_id
          join character_activity a
            on a.character_id = s.character_id and a.bracket = s.bracket
