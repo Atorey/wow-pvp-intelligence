@@ -172,6 +172,11 @@ export async function ingestFile(
     //    cruzarlos fabricaría diferencias que nadie jugó. Y contra la observación
     //    *anterior* (`captured_at <`), para que reingerir un archivo ya ingerido
     //    siga siendo idempotente en vez de compararse consigo mismo.
+    //
+    //    La anterior sale de `character_observations` y no de la tabla: quien
+    //    lleva más de 3 días sin cambiar ya no tiene su última fila en
+    //    `character_snapshots`, sino copiada en `character_presence` (ADR 0054).
+    //    Compararlo contra nada lo volvería a escribir entero en cada corrida.
     const result = await client.query<{ received: string; redundant: string; inserted: string }>(
       `with incoming as (
          select c.id as character_id, t.*
@@ -187,15 +192,15 @@ export async function ingestFile(
        ),
        with_previous as (
          select i.*,
-                (previous.id is not null
+                (previous.rating is not null
                  and (i.rating, i.matches_played, i.matches_won, i.matches_lost, i.pvp_tier_id)
                      is not distinct from
                      (previous.rating, previous.matches_played, previous.matches_won,
                       previous.matches_lost, previous.pvp_tier_id)) as redundant
            from incoming i
            left join lateral (
-             select s.id, s.rating, s.matches_played, s.matches_won, s.matches_lost, s.pvp_tier_id
-               from character_snapshots s
+             select s.rating, s.matches_played, s.matches_won, s.matches_lost, s.pvp_tier_id
+               from character_observations s
               where s.character_id = i.character_id
                 and s.bracket = i.bracket
                 and s.season_id = i.season_id
@@ -267,6 +272,36 @@ export async function ingestFile(
          publications  = character_presence.publications + 1
        where excluded.last_seen_at > character_presence.last_seen_at`,
       [region, realmSlugs, nameSlugs, content.bracket, content.seasonId, content.fetchedAt],
+    );
+
+    // 4) El ancla: copia exacta del último snapshot de leaderboard de la serie,
+    //    con su `captured_at` en `changed_at` (ADR 0054). Es lo que deja al
+    //    archivado soltar esa fila sin que la ingesta, la actividad ni la ficha
+    //    pierdan la última observación de quien no cambia.
+    //
+    //    Sale de la fila escrita y no de la entrada: así copia también la que ya
+    //    existía al reingerir, y una entrada redundante no mueve nada, porque su
+    //    fila es la de antes. El `<` impide que reingerir un archivo viejo haga
+    //    retroceder el ancla.
+    await client.query(
+      `update character_presence p
+          set changed_at     = s.captured_at,
+              class_slug     = s.class_slug,
+              spec_slug      = s.spec_slug,
+              rating         = s.rating,
+              ladder_rank    = s.ladder_rank,
+              matches_played = s.matches_played,
+              matches_won    = s.matches_won,
+              matches_lost   = s.matches_lost,
+              pvp_tier_id    = s.pvp_tier_id
+         from character_snapshots s
+         join characters c on c.id = s.character_id
+        where c.region = $1 and s.bracket = $2 and s.season_id = $3
+          and s.captured_at = $4 and s.source = 'leaderboard'
+          and p.character_id = s.character_id and p.bracket = s.bracket
+          and p.season_id = s.season_id
+          and (p.changed_at is null or p.changed_at < s.captured_at)`,
+      [region, content.bracket, content.seasonId, content.fetchedAt],
     );
 
     await client.query("commit");

@@ -121,6 +121,12 @@ const SNAPSHOT_COLUMNS = `s.character_id, c.name_display, c.realm_slug, c.factio
  *
  * Ojo con lo que **no** contesta: cuántas veces hemos visto a este personaje no
  * se cuenta aquí ni contando filas — eso vive en `character_presence`.
+ *
+ * Todas las lecturas de «la última observación» de este fichero van contra
+ * `character_observations` y no contra la tabla: la de quien lleva más de 3 días
+ * sin cambiar en el leaderboard ya no es un snapshot, sino el ancla copiada en
+ * `character_presence` (ADR 0054). Contra la tabla, su ficha enseñaría una
+ * captura de perfil vieja o ninguna.
  */
 export async function readLatestSnapshot(
   db: Queryable,
@@ -128,7 +134,7 @@ export async function readLatestSnapshot(
 ): Promise<CharacterSnapshotRead | null> {
   const { rows } = await db.query<SnapshotRow>(
     `select ${SNAPSHOT_COLUMNS}
-       from character_snapshots s
+       from character_observations s
        join characters c on c.id = s.character_id
       where c.region = $1 and c.realm_slug = $2 and c.name_slug = $3
         and s.bracket = $4 and s.season_id = $5
@@ -153,7 +159,7 @@ export async function readLatestSnapshotsByBracket(
 ): Promise<CharacterSnapshotRead[]> {
   const { rows } = await db.query<SnapshotRow>(
     `select distinct on (s.bracket) ${SNAPSHOT_COLUMNS}
-       from character_snapshots s
+       from character_observations s
        join characters c on c.id = s.character_id
       where c.region = $1 and c.realm_slug = $2 and c.name_slug = $3 and s.season_id = $4
       order by s.bracket, s.captured_at desc`,
@@ -190,7 +196,7 @@ export async function readObservedSpecs(
     captured_at: Date;
   }>(
     `select distinct on (s.bracket) s.bracket, s.class_slug, s.spec_slug, s.captured_at
-       from character_snapshots s
+       from character_observations s
        join characters c on c.id = s.character_id
       where c.region = $1 and c.realm_slug = $2 and c.name_slug = $3 and s.season_id = $4
         and s.spec_slug is not null
@@ -333,7 +339,7 @@ export async function readStanding(
   const { rows } = await db.query<StandingRow>(
     `with latest as (
        select distinct on (s.character_id) s.character_id, s.rating
-         from character_snapshots s
+         from character_observations s
          join characters c on c.id = s.character_id
         where c.region = $1 and s.season_id = $2 and s.bracket = $3
           and s.source <> 'search'
@@ -431,7 +437,7 @@ export async function readLatestObservedSeason(
 ): Promise<number | null> {
   const { rows } = await db.query<{ season_id: number | null }>(
     `select max(s.season_id) as season_id
-       from character_snapshots s
+       from character_observations s
        join characters c on c.id = s.character_id
       where c.region = $1 and c.realm_slug = $2 and c.name_slug = $3`,
     [key.region, key.realmSlug, key.nameSlug],
@@ -506,7 +512,7 @@ export async function readRatingPoints(
 ): Promise<RatingPoint[]> {
   const { rows } = await db.query<{ captured_at: Date; rating: number }>(
     `select captured_at, rating
-       from character_snapshots
+       from character_observations
       where character_id = $1 and bracket = $2 and season_id = $3
       order by captured_at`,
     [key.characterId, key.bracket, key.seasonId],
