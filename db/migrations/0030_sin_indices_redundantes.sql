@@ -1,0 +1,24 @@
+-- Quita dos índices que repetían lo que ya da otro (ADR 0052).
+--
+-- 1) idx_snapshots_character (character_id, captured_at desc) es de la
+--    migración 0001, de antes de que hubiera brackets por spec. La 0002 añadió
+--    el único (character_id, bracket, captured_at), que empieza por la misma
+--    columna, y desde entonces toda lectura de snapshots por personaje filtra
+--    también por bracket: la ingesta por cambio, el archivado, los agregados, la
+--    ficha. Lo que busca solo por personaje —la cascada de la clave foránea
+--    cuando eraseCharacters borra de characters— usa igual la primera columna
+--    del único. El 23 de octubre de 2026 ocupaba 17,4 MB con 169 lecturas en
+--    toda su vida, frente a más de 24 millones del único, y cada snapshot nuevo
+--    lo pagaba en un segundo índice de la tabla que más crece.
+--
+-- 2) idx_characters_name_fold (region, realm_slug, name_fold) es de la 0008,
+--    para resolver un personaje concreto por su nombre plegado. Esa consulta no
+--    llegó a existir: la única que lee name_fold es el autocompletado, con
+--    `like 'prefijo%'`, y un B-tree sin text_pattern_ops no sirve para eso en
+--    nuestra collation (migración 0011). Con reino o sin él, la sirve
+--    idx_characters_name_fold_prefix. Eran 7,9 MB.
+--
+-- Un drop index sin concurrently bloquea la tabla el rato que tarda en soltar
+-- el fichero, que es un instante: no reescribe nada.
+drop index if exists idx_snapshots_character;
+drop index if exists idx_characters_name_fold;
