@@ -5,6 +5,7 @@ import {
   parseOptions,
   summarizeActivity,
   withArchived,
+  withLeaderboardBaselines,
   withPresence,
   type ComputedActivity,
   type ObservationRow,
@@ -188,7 +189,7 @@ test("lo archivado se hereda por personaje y conserva la clave de cada fila", ()
 });
 
 test("el ancla que solo está en la presencia compara el contador pero no se cuenta (ADR 0054)", () => {
-  const anchor: ObservationRow = { ...seen("a", 9, 100), fromPresence: true };
+  const anchor: ObservationRow = { ...seen("a", 9, 100), countedElsewhere: true };
   const [activity] = computeActivity("shuffle-mage-frost", [anchor, seen("a", 2, 104)]);
 
   // La subida se mide contra el ancla: sin ella, la fila de hace dos días sería un arranque.
@@ -196,4 +197,48 @@ test("el ancla que solo está en la presencia compara el contador pero no se cue
   assert.deepEqual(activity?.lastActiveAt, daysAgo(2));
   // Y solo cuenta la fila caliente: el ancla ya está en archived_observations.
   assert.equal(activity?.observations, 1);
+});
+
+test("con el ancla ya en el archivo, la subida se mide contra el listón guardado (ADR 0054)", () => {
+  // El jugador llevaba días sin cambiar, su ancla salió de Postgres y hoy vuelve
+  // a jugar: la presencia ya apunta a la fila nueva. Sin el listón, esa fila
+  // sería un arranque y el jugador saldría inactivo justo el día que juega.
+  const rows = withLeaderboardBaselines(
+    [seen("a", 1, 108)],
+    new Map([["a", { observedAt: daysAgo(9), played: 100 }]]),
+  );
+  const [activity] = computeActivity("shuffle-mage-frost", rows);
+
+  assert.equal(activity?.evidence, "played-delta");
+  assert.deepEqual(activity?.lastActiveAt, daysAgo(1));
+  assert.equal(activity?.observations, 1);
+  // Y el listón avanza a la fila nueva, para la subida siguiente.
+  assert.deepEqual(activity?.leaderboardBaseline, { observedAt: daysAgo(1), played: 108 });
+});
+
+test("el listón no fabrica subidas si su fila sigue caliente", () => {
+  const rows = withLeaderboardBaselines(
+    [seen("a", 3, 100)],
+    new Map([["a", { observedAt: daysAgo(3), played: 100 }]]),
+  );
+  const [activity] = computeActivity("shuffle-mage-frost", rows);
+
+  assert.equal(activity?.evidence, "first-seen");
+  assert.equal(activity?.observations, 1);
+});
+
+test("el listón es el último contador de leaderboard con valor, no el de perfil", () => {
+  const [activity] = computeActivity("shuffle-mage-frost", [
+    seen("a", 5, 100),
+    seen("a", 3, null),
+    seen("a", 2, 40, "profile"),
+  ]);
+
+  assert.deepEqual(activity?.leaderboardBaseline, { observedAt: daysAgo(5), played: 100 });
+});
+
+test("sin contadores de leaderboard no hay listón que escribir", () => {
+  const [activity] = computeActivity("shuffle-mage-frost", [seen("a", 2, 40, "profile")]);
+
+  assert.equal(activity?.leaderboardBaseline, undefined);
 });

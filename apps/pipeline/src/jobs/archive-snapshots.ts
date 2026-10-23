@@ -36,7 +36,12 @@ import { indexRatingHistory, toObservation, type RatingRow } from "./rating-hist
  *   ingesta por cambio (ADR 0009) para decidir si una fila nueva cambia algo, el
  *   recálculo de actividad para medir la primera subida dentro de la ventana, y
  *   la ficha del jugador, que enseña la última observación aunque sea de hace dos
- *   meses. Sin ella, el perfil de quien dejó de jugar se quedaría en blanco;
+ *   meses. Sin ella, el perfil de quien dejó de jugar se quedaría en blanco.
+ *   La de leaderboard sale cuando ya no hace falta en la tabla (ADR 0054): si
+ *   `character_presence` la copia —su `changed_at` es este `captured_at`, así
+ *   que es la última de leaderboard de la serie y la vista
+ *   `character_observations` la sigue devolviendo— y la actividad ya guardó su
+ *   contador como listón de la siguiente subida;
  * - **la última con gear y la última con talentos**: la ficha los busca así
  *   (`readLatestGear`, `readLatestTalents`), y casi nunca son la última fila,
  *   que suele ser de leaderboard.
@@ -159,11 +164,23 @@ export function candidatesSql(cutoff: Date, closedSeasons: readonly number[]): s
      where captured_at < ${sqlTimestamp(cutoff)}
   ),
   keep as (
-    select * from (
-      select distinct on (character_id, bracket, season_id, source) id
+    select anchor.id from (
+      select distinct on (character_id, bracket, season_id, source)
+             id, character_id, bracket, season_id, source, captured_at
         from old
        order by character_id, bracket, season_id, source, captured_at desc
     ) anchor
+     where not (
+           anchor.source = 'leaderboard'
+       and exists (
+             select 1 from character_presence p
+              where p.character_id = anchor.character_id and p.bracket = anchor.bracket
+                and p.season_id = anchor.season_id and p.changed_at = anchor.captured_at)
+       and exists (
+             select 1 from character_activity a
+              where a.character_id = anchor.character_id and a.bracket = anchor.bracket
+                and a.season_id = anchor.season_id
+                and a.leaderboard_observed_at >= anchor.captured_at))
     union
     select * from (
       select distinct on (s.character_id, s.bracket, s.season_id) s.id
