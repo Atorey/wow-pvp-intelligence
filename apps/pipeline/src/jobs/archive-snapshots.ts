@@ -39,15 +39,18 @@ import { indexRatingHistory, toObservation, type RatingRow } from "./rating-hist
  *   meses. Sin ella, el perfil de quien dejó de jugar se quedaría en blanco;
  * - **la última con gear y la última con talentos**: la ficha los busca así
  *   (`readLatestGear`, `readLatestTalents`), y casi nunca son la última fila,
- *   que suele ser de leaderboard;
- * - **el pico**: `readPeakRating` es el máximo de la temporada entera.
+ *   que suele ser de leaderboard.
+ *
+ * El pico ya no retiene su fila (ADR 0053): lo que se archiva deja su máximo en
+ * `character_activity.archived_peak_rating`, como deja su recuento en
+ * `archived_observations`, y `readPeakRating` une las dos mitades.
  *
  * Y solo se archiva lo que `character_activity` ya había visto —filas anteriores
  * al último cálculo de su serie—, porque desde aquí la actividad hereda de esa
  * fila lo que ya no puede leer (`withArchivedActivity` en core).
  *
  * Nada de lo anterior aplica a una **temporada cerrada** (ADR 0042): nadie lee
- * ya su ancla ni su pico desde Postgres, así que sale entera, y detrás de sus
+ * ya su ancla desde Postgres, así que sale entera, y detrás de sus
  * snapshots salen sus tablas derivadas (`closed-seasons.ts`).
  *
  * Lo que se archiva deja además su rating en el índice por personaje del
@@ -136,7 +139,7 @@ export function batchPrefix(runStartedAt: Date, index: number): string {
  * Las filas que se archivan, materializadas una sola vez en una tabla temporal.
  *
  * Una sola vez porque decidir qué se queda es una consulta sobre la tabla entera
- * (el pico y el último gear miran toda la temporada), y repetirla por lote la
+ * (el último gear y los últimos talentos miran toda la temporada), y repetirla por lote la
  * pagaría cincuenta veces. Y temporal porque vive y muere con la conexión: no
  * deja nada que limpiar si la corrida se corta.
  *
@@ -147,7 +150,7 @@ export function batchPrefix(runStartedAt: Date, index: number): string {
  * Las temporadas cerradas entran enteras y sin esa condición: su actividad no
  * se va a recalcular, y su fila se archiva tal cual detrás de los snapshots.
  */
-function candidatesSql(cutoff: Date, closedSeasons: readonly number[]): string {
+export function candidatesSql(cutoff: Date, closedSeasons: readonly number[]): string {
   return `
   create temp table archive_candidates as
   with old as (
@@ -175,12 +178,6 @@ function candidatesSql(cutoff: Date, closedSeasons: readonly number[]): string {
        where exists (select 1 from character_snapshot_talents t where t.snapshot_id = s.id)
        order by s.character_id, s.bracket, s.season_id, s.captured_at desc
     ) last_talents
-    union
-    select * from (
-      select distinct on (character_id, bracket, season_id) id
-        from character_snapshots
-       order by character_id, bracket, season_id, rating desc, captured_at desc
-    ) peak
   )
   select o.id
     from old o
@@ -226,6 +223,8 @@ export interface ArchiveReport {
   closedSnapshots: number;
   /** Sus tablas derivadas: lo movido, o lo que se movería en dry-run. */
   seasonTables: SeasonTablesReport[];
+  /** Entradas de catálogo que ya no apunta nadie: borradas, o las que se borrarían en dry-run. */
+  catalogOrphans: Record<CatalogTable, number>;
 }
 
 export async function archiveSnapshots(args: string[] = []): Promise<void> {
@@ -309,15 +308,22 @@ export async function archive(
       closedSeasons,
       closedSnapshots: Number(closedCount[0]?.n ?? 0),
       seasonTables: [],
+      catalogOrphans: { gear_pieces: 0, talent_sets: 0 },
     };
 
     if (!storage) {
       for (const seasonId of closedSeasons) {
         report.seasonTables.push(await countSeasonTables(client, seasonId));
       }
+      report.catalogOrphans = await pruneCatalogs(client, false);
       return report;
     }
-    if (report.candidates === 0 && closedSeasons.length === 0) return report;
+    if (report.candidates === 0 && closedSeasons.length === 0) {
+      // Sin nada que archivar puede haber igual qué podar: un borrado de
+      // personajes (ADR 0043) también deja piezas sin nadie que las lleve.
+      report.catalogOrphans = await pruneCatalogs(client, true);
+      return report;
+    }
     await ensureBucket(storage);
 
     // El índice del histórico de rating va **antes** que el primer borrado: es
@@ -374,12 +380,94 @@ export async function archive(
       console.log(`  temporada ${seasonId}: ${describeSeasonTables(moved)} (${mb(moved.bytes)})`);
     }
 
+    // Al final: lo que acaba de salir es lo que más piezas deja sin referencia.
+    report.catalogOrphans = await pruneCatalogs(client, true);
+
     return report;
   } finally {
     await client.query("drop table if exists archive_candidates").catch(() => {});
     if (locked) await releaseArchiveLock(client).catch(() => {});
     client.release();
   }
+}
+
+export type CatalogTable = "gear_pieces" | "talent_sets";
+
+/** Cada catálogo del ADR 0040, con la tabla de observación y la columna que lo apunta. */
+const CATALOGS: readonly { table: CatalogTable; observation: string; refs: string }[] = [
+  { table: "gear_pieces", observation: "character_snapshot_gear", refs: "piece_ids" },
+  { table: "talent_sets", observation: "character_snapshot_talents", refs: "set_ids" },
+];
+
+/**
+ * Las entradas de un catálogo que no apunta ninguna fila, como `with` más
+ * `where` sobre el alias `t`, para que el recuento y el borrado no puedan
+ * discrepar.
+ *
+ * Los ids se despliegan una sola vez y se cruzan como anti-join: un
+ * `= any(piece_ids)` por entrada recorrería la tabla de observación entera por
+ * cada una de las 93.000 piezas.
+ */
+export function orphansSql(catalog: { observation: string; refs: string }): {
+  with: string;
+  where: string;
+} {
+  return {
+    with: `with used as (select distinct unnest(${catalog.refs}) as id from ${catalog.observation})`,
+    where: "not exists (select 1 from used where used.id = t.id)",
+  };
+}
+
+/**
+ * Saca de `gear_pieces` y `talent_sets` lo que ya no lleva nadie (ADR 0053).
+ *
+ * El ADR 0040 los dejó sin podar, pero el archivo no los necesita: el gear se
+ * sube desplegado por slot y los talentos con `label_ids`, que dependen de
+ * `talent_labels` y no de `talent_sets`. Cada pieza que alguien dejaba de
+ * llevar se quedaba en el catálogo para siempre en cuanto su snapshot se
+ * archivaba: el 23 de octubre de 2026 eran 19.219 de 93.091 piezas y 9.540 de
+ * 37.987 conjuntos.
+ *
+ * `piece_ids` y `set_ids` son arrays sin clave foránea, así que una ingesta que
+ * reutiliza una pieza mientras se poda podría quedarse apuntando a nada. El
+ * bloqueo lo impide: `share row exclusive` choca con el `row exclusive` que toma
+ * el alta de cada perfil sobre el catálogo (`writeByReference`). Una ingesta que
+ * ya lo tiene lo suelta al confirmar, con su referencia ya visible para el
+ * borrado; la que llega después espera y, si su pieza se borró, la vuelve a dar
+ * de alta. Va un catálogo por transacción para que el bloqueo dure un borrado y
+ * no dos.
+ */
+async function pruneCatalogs(
+  client: pg.PoolClient,
+  write: boolean,
+): Promise<Record<CatalogTable, number>> {
+  const pruned: Record<CatalogTable, number> = { gear_pieces: 0, talent_sets: 0 };
+
+  for (const catalog of CATALOGS) {
+    const sql = orphansSql(catalog);
+    if (!write) {
+      const { rows } = await client.query<{ n: string }>(
+        `${sql.with} select count(*) as n from ${catalog.table} t where ${sql.where}`,
+      );
+      pruned[catalog.table] = Number(rows[0]?.n ?? 0);
+      continue;
+    }
+
+    await client.query("begin");
+    try {
+      await client.query(`lock table ${catalog.table} in share row exclusive mode`);
+      const deleted = await client.query(
+        `${sql.with} delete from ${catalog.table} t where ${sql.where}`,
+      );
+      await client.query("commit");
+      pruned[catalog.table] = deleted.rowCount ?? 0;
+    } catch (error) {
+      await client.query("rollback").catch(() => {});
+      throw error;
+    }
+  }
+
+  return pruned;
 }
 
 interface BatchResult {
@@ -496,11 +584,15 @@ async function uploadAndDelete(
 
   // Lo que borra va en la misma transacción que lo que lo cuenta: si el
   // recuento de `archived_observations` y el borrado pudieran separarse, la
-  // actividad perdería observaciones o las contaría dos veces.
+  // actividad perdería observaciones o las contaría dos veces. Y lo mismo el
+  // pico (ADR 0053): un máximo que se perdiera entre el borrado y la anotación
+  // bajaría el pico de la ficha sin que nadie hubiera bajado.
   await client.query(
     `update character_activity a
-          set archived_observations = a.archived_observations + x.n
-         from (select character_id, bracket, season_id, count(*)::int as n
+          set archived_observations = a.archived_observations + x.n,
+              archived_peak_rating  = greatest(a.archived_peak_rating, x.peak)
+         from (select character_id, bracket, season_id, count(*)::int as n,
+                      max(rating) as peak
                  from character_snapshots
                 where id = any($1::bigint[])
                 group by character_id, bracket, season_id) x
@@ -551,7 +643,7 @@ function printReport(report: ArchiveReport, options: Options): void {
   console.log(
     `${fmt(report.old)} snapshots anteriores al corte: ${fmt(report.candidates)} archivables y ` +
       `${fmt(report.old - report.candidates)} que se quedan (ancla, último gear, últimos ` +
-      `talentos, pico, o aún no vistas por la actividad).`,
+      `talentos, o aún no vistas por la actividad).`,
   );
   if (report.unseenByActivity > 0) {
     console.log(
@@ -569,6 +661,13 @@ function printReport(report: ArchiveReport, options: Options): void {
       console.log(`  temporada ${season.seasonId}: ${describeSeasonTables(season)}`);
     }
   }
+
+  const orphans = report.catalogOrphans;
+  console.log(
+    `\nCatálogos sin referencia (ADR 0053): ${fmt(orphans.gear_pieces)} piezas de gear y ` +
+      `${fmt(orphans.talent_sets)} conjuntos de talentos ` +
+      `${options.dryRun ? "se borrarían" : "borrados"}.`,
+  );
 
   if (options.dryRun) {
     console.log("\n--dry-run: no se ha subido ni borrado nada.");
