@@ -213,7 +213,9 @@ npm run pipeline -- refresh-aggregates --window 30  # fuerza la ventana de "seas
 
 **Se agregan siete variables por segmento**, con dos denominadores distintos: las tres de gear —item por grupo de slot, gema y encantamiento— sobre `gear_sample`, porque salen de la misma fila observada ([ADR 0027](../../docs/decisions/0027-gear-por-item-gema-y-encantamiento.md)); y las de talentos sobre los suyos, que sí divergen ([ADR 0026](../../docs/decisions/0026-talentos-por-nodo.md)). Un porcentaje leído contra el denominador equivocado dice otra cosa, así que cada fila lleva el suyo.
 
-**Cada corrida inserta filas nuevas con su `computed_at`**, nunca actualiza las anteriores: el histórico de agregados es lo que alimentará las tendencias de #27. Son las únicas tablas **derivadas** del proyecto — se reconstruyen enteras volviendo a ejecutar el job, a diferencia de `character_snapshots`.
+**Cada corrida inserta filas nuevas con su `computed_at`**, nunca actualiza las anteriores. Son las únicas tablas **derivadas** del proyecto — se reconstruyen enteras volviendo a ejecutar el job, a diferencia de `character_snapshots`.
+
+**Y al terminar poda lo que ya no lee nadie** (`prune-aggregates`, que también se lanza a mano con `--dry-run` para contar sin borrar). Se conserva entera la corrida vigente y, de las anteriores, una por semana durante cuatro semanas ([ADR 0047](../../docs/decisions/0047-los-agregados-semanales-se-guardan-cuatro-semanas.md)). De `population_segments`, fuera de esas semanas, solo queda la fila más reciente de cada escalón. `leaderboard_fetches` y `segment_coverage` guardan 30 días enteros (`--log-days`) y, de antes, solo lo que lee la ingesta ([ADR 0052](../../docs/decisions/0052-lo-que-solo-se-lee-por-su-ultima-fila-se-poda.md)). El borrado no devuelve cuota hasta un `compact`.
 
 **La ventana de actividad se elige por segmento**, no por bracket: 7 días si llegan a n=30, si no 14 (§13.4), y queda escrita en `activity_window_days`. Un mismo bracket puede tener 7 días abajo y 14 arriba, y eso es correcto: forzar la misma a los dos significaría perder frescura abajo o muestra arriba.
 

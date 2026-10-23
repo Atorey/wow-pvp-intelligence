@@ -1363,6 +1363,9 @@ export async function refreshAggregates(args: string[], borrowedPool?: pg.Pool):
           `${(pruned.before - pruned.deleted).toLocaleString("es-ES")}).`,
       );
     }
+    for (const [table, n] of Object.entries(pruned.logs)) {
+      if (n > 0) console.log(`Retención: ${n.toLocaleString("es-ES")} filas de ${table} podadas.`);
+    }
   } finally {
     // El pool prestado lo cierra quien lo abrió: cerrarlo aquí dejaría sin base
     // a lo que venga después en la misma corrida.
