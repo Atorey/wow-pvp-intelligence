@@ -98,6 +98,12 @@ export interface ObservationRow {
   matchesPlayed: number | null;
   /** `source` del snapshot: de dónde salía el contador (ver core, counterSource). */
   source: string;
+  /**
+   * La fila es el ancla copiada en `character_presence` y no un snapshot (ADR
+   * 0054). Cuenta como observación para comparar el contador, pero ya está en
+   * `archived_observations`: se archivó cuando la presencia pasó a sostenerla.
+   */
+  fromPresence?: boolean;
 }
 
 /** La actividad de un personaje en un bracket, lista para escribirse. */
@@ -158,7 +164,11 @@ export function computeActivity(
   rows: readonly ObservationRow[],
 ): ComputedActivity[] {
   const byCharacter = new Map<string, ActivityObservation[]>();
+  const fromPresence = new Map<string, number>();
   for (const row of rows) {
+    if (row.fromPresence === true) {
+      fromPresence.set(row.characterId, (fromPresence.get(row.characterId) ?? 0) + 1);
+    }
     const observation: ActivityObservation = {
       capturedAt: row.capturedAt,
       matchesPlayed: row.matchesPlayed,
@@ -174,7 +184,12 @@ export function computeActivity(
   const computed: ComputedActivity[] = [];
   for (const [characterId, series] of byCharacter) {
     const activity = deriveActivity(series);
-    if (activity) computed.push({ characterId, bracket, ...activity });
+    if (!activity) continue;
+    // El ancla que solo está en la presencia ya la cuenta `archived_observations`;
+    // contarla también aquí sumaría una observación de más cada vez que se
+    // recalcula (ADR 0054).
+    const observations = activity.observations - (fromPresence.get(characterId) ?? 0);
+    computed.push({ characterId, bracket, ...activity, observations });
   }
   return computed;
 }
@@ -231,7 +246,7 @@ async function resolveSeason(pool: pg.Pool, region: string): Promise<number> {
 async function loadBrackets(pool: pg.Pool, region: string, seasonId: number): Promise<string[]> {
   const { rows } = await pool.query<{ bracket: string }>(
     `select distinct s.bracket
-       from character_snapshots s
+       from character_observations s
        join characters c on c.id = s.character_id
       where c.region = $1 and s.season_id = $2
       order by s.bracket`,
@@ -247,7 +262,8 @@ async function loadBrackets(pool: pg.Pool, region: string, seasonId: number): Pr
  * se mide contra la observación anterior, que puede caer fuera. Desde el ADR 0034
  * esa observación está garantizada —el archivado conserva la última anterior al
  * corte de cada origen, el ancla—, y lo que haya antes de ella se hereda de la
- * fila materializada (`loadArchived`).
+ * fila materializada (`loadArchived`). La de leaderboard puede estar ya solo en
+ * `character_presence` (ADR 0054), y por eso se lee de `character_observations`.
  *
  * Se consulta bracket a bracket y no todo de golpe para que la memoria del
  * proceso dependa del bracket más poblado (~5.000 personajes por sus
@@ -264,9 +280,10 @@ async function loadObservations(
     captured_at: Date;
     matches_played: number | null;
     source: string;
+    from_presence: boolean;
   }>(
-    `select s.character_id, s.captured_at, s.matches_played, s.source
-       from character_snapshots s
+    `select s.character_id, s.captured_at, s.matches_played, s.source, s.from_presence
+       from character_observations s
        join characters c on c.id = s.character_id
       where c.region = $1 and s.season_id = $2 and s.bracket = $3`,
     [region, seasonId, bracket],
@@ -277,6 +294,7 @@ async function loadObservations(
     capturedAt: row.captured_at,
     matchesPlayed: row.matches_played,
     source: row.source,
+    fromPresence: row.from_presence,
   }));
 }
 

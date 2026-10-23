@@ -570,7 +570,7 @@ async function loadCandidates(
     `with active as (
        select distinct on (s.character_id, s.bracket)
               s.character_id, s.bracket, s.season_id, s.rating, a.last_active_at
-         from character_snapshots s
+         from character_observations s
          join characters c on c.id = s.character_id
          join character_activity a
            on a.character_id = s.character_id and a.bracket = s.bracket

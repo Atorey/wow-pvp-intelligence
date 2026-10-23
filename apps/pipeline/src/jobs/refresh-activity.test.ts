@@ -186,3 +186,14 @@ test("lo archivado se hereda por personaje y conserva la clave de cada fila", ()
   // Sin fila previa, nada que heredar.
   assert.deepEqual(b, hot[1]);
 });
+
+test("el ancla que solo está en la presencia compara el contador pero no se cuenta (ADR 0054)", () => {
+  const anchor: ObservationRow = { ...seen("a", 9, 100), fromPresence: true };
+  const [activity] = computeActivity("shuffle-mage-frost", [anchor, seen("a", 2, 104)]);
+
+  // La subida se mide contra el ancla: sin ella, la fila de hace dos días sería un arranque.
+  assert.equal(activity?.evidence, "played-delta");
+  assert.deepEqual(activity?.lastActiveAt, daysAgo(2));
+  // Y solo cuenta la fila caliente: el ancla ya está en archived_observations.
+  assert.equal(activity?.observations, 1);
+});
