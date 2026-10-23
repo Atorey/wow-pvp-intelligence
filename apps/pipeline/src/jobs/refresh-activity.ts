@@ -99,17 +99,55 @@ export interface ObservationRow {
   /** `source` del snapshot: de dónde salía el contador (ver core, counterSource). */
   source: string;
   /**
-   * La fila es el ancla copiada en `character_presence` y no un snapshot (ADR
-   * 0054). Cuenta como observación para comparar el contador, pero ya está en
-   * `archived_observations`: se archivó cuando la presencia pasó a sostenerla.
+   * La fila compara el contador pero no suma en `observations`, porque ya está
+   * contada en otro sitio (ADR 0054): es el ancla copiada en `character_presence`,
+   * que se contó en `archived_observations` al archivarse, o el contador de
+   * leaderboard que guardó el recálculo anterior, que es copia de una
+   * observación ya contada.
    */
-  fromPresence?: boolean;
+  countedElsewhere?: boolean;
+}
+
+/** El último contador de leaderboard de una serie, con su instante (ADR 0054). */
+export interface LeaderboardBaseline {
+  observedAt: Date;
+  played: number;
 }
 
 /** La actividad de un personaje en un bracket, lista para escribirse. */
 export interface ComputedActivity extends CharacterActivity {
   characterId: string;
   bracket: string;
+  /**
+   * Lo que se escribe en `leaderboard_played` y `leaderboard_observed_at`: el
+   * listón contra el que el siguiente recálculo medirá la próxima subida, aunque
+   * para entonces la fila que lo dio ya esté solo en el archivo.
+   */
+  leaderboardBaseline?: LeaderboardBaseline;
+}
+
+/**
+ * Añade a la serie caliente el contador de leaderboard que guardó el recálculo
+ * anterior, como una observación más que no se cuenta (ADR 0054).
+ *
+ * Hace falta cuando el ancla de leaderboard ya salió de Postgres y el jugador
+ * vuelve a jugar: la presencia pasa a apuntar a la fila nueva, y sin esto la
+ * primera subida no tendría contra qué compararse. Si la fila que dio el listón
+ * sigue caliente, la copia coincide con ella en instante y contador, y no puede
+ * fabricar ninguna subida.
+ */
+export function withLeaderboardBaselines(
+  rows: readonly ObservationRow[],
+  baselines: ReadonlyMap<string, LeaderboardBaseline>,
+): ObservationRow[] {
+  const carried: ObservationRow[] = [...baselines].map(([characterId, baseline]) => ({
+    characterId,
+    capturedAt: baseline.observedAt,
+    matchesPlayed: baseline.played,
+    source: "leaderboard",
+    countedElsewhere: true,
+  }));
+  return [...rows, ...carried];
 }
 
 /** Cuándo le vimos por última vez en la lista del leaderboard. */
@@ -164,10 +202,19 @@ export function computeActivity(
   rows: readonly ObservationRow[],
 ): ComputedActivity[] {
   const byCharacter = new Map<string, ActivityObservation[]>();
-  const fromPresence = new Map<string, number>();
+  const countedElsewhere = new Map<string, number>();
+  const baselines = new Map<string, LeaderboardBaseline>();
   for (const row of rows) {
-    if (row.fromPresence === true) {
-      fromPresence.set(row.characterId, (fromPresence.get(row.characterId) ?? 0) + 1);
+    if (row.countedElsewhere === true) {
+      countedElsewhere.set(row.characterId, (countedElsewhere.get(row.characterId) ?? 0) + 1);
+    }
+    // El listón es el último contador de leaderboard **con valor**: un null no
+    // es una observación de que no jugó (regla 5), y deriveActivity tampoco lo usa.
+    if (row.source === "leaderboard" && row.matchesPlayed !== null) {
+      const current = baselines.get(row.characterId);
+      if (!current || row.capturedAt > current.observedAt) {
+        baselines.set(row.characterId, { observedAt: row.capturedAt, played: row.matchesPlayed });
+      }
     }
     const observation: ActivityObservation = {
       capturedAt: row.capturedAt,
@@ -185,11 +232,17 @@ export function computeActivity(
   for (const [characterId, series] of byCharacter) {
     const activity = deriveActivity(series);
     if (!activity) continue;
-    // El ancla que solo está en la presencia ya la cuenta `archived_observations`;
-    // contarla también aquí sumaría una observación de más cada vez que se
-    // recalcula (ADR 0054).
-    const observations = activity.observations - (fromPresence.get(characterId) ?? 0);
-    computed.push({ characterId, bracket, ...activity, observations });
+    // Lo que ya está contado en otro sitio compara pero no suma: contarlo aquí
+    // añadiría una observación de más en cada recálculo (ADR 0054).
+    const observations = activity.observations - (countedElsewhere.get(characterId) ?? 0);
+    const baseline = baselines.get(characterId);
+    computed.push({
+      characterId,
+      bracket,
+      ...activity,
+      observations,
+      ...(baseline ? { leaderboardBaseline: baseline } : {}),
+    });
   }
   return computed;
 }
@@ -294,8 +347,36 @@ async function loadObservations(
     capturedAt: row.captured_at,
     matchesPlayed: row.matches_played,
     source: row.source,
-    fromPresence: row.from_presence,
+    countedElsewhere: row.from_presence,
   }));
+}
+
+/** El listón de leaderboard que dejó el recálculo anterior de cada serie (ADR 0054). */
+async function loadLeaderboardBaselines(
+  pool: pg.Pool,
+  region: string,
+  seasonId: number,
+  bracket: string,
+): Promise<Map<string, LeaderboardBaseline>> {
+  const { rows } = await pool.query<{
+    character_id: string;
+    leaderboard_played: number;
+    leaderboard_observed_at: Date;
+  }>(
+    `select a.character_id, a.leaderboard_played, a.leaderboard_observed_at
+       from character_activity a
+       join characters c on c.id = a.character_id
+      where c.region = $1 and a.season_id = $2 and a.bracket = $3
+        and a.leaderboard_played is not null and a.leaderboard_observed_at is not null`,
+    [region, seasonId, bracket],
+  );
+
+  return new Map(
+    rows.map((row) => [
+      row.character_id,
+      { observedAt: row.leaderboard_observed_at, played: row.leaderboard_played },
+    ]),
+  );
 }
 
 /**
@@ -355,9 +436,14 @@ export function withArchived(
   archived: ReadonlyMap<string, ArchivedActivity>,
 ): ComputedActivity[] {
   return activities.map((activity) => {
-    const { characterId, bracket } = activity;
+    const { characterId, bracket, leaderboardBaseline } = activity;
     const carried = withArchivedActivity(activity, archived.get(characterId) ?? null);
-    return { characterId, bracket, ...carried };
+    return {
+      characterId,
+      bracket,
+      ...carried,
+      ...(leaderboardBaseline ? { leaderboardBaseline } : {}),
+    };
   });
 }
 
@@ -408,10 +494,12 @@ async function writeActivity(
     await client.query(
       `insert into character_activity
          (character_id, bracket, season_id, last_active_at, evidence, last_played,
-          observations, first_seen_at, last_seen_at, computed_at)
+          observations, first_seen_at, last_seen_at, computed_at,
+          leaderboard_played, leaderboard_observed_at)
        select * from unnest(
          $1::uuid[], $2::text[], $3::int[], $4::timestamptz[], $5::text[], $6::int[],
-         $7::int[], $8::timestamptz[], $9::timestamptz[], $10::timestamptz[]
+         $7::int[], $8::timestamptz[], $9::timestamptz[], $10::timestamptz[],
+         $11::int[], $12::timestamptz[]
        )
        on conflict (character_id, bracket, season_id) do update set
          last_active_at = excluded.last_active_at,
@@ -420,7 +508,13 @@ async function writeActivity(
          observations   = excluded.observations,
          first_seen_at  = excluded.first_seen_at,
          last_seen_at   = excluded.last_seen_at,
-         computed_at    = excluded.computed_at`,
+         computed_at    = excluded.computed_at,
+         -- Una serie sin ningún contador de leaderboard no borra el listón que
+         -- había: es lo que medirá su próxima subida (ADR 0054).
+         leaderboard_played      = coalesce(excluded.leaderboard_played,
+                                            character_activity.leaderboard_played),
+         leaderboard_observed_at = coalesce(excluded.leaderboard_observed_at,
+                                            character_activity.leaderboard_observed_at)`,
       [
         batch.map((a) => a.characterId),
         batch.map((a) => a.bracket),
@@ -432,6 +526,8 @@ async function writeActivity(
         batch.map((a) => a.firstSeenAt),
         batch.map((a) => a.lastSeenAt),
         batch.map(() => computedAt),
+        batch.map((a) => a.leaderboardBaseline?.played ?? null),
+        batch.map((a) => a.leaderboardBaseline?.observedAt ?? null),
       ],
     );
   }
@@ -461,7 +557,10 @@ export async function rebuildActivity(
     if (write) await client.query("begin");
 
     for (const bracket of brackets) {
-      const observations = await loadObservations(pool, region, seasonId, bracket);
+      const observations = withLeaderboardBaselines(
+        await loadObservations(pool, region, seasonId, bracket),
+        await loadLeaderboardBaselines(pool, region, seasonId, bracket),
+      );
       const archived = await loadArchived(pool, region, seasonId, bracket);
       const presence = await loadPresence(pool, region, seasonId, bracket);
       const activities = withPresence(
