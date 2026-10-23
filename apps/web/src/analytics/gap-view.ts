@@ -1,9 +1,11 @@
 import {
+  COMPARISON_MODES,
   isBracketSlug,
   parseSegmentSlug,
   parseSpecSlug,
   segmentSlug,
   type BracketSlug,
+  type ComparisonMode,
 } from "@wowpvp/core";
 
 import { isLocale, type Locale } from "../i18n/locales";
@@ -43,8 +45,18 @@ export interface GapViewEventData {
   /** Slug canónico de spec (ADR 0016), nunca la etiqueta que se pinta. */
   readonly spec: string;
   readonly bracket: BracketSlug;
-  /** El escalón de arriba. `null` en `top-segment`, que es donde no lo hay. */
+  /**
+   * El escalón objetivo. `null` en `top-segment`, que es donde no lo hay. En
+   * `peers` es el propio tramo de quien mira (ADR 0051).
+   */
   readonly segment: string | null;
+  /**
+   * Contra qué escalón se comparó (ADR 0051): el inmediato, uno saltado o el
+   * propio. Se mide porque no son la misma promesa, y una North Star que los
+   * contara juntos subiría con comparaciones que no son "el siguiente
+   * escalón". `null` en `top-segment`, con el segmento.
+   */
+  readonly mode: ComparisonMode | null;
   readonly locale: Locale;
 }
 
@@ -79,6 +91,7 @@ export function gapViewEventData(gap: GapView, options: GapViewSubject): GapView
     spec: options.spec,
     bracket: options.bracket,
     segment: gap.state === "top-segment" ? null : segmentSlug(gap.targetSegment),
+    mode: gap.state === "top-segment" ? null : gap.mode,
     locale: options.locale,
   };
 }
@@ -106,7 +119,7 @@ export function parseGapViewEvent(value: unknown): GapViewEvent | null {
   if (typeof value !== "object" || value === null) return null;
   const body = value as Record<string, unknown>;
 
-  const { visitorId, outcome, spec, bracket, segment, locale } = body;
+  const { visitorId, outcome, spec, bracket, segment, mode, locale } = body;
 
   if (typeof visitorId !== "string" || !UUID.test(visitorId)) return null;
   if (typeof outcome !== "string" || !isGapOutcome(outcome)) return null;
@@ -121,5 +134,25 @@ export function parseGapViewEvent(value: unknown): GapViewEvent | null {
     if (typeof segment !== "string" || parseSegmentSlug(segment) === undefined) return null;
   }
 
-  return { visitorId, outcome, spec, bracket, segment, locale };
+  // El modo va con el segmento: los dos son `null` en el tramo abierto y solo
+  // ahí. Uno sin el otro es una fila que no describe ninguna caja posible.
+  if (mode === null) {
+    if (segment !== null) return null;
+  } else if (
+    typeof mode !== "string" ||
+    !(COMPARISON_MODES as readonly string[]).includes(mode) ||
+    segment === null
+  ) {
+    return null;
+  }
+
+  return {
+    visitorId,
+    outcome,
+    spec,
+    bracket,
+    segment,
+    mode: mode as ComparisonMode | null,
+    locale,
+  };
 }

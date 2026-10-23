@@ -185,7 +185,11 @@ Los dos wireframes acaban en el mismo hueco, y ese hueco ya está resuelto: **qu
 
 ### 1.6 Estado adyacente — no hay escalón de arriba
 
-`nextSegment()` devuelve `undefined` en el tramo abierto superior: un jugador de 3000+ no tiene segmento objetivo, y eso no es falta de muestra. La caja se sustituye por la constatación —"you're in the top segment; there's no next one to compare against"— y **no** se rellena comparándolo contra su propio segmento. §13.1 contempla esa comparación como opcional, pero es otra promesa de producto ("en qué te pareces a tus pares", no "qué te separa del siguiente escalón") y necesita su propia decisión. No entra en el MVP por defecto.
+`nextSegment()` devuelve `undefined` en el tramo abierto superior: un jugador de 3000+ no tiene segmento objetivo, y eso no es falta de muestra.
+
+> **Revisado el 15 de octubre de 2026 por el [ADR 0051](../decisions/0051-player-gap-compara-con-el-escalon-servible-mas-cercano.md).** Lo que aquí quedaba pendiente —"en qué te pareces a tus pares", que §13.1 contempla como opcional— ya tiene decisión. Cuando no hay base en ningún tramo de arriba, o no hay tramo encima, la caja compara con el propio tramo si ese la tiene. Cambia la pregunta del titular («Tu build frente a 3000+») y cada fila es lo que lleva ese tramo y quien mira no. La constatación de abajo queda para el tramo abierto **sin** base propia.
+
+La caja se sustituye por la constatación —"you're in the top segment; there's no next one to compare against"—.
 
 ### 1.7 Reglas que la caja hereda y no puede relajar
 
@@ -325,7 +329,7 @@ Los números son los medidos el 22 de agosto de 2026 en `shuffle-priest-holy`, n
 
 ### 2.6 Qué NO entra en la página fuera de cobertura
 
-- **Comparación contra un segmento objetivo distinto del inmediato**, por poblado que esté (decisión 7 del ADR 0011).
+- ~~**Comparación contra un segmento objetivo distinto del inmediato**, por poblado que esté (decisión 7 del ADR 0011).~~ Revisado por el [ADR 0051](../decisions/0051-player-gap-compara-con-el-escalon-servible-mas-cercano.md): se compara con el tramo más cercano por encima que tenga base, a la distancia que esté, o con el propio tramo cuando no hay base en ninguno de arriba. Nunca en silencio: la caja dice cuál es, cuántos tramos ha saltado y por qué, encima de las cifras.
 - **Barras, medidores o cualquier cosa con forma de progreso** hacia el siguiente escalón. Vale también para el percentil: es una posición, no un avance.
 - **Gráficas de la distribución del bracket.** El bloque 3 son tres cifras con su denominador; una curva de población invita a leer "dónde está la masa" y eso es #21, no esta página.
 - **Datos de relleno, placeholders en gris, "coming soon" con cifras de ejemplo** (§1.5).

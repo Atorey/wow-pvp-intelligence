@@ -201,7 +201,7 @@ describe("gapFor", () => {
     const gap = gapFor({
       rating: 3100,
       player: player(263),
-      target: null,
+      segments: [],
       adoptions: NO_ADOPTIONS,
     });
 
@@ -214,7 +214,7 @@ describe("gapFor", () => {
       rating: 1994,
       player: player(263),
       adoptions: NO_ADOPTIONS,
-      target: segment(2000, { population: 12, gear: 0 }),
+      segments: [segment(2000, { population: 12, gear: 0 })],
     });
 
     assert.equal(gap.state, "insufficient");
@@ -226,7 +226,7 @@ describe("gapFor", () => {
       rating: 1994,
       player: player(263),
       adoptions: NO_ADOPTIONS,
-      target: segment(2000, { population: 287, gear: 4 }),
+      segments: [segment(2000, { population: 287, gear: 4 })],
     });
 
     assert.equal(gap.state, "insufficient");
@@ -240,7 +240,7 @@ describe("gapFor", () => {
     const gap = gapFor({
       rating: 1994,
       player: player(263),
-      target: null,
+      segments: [],
       adoptions: NO_ADOPTIONS,
     });
 
@@ -255,7 +255,7 @@ describe("gapFor", () => {
       rating: 1994,
       player: player(263),
       adoptions: NO_ADOPTIONS,
-      target: segment(2000, { population: 3000, gear: MIN_SAMPLE_MEDIUM - 1 }),
+      segments: [segment(2000, { population: 3000, gear: MIN_SAMPLE_MEDIUM - 1 })],
     });
 
     assert.equal(gap.state, "insufficient");
@@ -269,7 +269,7 @@ describe("gapFor", () => {
       rating: 1994,
       player: player(null),
       adoptions: NO_ADOPTIONS,
-      target: segment(2000, { population: 300, gear: 312 }),
+      segments: [segment(2000, { population: 300, gear: 312 })],
     });
 
     assert.equal(gap.state, "insufficient");
@@ -281,13 +281,13 @@ describe("gapFor", () => {
       rating: 1994,
       player: player(263),
       adoptions: NO_ADOPTIONS,
-      target: segment(2000, { population: 300, gear: MIN_SAMPLE_MEDIUM }),
+      segments: [segment(2000, { population: 300, gear: MIN_SAMPLE_MEDIUM })],
     });
     const high = gapFor({
       rating: 1994,
       player: player(263),
       adoptions: NO_ADOPTIONS,
-      target: segment(2000, { population: 300, gear: MIN_SAMPLE_HIGH }),
+      segments: [segment(2000, { population: 300, gear: MIN_SAMPLE_HIGH })],
     });
 
     assert.equal(medium.state === "comparable" && medium.confidence, "medium");
@@ -299,7 +299,7 @@ describe("gapFor", () => {
       rating: 1994,
       player: player(263),
       adoptions: NO_ADOPTIONS,
-      target: segment(2000, { population: 300, gear: 312, itemLevel: 305, median: 246 }),
+      segments: [segment(2000, { population: 300, gear: 312, itemLevel: 305, median: 246 })],
     });
 
     assert.deepEqual(gap.state === "comparable" && gap.itemLevel, {
@@ -314,7 +314,7 @@ describe("gapFor", () => {
       rating: 1994,
       player: player(263),
       adoptions: NO_ADOPTIONS,
-      target: segment(2000, { population: 300, gear: 312, itemLevel: 4, median: 246 }),
+      segments: [segment(2000, { population: 300, gear: 312, itemLevel: 4, median: 246 })],
     });
 
     assert.equal(gap.state === "comparable" && gap.itemLevel, null);
@@ -356,7 +356,7 @@ describe("gapFor", () => {
         },
         talents: null,
       },
-      target: segment(2000, { population: 300, gear: 312 }),
+      segments: [segment(2000, { population: 300, gear: 312 })],
       adoptions: {
         gear: {
           own: [adoption("WAIST:1", 0.2, 305)],
@@ -376,7 +376,7 @@ describe("gapFor", () => {
     const gap = gapFor({
       rating: 1994,
       player: player(263),
-      target: segment(2000, { population: 300, gear: 312 }),
+      segments: [segment(2000, { population: 300, gear: 312 })],
       adoptions: {
         gear: {
           own: [adoption("WAIST:1", 0.2, 305)],
@@ -398,10 +398,180 @@ describe("gapFor", () => {
       rating: 1994,
       player: player(null),
       adoptions: NO_ADOPTIONS,
-      target: segment(2000, { population: 300, gear: 312 }),
+      segments: [segment(2000, { population: 300, gear: 312 })],
     });
 
     assert.notEqual(gap.state, "comparable");
+  });
+});
+
+describe("gapFor contra un escalón que no es el inmediato (ADR 0051)", () => {
+  it("con el inmediato sin base y el de encima con ella, salta un tramo y dice cuál", () => {
+    const gap = gapFor({
+      rating: 1250,
+      player: player(600),
+      segments: [
+        segment(1400, { population: 300, gear: 4 }),
+        segment(1600, { population: 400, gear: MIN_SAMPLE_HIGH }),
+      ],
+      adoptions: NO_ADOPTIONS,
+    });
+
+    assert.equal(gap.state === "comparable" && gap.mode, "skipped");
+    assert.equal(gap.state === "comparable" && gap.targetSegment.id, "1600-1800");
+    // Lo que se dice del saltado son sus cifras crudas, no "no hay nadie".
+    assert.deepEqual(gap.state === "comparable" && gap.skipped, {
+      first: segmentFor(1400),
+      last: segmentFor(1400),
+      count: 1,
+      population: 300,
+      gearSample: 4,
+    });
+  });
+
+  it("al saltar, las listas comparan con lo que lleva quien mira y no con su tramo", () => {
+    // El tramo propio tiene base y aun así no se usa: la fila diría "el 20% de
+    // tu tramo" frente a un escalón que no es el siguiente de ese tramo.
+    const gap = gapFor({
+      rating: 1250,
+      player: {
+        itemLevel: 600,
+        gear: {
+          items: [],
+          equippedItemLevel: 600,
+          provenance: { observedAt: COMPUTED_AT, source: "search" },
+        },
+        talents: null,
+      },
+      segments: [
+        segment(1200, { population: 300, gear: 200 }),
+        segment(1600, { population: 400, gear: MIN_SAMPLE_HIGH }),
+      ],
+      adoptions: {
+        gear: {
+          own: [adoption("WAIST:1", 0.2, 200)],
+          target: [adoption("WAIST:1", 0.6, MIN_SAMPLE_HIGH)],
+        },
+        talentNodes: { own: [], target: [] },
+      },
+    });
+
+    assert.equal(
+      gap.state === "comparable" && gap.gear.state === "listed" && gap.gear.basis,
+      "player",
+    );
+  });
+
+  it("sin base en ningún tramo de encima, se compara con el propio", () => {
+    const own = segment(2400, { population: 200, gear: MIN_SAMPLE_HIGH });
+    const gap = gapFor({
+      rating: 2450,
+      player: player(640),
+      segments: [own, segment(2600, { population: 40, gear: 3 })],
+      adoptions: NO_ADOPTIONS,
+    });
+
+    assert.equal(gap.state === "comparable" && gap.mode, "peers");
+    assert.equal(gap.state === "comparable" && gap.targetSegment.id, "2400-2600");
+    assert.equal(gap.state === "comparable" && gap.skipped, null);
+  });
+
+  it("en el tramo abierto con base propia, compara con él en vez de rendirse", () => {
+    const gap = gapFor({
+      rating: 3100,
+      player: player(650),
+      segments: [segment(3000, { population: 80, gear: MIN_SAMPLE_MEDIUM })],
+      adoptions: NO_ADOPTIONS,
+    });
+
+    assert.equal(gap.state === "comparable" && gap.mode, "peers");
+  });
+
+  it("salta los tramos que haga falta, y suma lo que hay en ellos", () => {
+    const gap = gapFor({
+      rating: 850,
+      player: player(580),
+      segments: [
+        segment(1000, { population: 500, gear: 2 }),
+        segment(1200, { population: 600, gear: 0 }),
+        segment(1600, { population: 900, gear: 300 }),
+      ],
+      adoptions: NO_ADOPTIONS,
+    });
+
+    assert.equal(gap.state === "comparable" && gap.targetSegment.id, "1600-1800");
+    // 1400-1600 no tiene fila y cuenta igual: sin fila no hay base.
+    assert.deepEqual(gap.state === "comparable" && gap.skipped, {
+      first: segmentFor(1000),
+      last: segmentFor(1400),
+      count: 3,
+      population: 1100,
+      gearSample: 2,
+    });
+  });
+
+  it("sin base en ningún sitio, la ausencia la explica el inmediato", () => {
+    const gap = gapFor({
+      rating: 850,
+      player: player(580),
+      segments: [segment(1000, { population: 500, gear: 2 })],
+      adoptions: NO_ADOPTIONS,
+    });
+
+    assert.equal(gap.state === "insufficient" && gap.targetSegment.id, "1000-1200");
+    assert.equal(gap.state === "insufficient" && gap.mode, "next");
+  });
+
+  it("sin perfil de quien mira, la caja nombra el objetivo que tendría", () => {
+    const gap = gapFor({
+      rating: 2450,
+      player: player(null),
+      segments: [segment(2400, { population: 200, gear: MIN_SAMPLE_HIGH })],
+      adoptions: NO_ADOPTIONS,
+    });
+
+    assert.equal(gap.state === "insufficient" && gap.cause, "subject");
+    assert.equal(gap.state === "insufficient" && gap.mode, "peers");
+  });
+});
+
+describe("listFor contra quien mira", () => {
+  const target = [
+    adoption("WAIST:1", 0.41, 312),
+    adoption("WAIST:2", 0.54, 312),
+    adoption("HEAD:3", 0.05, 312),
+  ];
+
+  it("lista lo que lleva el escalón y él no, de más a menos llevado", () => {
+    const list = listFor({ basis: "player", own: [], target, playerKeys: new Set(["WAIST:1"]) });
+
+    assert.deepEqual(list.state === "listed" && list.differences.map((row) => row.variable.key), [
+      "WAIST:2",
+    ]);
+  });
+
+  it("no pide base en el tramo propio: el otro lado es el jugador", () => {
+    const list = listFor({ basis: "player", own: [], target, playerKeys: new Set() });
+
+    assert.equal(list.state, "listed");
+  });
+
+  it("sin su observación de esa familia no hay lista, y lo dice", () => {
+    // Sin su equipo, "lo que llevan ahí y tú no" sería el escalón entero.
+    const list = listFor({ basis: "player", own: [], target, playerKeys: null });
+
+    assert.equal(list.state === "insufficient" && list.missing, "player");
+  });
+
+  it("sin base en el escalón tampoco, como en la otra lista", () => {
+    const list = listFor({
+      basis: "player",
+      own: [],
+      target: [adoption("WAIST:1", 0.41, 12)],
+      playerKeys: new Set(),
+    });
+
+    assert.equal(list.state === "insufficient" && list.missing, "target");
   });
 });
 
@@ -416,13 +586,18 @@ describe("listFor", () => {
   it("la n de la lista sale de la fila, no del escalón", () => {
     // Casi siempre coinciden; el día que no, la que manda es la de la fila,
     // que es sobre quien de verdad se calculó el porcentaje.
-    const list = listFor({ own, target, playerKeys: null });
+    const list = listFor({ basis: "segments", own, target, playerKeys: null });
 
     assert.equal(list.state === "listed" && list.sample, 312);
   });
 
   it("sin base arriba no hay lista, y lo que se dice es lo que hay arriba", () => {
-    const list = listFor({ own, target: [adoption("WAIST:1", 0.41, 12)], playerKeys: null });
+    const list = listFor({
+      basis: "segments",
+      own,
+      target: [adoption("WAIST:1", 0.41, 12)],
+      playerKeys: null,
+    });
 
     assert.equal(list.state, "insufficient");
     assert.equal(list.state === "insufficient" && list.missing, "target");
@@ -432,7 +607,7 @@ describe("listFor", () => {
   it("sin base abajo tampoco hay lista, porque la fila dice dos porcentajes", () => {
     // El "21% en tu tramo" necesita su propia base: sin ella sería un 0/0
     // pintado como un dato, y la caja estaría comparando contra nada.
-    const list = listFor({ own: [], target, playerKeys: null });
+    const list = listFor({ basis: "segments", own: [], target, playerKeys: null });
 
     assert.equal(list.state === "insufficient" && list.missing, "own");
     assert.equal(list.state === "insufficient" && list.sample, 0);
@@ -441,23 +616,27 @@ describe("listFor", () => {
   it("un escalón muestreado del que no se calculó ninguna fila no tiene lista", () => {
     // Es la lectura de `readAdoptionFor`: sin filas, "todavía no se ha
     // calculado ahí". El denominador de la lista es cero por ese camino.
-    const list = listFor({ own, target: [], playerKeys: null });
+    const list = listFor({ basis: "segments", own, target: [], playerKeys: null });
 
     assert.equal(list.state === "insufficient" && list.missing, "target");
   });
 
   it("solo se marca lo que llevas cuando su equipo está leído", () => {
-    const marked = listFor({ own, target, playerKeys: new Set(["WAIST:2"]) });
-    const unread = listFor({ own, target, playerKeys: null });
+    const marked = listFor({ basis: "segments", own, target, playerKeys: new Set(["WAIST:2"]) });
+    const unread = listFor({ basis: "segments", own, target, playerKeys: null });
 
     assert.deepEqual(
-      marked.state === "listed" && marked.differences.map((row) => row.playerHasIt),
+      marked.state === "listed" &&
+        marked.basis === "segments" &&
+        marked.differences.map((row) => row.playerHasIt),
       [true, false],
     );
     // Sin equipo leído no se marca ninguna: una fila sin marca entre otras
     // marcadas afirmaría "esto no lo llevas" (regla 5).
     assert.deepEqual(
-      unread.state === "listed" && unread.differences.map((row) => row.playerHasIt),
+      unread.state === "listed" &&
+        unread.basis === "segments" &&
+        unread.differences.map((row) => row.playerHasIt),
       [false, false],
     );
   });
@@ -465,7 +644,7 @@ describe("listFor", () => {
   it("las diferencias pequeñas no llegan a la lista", () => {
     // HEAD:3 se lleva casi igual arriba y abajo: no discrimina, y §13.5 dice
     // que eso se oculta en vez de rellenar la lista con ello.
-    const list = listFor({ own, target, playerKeys: null });
+    const list = listFor({ basis: "segments", own, target, playerKeys: null });
 
     assert.deepEqual(list.state === "listed" && list.differences.map((row) => row.variable.key), [
       "WAIST:2",
@@ -475,7 +654,7 @@ describe("listFor", () => {
 
   it("arrastra el icono de la fila de arriba, que core no conoce", () => {
     const withIcon = [adoption("WAIST:2", 0.54, 312, { iconUrl: "https://example.test/i.jpg" })];
-    const list = listFor({ own, target: withIcon, playerKeys: null });
+    const list = listFor({ basis: "segments", own, target: withIcon, playerKeys: null });
 
     assert.equal(
       list.state === "listed" && list.differences[0]?.iconUrl,
@@ -485,6 +664,7 @@ describe("listFor", () => {
 
   it("declara cuántos quedaron fuera del denominador", () => {
     const list = listFor({
+      basis: "segments",
       own,
       target: [adoption("WAIST:2", 0.54, 312, { unavailable: 88 })],
       playerKeys: null,
@@ -567,13 +747,14 @@ describe("las claves con las que se marca lo que ya llevas", () => {
     };
 
     const view = listFor({
+      basis: "segments",
       own: [talentAdoption("class:62087:1001", "Ice Nova", 0.4)],
       target: [talentAdoption("class:62087:1001", "Ice Nova", 0.9)],
       playerKeys: talentKeys(talents),
     });
 
-    assert.equal(view.state, "listed");
-    if (view.state !== "listed") return;
+    assert.equal(view.state === "listed" && view.basis, "segments");
+    if (view.state !== "listed" || view.basis !== "segments") return;
     assert.equal(view.differences[0]?.variable.talentName, "Ice Nova");
     assert.equal(view.differences[0]?.playerHasIt, false);
   });

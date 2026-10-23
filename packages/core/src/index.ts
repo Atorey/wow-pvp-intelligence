@@ -2,6 +2,7 @@ export * from "./types";
 export * from "./specs";
 export * from "./characters";
 export * from "./segments";
+export * from "./comparison-target";
 export * from "./confidence";
 export * from "./coverage";
 export * from "./leaderboard";

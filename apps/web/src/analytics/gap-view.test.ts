@@ -16,11 +16,13 @@ const VISITOR = "3f1c2b4a-5d6e-4f80-91a2-b3c4d5e6f708";
 /** La corrida de la que salen las cifras. Al desenlace no le afecta; al tipo sí. */
 const COMPUTED_AT = new Date("2026-09-08T05:30:00.000Z");
 
-function comparable(confidence: "high" | "medium"): GapView {
+function comparable(confidence: "high" | "medium"): Extract<GapView, { state: "comparable" }> {
   return {
     state: "comparable",
+    mode: "next",
     ownSegment: OWN,
     targetSegment: TARGET,
+    skipped: null,
     computedAt: COMPUTED_AT,
     confidence,
     gearSample: confidence === "high" ? 120 : 40,
@@ -42,6 +44,7 @@ describe("el desenlace de la caja", () => {
     // del dato entera: dejarlos fuera haría que el cociente subiera solo.
     const insufficient: GapView = {
       state: "insufficient",
+      mode: "next",
       ownSegment: OWN,
       targetSegment: TARGET,
       computedAt: COMPUTED_AT,
@@ -67,12 +70,23 @@ describe("los datos del evento", () => {
     // No es un dato que falte: es que arriba del tramo abierto no hay objetivo.
     const data = gapViewEventData({ state: "top-segment", ownSegment: TOP }, SUBJECT);
     assert.equal(data.segment, null);
+    assert.equal(data.mode, null);
     assert.equal(data.outcome, "top-segment");
+  });
+
+  it("dice contra qué escalón se comparó, que no siempre es el inmediato", () => {
+    // Una comparación con el propio tramo no es "el siguiente escalón" (ADR
+    // 0051), y la North Star tiene que poder contarla aparte.
+    const peers: GapView = { ...comparable("high"), mode: "peers", targetSegment: OWN };
+    const data = gapViewEventData(peers, SUBJECT);
+    assert.equal(data.mode, "peers");
+    assert.equal(data.segment, "1800-2000");
   });
 
   it("el tramo abierto viaja como 3000-plus, ni con + ni con Infinity", () => {
     const gap: GapView = {
       state: "insufficient",
+      mode: "next",
       ownSegment: segmentFor(2900),
       targetSegment: TOP,
       computedAt: COMPUTED_AT,
@@ -92,6 +106,7 @@ describe("lo que entra por el endpoint", () => {
     spec: "frost-mage",
     bracket: "solo-shuffle",
     segment: "2000-2200",
+    mode: "next",
     locale: "en",
   };
 
@@ -100,8 +115,17 @@ describe("lo que entra por el endpoint", () => {
   });
 
   it("acepta el segmento nulo del tramo abierto", () => {
-    const event = { ...valid, outcome: "top-segment", segment: null };
+    const event = { ...valid, outcome: "top-segment", segment: null, mode: null };
     assert.deepEqual(parseGapViewEvent(event), event);
+  });
+
+  it("el modo y el segmento van juntos: los dos nulos o ninguno", () => {
+    // Uno sin el otro no describe ninguna caja posible.
+    assert.equal(parseGapViewEvent({ ...valid, mode: null }), null);
+    assert.equal(parseGapViewEvent({ ...valid, segment: null }), null);
+    assert.equal(parseGapViewEvent({ ...valid, mode: "nearest" }), null);
+    const { mode: _mode, ...withoutMode } = valid;
+    assert.equal(parseGapViewEvent(withoutMode), null);
   });
 
   it("rechaza lo que no está en ningún catálogo", () => {

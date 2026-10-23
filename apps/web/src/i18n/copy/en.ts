@@ -486,6 +486,34 @@ export const en = {
         `${spec} · ${bracket} · ${rating}`,
       segments: (own: string, target: string) => `You ${own} → target ${target}`,
       /**
+       * Contra el propio tramo no hay "qué te separa": es otra pregunta, y el
+       * titular la hace sin interrogación de escalón (ADR 0051).
+       */
+      titlePeers: (segment: string) => `How your build compares with ${segment}`,
+      segmentsPeers: (own: string) => `Your segment ${own}`,
+      /**
+       * Por qué el objetivo no es el inmediato, con las cifras del que se saltó.
+       * Se escribe encima de las cifras y no al pie: cambia lo que significa
+       * cada una (ADR 0051).
+       */
+      skipped: {
+        one: (skipped: string, loaded: string, population: string, target: string) =>
+          `${skipped} doesn't have enough sample yet (gear read for ${loaded} of ${population} characters), so the comparison is with ${target}, the closest segment above with enough. It isn't the segment right above yours.`,
+        /**
+         * Varios saltados: el número de tramos va delante porque la distancia
+         * es parte del dato — lo que lleva 1600-1800 no se lee igual desde 1200
+         * que desde 800.
+         */
+        many: (count: string, range: string, loaded: string, population: string, target: string) =>
+          `The ${count} segments between yours and ${target} (${range}) don't have enough sample yet (gear read for ${loaded} of ${population} characters across them), so the comparison is with ${target}, the closest segment above with enough.`,
+      },
+      peers: {
+        noBaseAbove: (segment: string) =>
+          `No segment above yours has enough sample to compare against, so this compares your build with your own segment, ${segment}. It describes how you differ from your peers, not what separates you from the next rung.`,
+        topSegment: (segment: string) =>
+          `You're in the open top segment, so there's no segment above. This compares your build with your own segment, ${segment}: how you differ from your peers.`,
+      },
+      /**
        * "Profiles" y no "players": el denominador son los perfiles cuyo equipo
        * se ha podido leer, que son muchos menos que la gente que hay ahí arriba
        * (§2.5, decisión 6 del ADR 0011).
@@ -554,6 +582,14 @@ export const en = {
       list: {
         gear: (segment: string) => `What ${segment} wears more`,
         talents: (segment: string) => `Talents more common in ${segment}`,
+        /**
+         * Las listas contra quien mira (ADR 0051): lo que lleva el escalón y él
+         * no. Describen las dos cosas y no dicen qué hacer con la diferencia.
+         */
+        gearPlayer: (segment: string) => `What ${segment} wears that you don't`,
+        talentsPlayer: (segment: string) => `Talents common in ${segment} that you don't run`,
+        segmentShare: (percent: string, users: string, denominator: string) =>
+          `${percent} (${users}/${denominator}) of the segment`,
         /** Cada fila lleva su fracción cruda, nunca el porcentaje solo (§13.5). */
         targetShare: (percent: string, users: string, denominator: string) =>
           `${percent} (${users}/${denominator}) up there`,
@@ -567,6 +603,8 @@ export const en = {
          */
         empty: (threshold: string) =>
           `Nothing differs by more than ${threshold} between the two segments.`,
+        emptyPlayer: (threshold: string, segment: string) =>
+          `You already have everything worn by more than ${threshold} of ${segment}.`,
         /** La exclusión por dato no disponible se declara, no se esconde (regla 5). */
         unavailable: (count: string, segment: string) =>
           `${count} profiles in ${segment} are outside these percentages: the data wasn't available for them.`,
@@ -577,6 +615,8 @@ export const en = {
         talents: "Talent nodes",
         target: (sample: string, segment: string, needed: string) =>
           `Not compared yet: ${sample} profiles read in ${segment}, and ${needed} are needed.`,
+        /** La lista contra quien mira sin su observación de esa familia. */
+        player: "Not compared yet: this part of your profile hasn't been read.",
         own: (sample: string, segment: string, needed: string) =>
           `Not compared yet: your own segment (${segment}) has ${sample} profiles read and ${needed} are needed. Every row states both percentages.`,
       },

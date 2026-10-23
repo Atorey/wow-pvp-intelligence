@@ -255,6 +255,20 @@ export const es: Copy = {
       title: (segment) => `¿Qué te separa de ${segment}?`,
       subject: (spec, bracket, rating) => `${spec} · ${bracket} · ${rating}`,
       segments: (own, target) => `Tú ${own} → objetivo ${target}`,
+      titlePeers: (segment) => `Tu build frente a ${segment}`,
+      segmentsPeers: (own) => `Tu tramo ${own}`,
+      skipped: {
+        one: (skipped, loaded, population, target) =>
+          `${skipped} todavía no tiene muestra suficiente (equipo leído de ${loaded} de ${population} personajes), así que la comparación es con ${target}, el tramo más cercano por encima que sí la tiene. No es el tramo inmediatamente superior al tuyo.`,
+        many: (count, range, loaded, population, target) =>
+          `Los ${count} tramos entre el tuyo y ${target} (${range}) todavía no tienen muestra suficiente (equipo leído de ${loaded} de ${population} personajes entre todos), así que la comparación es con ${target}, el tramo más cercano por encima que sí la tiene.`,
+      },
+      peers: {
+        noBaseAbove: (segment) =>
+          `Ningún tramo por encima del tuyo tiene muestra suficiente, así que esto compara tu build con tu propio tramo, ${segment}. Describe en qué te diferencias de tus pares, no qué te separa del siguiente nivel.`,
+        topSegment: (segment) =>
+          `Estás en el tramo abierto de arriba y no hay ninguno por encima. Esto compara tu build con tu propio tramo, ${segment}: en qué te diferencias de tus pares.`,
+      },
       sampled: (sample, segment) => `${sample} perfiles muestreados en ${segment}`,
       confidence: {
         high: "Confianza alta",
@@ -290,12 +304,18 @@ export const es: Copy = {
       list: {
         gear: (segment) => `Lo que más se lleva en ${segment}`,
         talents: (segment) => `Los talentos más frecuentes en ${segment}`,
+        gearPlayer: (segment) => `Lo que se lleva en ${segment} y tú no`,
+        talentsPlayer: (segment) => `Talentos frecuentes en ${segment} que tú no llevas`,
+        segmentShare: (percent, users, denominator) =>
+          `${percent} (${users} de ${denominator}) del tramo`,
         targetShare: (percent, users, denominator) =>
           `${percent} (${users} de ${denominator}) ahí arriba`,
         ownShare: (percent, users, denominator) =>
           `${percent} (${users} de ${denominator}) en tu tramo`,
         youHaveIt: "Lo llevas",
         empty: (threshold) => `Nada difiere más de ${threshold} entre los dos segmentos.`,
+        emptyPlayer: (threshold, segment) =>
+          `Ya llevas todo lo que lleva más del ${threshold} de ${segment}.`,
         unavailable: (count, segment) =>
           `${count} perfiles de ${segment} quedan fuera de estos porcentajes: de ellos no había dato.`,
       },
@@ -304,6 +324,7 @@ export const es: Copy = {
         talents: "Nodos de talento",
         target: (sample, segment, needed) =>
           `Todavía no se compara: ${sample} perfiles leídos en ${segment}, y hacen falta ${needed}.`,
+        player: "Todavía no se compara: esta parte de tu perfil no se ha leído.",
         own: (sample, segment, needed) =>
           `Todavía no se compara: en tu propio tramo (${segment}) hay ${sample} perfiles leídos y hacen falta ${needed}. Cada fila dice los dos porcentajes.`,
       },

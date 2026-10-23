@@ -80,8 +80,9 @@ export function en(t: Thresholds, arena: string | null): MethodologyDocument {
         heading: "How the segments are built",
         paragraphs: [
           `Ratings are grouped into bands of ${t.segmentSize} points — 1600-1800, 1800-2000, and so on up to an open band at the top. A band includes its lower bound and excludes the upper one, so a rating of exactly 2000 belongs to 2000-2200 and not to 1800-2000.`,
-          "A comparison always runs against the band immediately above, never against the top of the ladder. When that band cannot be described — and often it cannot — the comparison is not quietly redirected at a further band that happens to be better covered.",
-          "A character in the open band at the top has no band above it, and the page says so rather than comparing it against itself.",
+          "A comparison runs against the band immediately above, never against the top of the ladder. When that band cannot be described, the comparison runs against the closest band above that can, however far up it is, and the page says so above the figures: how many bands it skipped, which ones, and how many profiles they have between them. The further up that band is, the less what it wears says about the step right in front of you, and the page puts the distance first for that reason.",
+          "When no band above can be described — or there is no band above, as in the open band at the top — the comparison runs against your own band, provided it can be described. That is a different question, how you differ from your peers rather than what separates you from the next band, and the page asks it in those words.",
+          "In those two cases each line compares the band with your own profile, not with your band: what that band wears and you don't. Against the band immediately above, each line still gives both shares, up there and in your band.",
         ],
       },
 

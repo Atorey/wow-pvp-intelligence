@@ -152,3 +152,43 @@ export function gearOverlap(
 
   return { score: keys.size === 0 ? null : total / keys.size, comparedItems: keys.size };
 }
+
+/**
+ * Una variable del escalón que quien mira no lleva, con su adopción allí.
+ *
+ * No lleva `own` a propósito: es la fila de una comparación contra el jugador y
+ * no contra su tramo, y su lado de abajo es un hecho —no lo lleva—, no un
+ * porcentaje (ADR 0051).
+ */
+export interface PlayerDifference {
+  variable: Omit<AggregatedVariable, "adoption">;
+  target: AdoptionRate;
+}
+
+/**
+ * Lo que lleva un escalón y quien mira no, de más a menos llevado.
+ *
+ * Es la lista de los objetivos que no son el inmediato (ADR 0051): el que salta
+ * un tramo y el propio. En los dos, la comparación tramo contra tramo no
+ * existe —en el propio no hay dos tramos, y al saltar el de abajo casi nunca
+ * tiene base—, así que el otro lado es el equipo de quien mira, que sí tenemos.
+ *
+ * Hereda de `biggestDifferences()` lo que no es cosmético: los candidatos son
+ * las variables del escalón, el corte es `isDiscriminative()` —llevarlo o no es
+ * 1 o 0, así que la distancia a quien no lo lleva es la adopción misma— y la
+ * lista sale más corta antes que rellenarse. Lo que lleva quien mira no entra:
+ * la fila no tendría nada que decir que no diga ya su ficha.
+ */
+export function playerDifferences(
+  playerKeys: ReadonlySet<string>,
+  target: readonly AggregatedVariable[],
+  options: { top?: number } = {},
+): PlayerDifference[] {
+  return target
+    .filter(
+      (variable) => !playerKeys.has(variable.key) && isDiscriminative(variable.adoption.value),
+    )
+    .map(({ adoption, ...identity }) => ({ variable: identity, target: adoption }))
+    .sort((a, b) => b.target.value - a.target.value || a.variable.key.localeCompare(b.variable.key))
+    .slice(0, Math.max(options.top ?? DEFAULT_TOP_DIFFERENCES, 0));
+}

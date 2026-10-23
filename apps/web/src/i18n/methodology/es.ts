@@ -36,8 +36,9 @@ export function es(t: Thresholds, arena: string | null): MethodologyDocument {
         heading: "Cómo se forman los tramos",
         paragraphs: [
           `Los ratings se agrupan en tramos de ${t.segmentSize} puntos: 1600-1800, 1800-2000, y así hasta un tramo abierto arriba del todo. Un tramo incluye su límite inferior y excluye el superior, así que un rating de 2000 exacto pertenece a 2000-2200 y no a 1800-2000.`,
-          "La comparación va siempre contra el tramo inmediatamente superior, nunca contra la cima de la clasificación. Cuando ese tramo no se puede describir —y muchas veces no se puede—, la comparación no se desvía en silencio hacia otro tramo más alto que casualmente esté mejor cubierto.",
-          "Quien está en el tramo abierto de arriba no tiene escalón por encima, y la página lo dice en vez de compararlo consigo mismo.",
+          "La comparación va contra el tramo inmediatamente superior, nunca contra la cima de la clasificación. Cuando ese tramo no se puede describir, la comparación va contra el tramo más cercano por encima que sí se pueda, esté a la distancia que esté, y la página lo dice encima de las cifras: cuántos tramos ha saltado, cuáles y cuántos perfiles hay entre todos. Cuanto más arriba está ese tramo, menos dice lo que se lleva en él del paso que tienes justo delante, y por eso la página pone la distancia primero.",
+          "Cuando no se puede describir ningún tramo por encima —o no hay ninguno, como en el tramo abierto de arriba—, la comparación va contra tu propio tramo, si ese sí se puede describir. Es otra pregunta, en qué te diferencias de tus pares y no qué te separa del siguiente tramo, y la página la hace con esas palabras.",
+          "En esos dos casos cada línea compara el tramo con tu propio perfil, no con tu tramo: lo que se lleva en ese tramo y tú no. Contra el tramo inmediatamente superior, cada línea sigue dando los dos porcentajes, ahí arriba y en tu tramo.",
         ],
       },
 
