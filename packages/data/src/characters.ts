@@ -464,15 +464,24 @@ export async function readArchivedSeasons(db: Queryable, limit: number): Promise
  * entre dos observaciones pudo subir y volver a bajar sin que quede rastro. Se
  * cuenta sobre el histórico entero de la temporada y no sobre la última fila,
  * que es lo que lo distingue del rating actual.
+ *
+ * El histórico entero son dos mitades (ADR 0053): lo que sigue en
+ * `character_snapshots` y el máximo de lo archivado, que el archivado deja en la
+ * fila de actividad al borrar. `greatest` ignora el null de la mitad que falte.
  */
 export async function readPeakRating(
   db: Queryable,
   key: { characterId: string; bracket: string; seasonId: number },
 ): Promise<number | null> {
   const { rows } = await db.query<{ peak: number | null }>(
-    `select max(rating) as peak
-       from character_snapshots
-      where character_id = $1 and bracket = $2 and season_id = $3`,
+    `select greatest(
+              (select max(rating)
+                 from character_snapshots
+                where character_id = $1 and bracket = $2 and season_id = $3),
+              (select archived_peak_rating
+                 from character_activity
+                where character_id = $1 and bracket = $2 and season_id = $3)
+            ) as peak`,
     [key.characterId, key.bracket, key.seasonId],
   );
 
@@ -484,7 +493,7 @@ export async function readPeakRating(
  *
  * Es solo la mitad caliente: lo archivado está en el índice de Storage (ADR
  * 0039) y quien pinta la serie une las dos con `mergeRatingPoints()`. Lo que se
- * queda aquí más allá de los 3 días —el ancla, el pico, el último gear— sale
+ * queda aquí más allá de los 3 días —el ancla, el último gear— sale
  * también, y la unión lo cuenta una vez aunque esté en los dos sitios.
  *
  * Entran todos los orígenes, `search` incluido: la exclusión de los agregados

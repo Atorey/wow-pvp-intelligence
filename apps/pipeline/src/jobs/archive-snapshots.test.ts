@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { batchPrefix, parseOptions, sqlTimestamp } from "./archive-snapshots";
+import {
+  batchPrefix,
+  candidatesSql,
+  orphansSql,
+  parseOptions,
+  sqlTimestamp,
+} from "./archive-snapshots";
 
 test("por defecto se quedan 3 días, los de la caché de JSON del leaderboard", () => {
   assert.deepEqual(parseOptions([], 3), { days: 3, batch: 20_000, dryRun: false });
@@ -31,4 +37,24 @@ test("el corte se escribe como literal de fecha", () => {
     sqlTimestamp(new Date("2026-09-05T05:40:12.345Z")),
     "'2026-09-05T05:40:12.345Z'::timestamptz",
   );
+});
+
+test("el pico ya no retiene su fila: lo hereda la actividad (ADR 0053)", () => {
+  const sql = candidatesSql(new Date("2026-10-23T00:00:00Z"), []);
+
+  assert.doesNotMatch(sql, /rating desc/);
+  assert.match(sql, /\) anchor/);
+  assert.match(sql, /\) last_gear/);
+  assert.match(sql, /\) last_talents/);
+});
+
+test("un catálogo se poda contra los ids desplegados una vez, no fila a fila", () => {
+  const sql = orphansSql({ observation: "character_snapshot_gear", refs: "piece_ids" });
+
+  assert.equal(
+    sql.with,
+    "with used as (select distinct unnest(piece_ids) as id from character_snapshot_gear)",
+  );
+  assert.equal(sql.where, "not exists (select 1 from used where used.id = t.id)");
+  assert.doesNotMatch(`${sql.with} ${sql.where}`, /any\(/);
 });
