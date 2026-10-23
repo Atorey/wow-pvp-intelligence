@@ -24,6 +24,7 @@ import { publishedBrackets } from "./published";
 import { loadClosedSeason, type ClosedSeasonView } from "./rating-history";
 import "./env";
 import {
+  comparisonRowsFor,
   gapFor,
   observedSpecs,
   pickSpec,
@@ -130,15 +131,14 @@ export async function loadPlayerProfile(
   ]);
 
   const view = standingFor({ rating: snapshot.rating, standing, segments, wholeBracket: arena });
-  // El segmento objetivo se busca en lo ya leído y no se pide aparte: una fila
-  // de otra corrida junto a las de esta pintaría dos poblaciones en la misma
-  // página. Que no esté significa que esa corrida no lo calculó, y eso es una
-  // respuesta —población cero observada— y no un hueco que rellenar con ayer.
-  const target = segments.find((row) => row.segment.id === view.targetSegment?.id) ?? null;
+  // El objetivo se busca en lo ya leído y no se pide aparte: una fila de otra
+  // corrida junto a las de esta pintaría dos poblaciones en la misma página. Y
+  // lo elige la misma función que decide la caja, para que las adopciones que se
+  // leen sean las del escalón que nombra su titular (ADR 0051).
+  const rows = comparisonRowsFor(snapshot.rating, segments);
 
   const equippedItemLevel = snapshot.equippedItemLevel ?? gear?.equippedItemLevel ?? null;
-  const ownRow = segments.find((row) => row.segment.id === view.ownSegment.id) ?? null;
-  const adoptions = await readAdoptions(db, ownRow, target);
+  const adoptions = await readAdoptions(db, rows.own, rows.target);
 
   return {
     seasonId,
@@ -152,7 +152,7 @@ export async function loadPlayerProfile(
     gap: gapFor({
       rating: snapshot.rating,
       player: { itemLevel: equippedItemLevel, gear, talents },
-      target,
+      segments,
       adoptions,
     }),
     standing: view,
@@ -211,14 +211,18 @@ export async function loadPlayerAbsence(route: PlayerRoute): Promise<PlayerAbsen
 }
 
 /**
- * Las adopciones de los dos escalones, en dos consultas.
+ * Las adopciones del tramo propio y del objetivo, en dos consultas.
  *
- * Se piden siempre que existan las dos filas y no solo cuando la caja va a
- * comparar, y es a propósito: decidir aquí si hace falta obligaría a repetir
+ * Se piden siempre que exista la fila del objetivo y no solo cuando la caja va
+ * a comparar, y es a propósito: decidir aquí si hace falta obligaría a repetir
  * fuera de `gapFor()` el umbral que solo `canShowComparison()` puede aplicar, y
  * ese es exactamente el `if (n > 30)` suelto que prohíbe la regla 2. Cuando no
  * hay base tampoco hay filas que traer, así que lo que se ahorraría es una
  * consulta que devuelve cero.
+ *
+ * La del tramo propio puede faltar sin que falte la caja: contra un objetivo
+ * que no es el inmediato, el otro lado es el equipo de quien mira (ADR 0051).
+ * En `peers` las dos son la misma fila y se pide una vez.
  */
 async function readAdoptions(
   db: Queryable,
@@ -226,15 +230,16 @@ async function readAdoptions(
   target: SegmentRead | null,
 ): Promise<{ gear: AdoptionSides; talentNodes: AdoptionSides }> {
   const empty = { own: [], target: [] } as const;
-  if (!own || !target) return { gear: empty, talentNodes: empty };
+  if (!target) return { gear: empty, talentNodes: empty };
 
+  const rows = own && own.rowId !== target.rowId ? [own, target] : [target];
   const [gear, talentNodes] = await Promise.all([
-    cachedAdoptionFor(db, [own, target], GEAR_KINDS),
-    cachedAdoptionFor(db, [own, target], "talent-node"),
+    cachedAdoptionFor(db, rows, GEAR_KINDS),
+    cachedAdoptionFor(db, rows, "talent-node"),
   ]);
 
   const sides = (byRowId: Map<string, AdoptionRead[]>): AdoptionSides => ({
-    own: byRowId.get(own.rowId) ?? [],
+    own: own ? (byRowId.get(own.rowId) ?? []) : [],
     target: byRowId.get(target.rowId) ?? [],
   });
 

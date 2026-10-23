@@ -13,8 +13,17 @@ import { getDb } from "./db";
  */
 export async function recordGapView(event: GapViewEvent): Promise<void> {
   await getDb().query(
-    `insert into player_gap_views (visitor_id, outcome, spec_slug, bracket, target_segment, locale)
-     values ($1, $2, $3, $4, $5, $6)`,
-    [event.visitorId, event.outcome, event.spec, event.bracket, event.segment, event.locale],
+    `insert into player_gap_views
+       (visitor_id, outcome, spec_slug, bracket, target_segment, target_mode, locale)
+     values ($1, $2, $3, $4, $5, $6, $7)`,
+    [
+      event.visitorId,
+      event.outcome,
+      event.spec,
+      event.bracket,
+      event.segment,
+      event.mode,
+      event.locale,
+    ],
   );
 }

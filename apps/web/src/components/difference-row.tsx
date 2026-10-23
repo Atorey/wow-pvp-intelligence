@@ -3,7 +3,7 @@ import { slotGroup, type TalentTree } from "@wowpvp/core";
 import { copyFor } from "../i18n/copy";
 import { formatCount, formatPercent } from "../i18n/format";
 import type { Locale } from "../i18n/locales";
-import type { DifferenceView } from "../server/player-profile";
+import type { DifferenceView, PlayerDifferenceView } from "../server/player-profile";
 
 /**
  * Una fila de la lista de mayores diferencias (§1.3 del brief, punto 4).
@@ -21,6 +21,11 @@ import type { DifferenceView } from "../server/player-profile";
  * Lo que la fila **no** hace: ni barra, ni medidor, ni flecha de subida. El
  * delta ya está en el orden de la lista, y dibujarlo convertiría una diferencia
  * de adopción en un marcador de progreso (§1.4).
+ *
+ * La fila de una lista contra quien mira (ADR 0051) no tiene porcentaje de tu
+ * tramo: su otro lado es que no lo llevas, y eso ya lo dice el título de la
+ * lista. Se distingue por la forma del dato y no por una prop aparte, para que
+ * no se pueda pintar un "0% en tu tramo" que nadie ha medido.
  */
 export function DifferenceRow({
   locale,
@@ -30,7 +35,7 @@ export function DifferenceRow({
   locale: Locale;
   /** El puesto en la lista. Se escribe porque el orden es información: manda |Δ|. */
   position: number;
-  difference: DifferenceView;
+  difference: DifferenceView | PlayerDifferenceView;
 }) {
   const copy = copyFor(locale).player.gap;
   const percent = (value: number): string => formatPercent(value, locale);
@@ -53,20 +58,22 @@ export function DifferenceRow({
       <div className="flex min-w-0 grow flex-col gap-0.5">
         <p className="text-foreground text-base">{labelOf(locale, difference)}</p>
         <p className="text-foreground text-sm">
-          {copy.list.targetShare(
+          {("own" in difference ? copy.list.targetShare : copy.list.segmentShare)(
             percent(difference.target.value),
             count(difference.target.users),
             count(difference.target.denominator),
           )}
         </p>
-        <p className="text-muted-foreground text-sm">
-          {copy.list.ownShare(
-            percent(difference.own.value),
-            count(difference.own.users),
-            count(difference.own.denominator),
-          )}
-        </p>
-        {difference.playerHasIt && (
+        {"own" in difference && (
+          <p className="text-muted-foreground text-sm">
+            {copy.list.ownShare(
+              percent(difference.own.value),
+              count(difference.own.users),
+              count(difference.own.denominator),
+            )}
+          </p>
+        )}
+        {"playerHasIt" in difference && difference.playerHasIt && (
           // Contexto, no juicio: dice dónde cae quien mira dentro de la
           // comparación, y por eso no lleva color de acierto ni de error.
           <p className="text-subtle-foreground text-sm">{copy.list.youHaveIt}</p>
@@ -85,7 +92,7 @@ export function DifferenceRow({
  * se escribe el id: `null` es "no disponible" (regla 5), y una fila sin nombre
  * sigue siendo una diferencia observada que no puede desaparecer de la lista.
  */
-function labelOf(locale: Locale, { variable }: DifferenceView): string {
+function labelOf(locale: Locale, { variable }: DifferenceView | PlayerDifferenceView): string {
   const copy = copyFor(locale).player.gap;
   const slots: Record<string, string> = groupLabels(copyFor(locale).player.gear.slots);
 

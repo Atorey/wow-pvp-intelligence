@@ -68,20 +68,26 @@ export function PlayerGapBox({
   }
 
   const target = formatSegment(gap.targetSegment);
-  const segments = copy.segments(formatSegment(gap.ownSegment), target);
+  const own = formatSegment(gap.ownSegment);
+  const peers = gap.mode === "peers";
+  const segments = peers ? copy.segmentsPeers(own) : copy.segments(own, target);
   /*
    * El titular nombra el suelo del objetivo y no el tramo entero: la pregunta
    * del jugador es "¿qué me separa de 2000?", y "2000-2200" convierte el
    * escalón en un intervalo del que hay que salir por arriba también. El tramo
-   * completo sigue escrito debajo, en la línea de los dos segmentos.
+   * completo sigue escrito debajo, en la línea de los dos segmentos. Contra el
+   * propio tramo no hay escalón que nombrar, y el titular hace otra pregunta
+   * (ADR 0051).
    */
-  const threshold = `${formatRating(gap.targetSegment.min, locale)}+`;
+  const title = peers
+    ? copy.titlePeers(target)
+    : copy.title(`${formatRating(gap.targetSegment.min, locale)}+`);
 
   if (gap.state === "insufficient") {
     return (
       <Card className="border-t-warning-border gap-4 border-t-2 p-5">
         {event}
-        <Heading title={copy.title(threshold)} subject={line} segments={segments} />
+        <Heading title={title} subject={line} segments={segments} />
         <ConfidenceBadge label={copy.confidence.insufficient} tone="warning" />
         <Separator />
         {/*
@@ -128,7 +134,41 @@ export function PlayerGapBox({
       className={`gap-4 p-5 ${gap.confidence === "medium" ? "border-t-warning-border border-t-2" : ""}`}
     >
       {event}
-      <Heading title={copy.title(threshold)} subject={line} segments={segments} />
+      <Heading title={title} subject={line} segments={segments} />
+      {/*
+       * Por qué el objetivo no es el inmediato va encima de las cifras y no al
+       * pie: cambia lo que significa cada una, y leída después ya no lo hace
+       * (ADR 0051).
+       */}
+      {gap.skipped && (
+        <p className="text-muted-foreground max-w-measure text-sm">
+          {gap.skipped.count === 1
+            ? copy.skipped.one(
+                formatSegment(gap.skipped.first),
+                formatCount(gap.skipped.gearSample, locale),
+                formatCount(gap.skipped.population, locale),
+                target,
+              )
+            : copy.skipped.many(
+                formatCount(gap.skipped.count, locale),
+                formatSegment({
+                  ...gap.skipped.first,
+                  max: gap.skipped.last.max,
+                  id: `${gap.skipped.first.min}-${gap.skipped.last.max}`,
+                }),
+                formatCount(gap.skipped.gearSample, locale),
+                formatCount(gap.skipped.population, locale),
+                target,
+              )}
+        </p>
+      )}
+      {peers && (
+        <p className="text-muted-foreground max-w-measure text-sm">
+          {Number.isFinite(gap.ownSegment.max)
+            ? copy.peers.noBaseAbove(target)
+            : copy.peers.topSegment(target)}
+        </p>
+      )}
       <div className="flex flex-wrap items-center gap-3">
         {/* La muestra va dentro de la caja y siempre visible, nunca en un tooltip (§13.5). */}
         <span className="text-subtle-foreground text-sm">
@@ -171,10 +211,12 @@ export function PlayerGapBox({
       <DifferenceList
         locale={locale}
         list={gap.gear}
-        title={copy.list.gear(target)}
+        title={
+          peers || gap.mode === "skipped" ? copy.list.gearPlayer(target) : copy.list.gear(target)
+        }
         label={copy.absence.gear}
         target={target}
-        own={formatSegment(gap.ownSegment)}
+        own={own}
         // La lista de gear se calcula sobre la misma base que la cabecera, así
         // que solo declara la suya si alguna vez difieren: escribir dos veces el
         // mismo número a tres líneas de distancia se lee como dos cifras.
@@ -183,10 +225,14 @@ export function PlayerGapBox({
       <DifferenceList
         locale={locale}
         list={gap.talents}
-        title={copy.list.talents(target)}
+        title={
+          peers || gap.mode === "skipped"
+            ? copy.list.talentsPlayer(target)
+            : copy.list.talents(target)
+        }
         label={copy.absence.talents}
         target={target}
-        own={formatSegment(gap.ownSegment)}
+        own={own}
         // La de nodos siempre declara la suya: su denominador es otro, y hoy
         // suele ser mucho menor (ADR 0026).
         declaresSample
@@ -243,17 +289,19 @@ function DifferenceList({
       <DeclaredAbsence
         label={label}
         body={
-          list.missing === "target"
-            ? copy.absence.target(
-                formatCount(list.sample, locale),
-                target,
-                formatCount(list.needed, locale),
-              )
-            : copy.absence.own(
-                formatCount(list.sample, locale),
-                own,
-                formatCount(list.needed, locale),
-              )
+          list.missing === "player"
+            ? copy.absence.player
+            : list.missing === "target"
+              ? copy.absence.target(
+                  formatCount(list.sample, locale),
+                  target,
+                  formatCount(list.needed, locale),
+                )
+              : copy.absence.own(
+                  formatCount(list.sample, locale),
+                  own,
+                  formatCount(list.needed, locale),
+                )
         }
       />
     );
@@ -275,7 +323,9 @@ function DifferenceList({
       )}
       {list.differences.length === 0 ? (
         <p className="text-muted-foreground max-w-measure text-sm">
-          {copy.list.empty(formatPercent(MIN_DISCRIMINATIVE_DELTA, locale))}
+          {list.basis === "player"
+            ? copy.list.emptyPlayer(formatPercent(MIN_DISCRIMINATIVE_DELTA, locale), target)
+            : copy.list.empty(formatPercent(MIN_DISCRIMINATIVE_DELTA, locale))}
         </p>
       ) : (
         <ol className="flex flex-col">

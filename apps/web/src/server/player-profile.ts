@@ -4,19 +4,24 @@ import {
   biggestDifferences,
   bracketSlugFor,
   canShowComparison,
+  comparisonTargetFor,
   confidenceFor,
   findSpec,
   gearOverlap,
   isArenaSlug,
   nextSegment,
   parseShuffleBracket,
+  playerDifferences,
   segmentFor,
   slotGroup,
   specSlug,
   talentSelectionKey,
   type BracketSlug,
+  type ComparisonMode,
+  type ComparisonTarget,
   type ConfidenceLevel,
   type GearAlignment,
+  type PlayerDifference,
   type RatingSegment,
   type SegmentDifference,
   type SpecEntry,
@@ -87,10 +92,19 @@ export interface ObservedSpecsOptions {
  * borde de otro color.
  */
 export type GapView =
-  /** §1.6: el tramo abierto no tiene escalón encima, y eso no es falta de muestra. */
+  /**
+   * §1.6: el tramo abierto no tiene escalón encima, y eso no es falta de muestra.
+   * Solo se llega aquí cuando tampoco el propio tiene base: si la tiene, se
+   * compara con él (ADR 0051).
+   */
   | { state: "top-segment"; ownSegment: RatingSegment }
   | {
       state: "insufficient";
+      /**
+       * El objetivo que tendría la caja, que es el que nombra su titular. Es
+       * `next` cuando no hay ninguno: la ausencia la explica el inmediato.
+       */
+      mode: ComparisonMode;
       ownSegment: RatingSegment;
       targetSegment: RatingSegment;
       /**
@@ -119,8 +133,21 @@ export type GapView =
     }
   | {
       state: "comparable";
+      /**
+       * Contra qué escalón se compara, que la caja declara porque cambia lo que
+       * significan las cifras (ADR 0051): el inmediato, el de encima porque el
+       * inmediato no tiene base, o el propio porque no la tiene ninguno de
+       * arriba. En `peers`, `targetSegment` es el mismo `ownSegment`.
+       */
+      mode: ComparisonMode;
       ownSegment: RatingSegment;
       targetSegment: RatingSegment;
+      /**
+       * Los tramos saltados, con las cifras que explican por qué: lo que se le
+       * dice a quien mira es que esos escalones existen y no tienen base, no
+       * que no existen. `null` fuera de `skipped`.
+       */
+      skipped: SkippedSegments | null;
       /** La corrida que produjo estos porcentajes (ADR 0007, decisión 3). */
       computedAt: Date;
       confidence: Extract<ConfidenceLevel, "high" | "medium">;
@@ -141,6 +168,23 @@ export type GapView =
     };
 
 /**
+ * Los tramos saltados hasta el objetivo, de abajo arriba, con su población y
+ * su base sumadas.
+ *
+ * Se suman y no se listan uno a uno porque lo que la caja tiene que decir es
+ * una cosa: entre tu tramo y el objetivo hay tantos tramos y en ellos no hay
+ * base. Y `count` va aparte porque la distancia es parte del dato: no se lee
+ * igual una comparación que salta un tramo que una que salta seis (ADR 0051).
+ */
+export interface SkippedSegments {
+  first: RatingSegment;
+  last: RatingSegment;
+  count: number;
+  population: number;
+  gearSample: number;
+}
+
+/**
  * Una fila de la lista, con lo que `packages/core` no sabe y la fila necesita.
  *
  * El icono y la marca de "lo llevas" se añaden aquí y no allí a propósito:
@@ -154,6 +198,14 @@ export interface DifferenceView extends SegmentDifference {
    * fila, porque una fila sin marca diría "no lo llevas" (regla 5).
    */
   playerHasIt: boolean;
+  iconUrl: string | null;
+}
+
+/**
+ * Una fila de la lista contra quien mira (ADR 0051): lo que lleva el escalón y
+ * él no. No lleva marca de "lo llevas" porque, por construcción, no lo lleva.
+ */
+export interface PlayerDifferenceView extends PlayerDifference {
   iconUrl: string | null;
 }
 
@@ -172,23 +224,36 @@ export interface DifferenceView extends SegmentDifference {
  * tramo" sería un 0/0 pintado como un dato.
  */
 export type ListView =
-  | {
-      state: "listed";
-      confidence: Extract<ConfidenceLevel, "high" | "medium">;
-      /** El denominador del escalón de arriba: la base de los porcentajes de esta lista. */
-      sample: number;
-      /** Cuántos quedaron fuera del denominador por no tener el dato (regla 5). */
-      unavailable: number;
-      differences: DifferenceView[];
-    }
+  | (ListedBase & { basis: "segments"; differences: DifferenceView[] })
+  | (ListedBase & { basis: "player"; differences: PlayerDifferenceView[] })
   | {
       state: "insufficient";
-      /** Cuál de los dos lados no tiene base: el de arriba o el propio. */
-      missing: "own" | "target";
+      /**
+       * Qué lado no tiene base: el escalón, el propio tramo o, en la lista
+       * contra quien mira, su propia observación de esta familia.
+       */
+      missing: "own" | "target" | "player";
       /** Lo que hay en ese lado, que es lo que hay que decir en pantalla. */
       sample: number;
       needed: number;
     };
+
+/**
+ * Lo común a una lista con filas.
+ *
+ * `basis` dice contra qué se compara: tramo contra tramo, con los dos
+ * porcentajes, o el escalón contra lo que lleva quien mira (ADR 0051). Son
+ * filas distintas y por eso tipos distintos: una fila sin `own` pintada con el
+ * molde de la otra diría "0% en tu tramo", que no se ha medido.
+ */
+interface ListedBase {
+  state: "listed";
+  confidence: Extract<ConfidenceLevel, "high" | "medium">;
+  /** El denominador del escalón objetivo: la base de los porcentajes de esta lista. */
+  sample: number;
+  /** Cuántos quedaron fuera del denominador por no tener el dato (regla 5). */
+  unavailable: number;
+}
 
 export interface StandingView {
   /** El recuento crudo: cuántos observados hay y cuántos están por debajo. */
@@ -311,44 +376,85 @@ export function pickSpec(
 }
 
 /**
- * El estado de la caja para un rating y su segmento objetivo.
+ * Las filas que sostienen la caja, de entre las de una misma corrida: la del
+ * tramo de quien mira y la del objetivo que le toca (ADR 0051).
  *
- * El `n` que decide es el `gear_sample` del objetivo, nunca su población
- * (decisión 3 del ADR 0010): hay segmentos con miles de personas y cero
- * perfiles con equipo, y presentarlos como comparables es exactamente lo que
- * `canShowComparison()` existe para impedir.
+ * Lo usan las dos puntas —quien lee las adopciones y quien decide el estado— y
+ * por eso es una función y no dos búsquedas: si eligieran objetivo por su
+ * cuenta, la caja podría pintar los porcentajes de un escalón con la cabecera de
+ * otro. Un tramo sin fila no tiene base, y eso es una respuesta y no un hueco
+ * que rellenar con otra corrida.
+ */
+export function comparisonRowsFor(
+  rating: number,
+  segments: readonly SegmentRead[],
+): {
+  choice: ComparisonTarget;
+  own: SegmentRead | null;
+  target: SegmentRead | null;
+  rowOf: (segment: RatingSegment) => SegmentRead | null;
+} {
+  const rowOf = (segment: RatingSegment): SegmentRead | null =>
+    segments.find((row) => row.segment.id === segment.id) ?? null;
+  const ownSegment = segmentFor(rating);
+  const choice = comparisonTargetFor(
+    ownSegment,
+    (segment) => rowOf(segment)?.gear.denominator ?? 0,
+  );
+  const targetSegment = choice.mode === "none" ? choice.next : choice.segment;
+
+  return {
+    choice,
+    own: rowOf(ownSegment),
+    target: targetSegment ? rowOf(targetSegment) : null,
+    rowOf,
+  };
+}
+
+/**
+ * El estado de la caja para un rating, con las filas de su spec y modalidad.
+ *
+ * Qué escalón es el objetivo lo decide `comparisonTargetFor()` con la base de
+ * cada tramo, y el `n` que decide es siempre el `gear_sample`, nunca la
+ * población (decisión 3 del ADR 0010): hay segmentos con miles de personas y
+ * cero perfiles con equipo, y presentarlos como comparables es exactamente lo
+ * que `canShowComparison()` existe para impedir.
  */
 export function gapFor(input: {
   rating: number;
   /** Lo observado de quien mira: su item level, su equipo y sus nodos. */
   player: PlayerSide;
-  /** La fila del segmento objetivo, o null si esa corrida no lo calculó. */
-  target: SegmentRead | null;
-  /** Las adopciones de los dos escalones, ya leídas. */
+  /** Las filas de la spec y la modalidad, de una misma corrida. */
+  segments: readonly SegmentRead[];
+  /** Las adopciones del tramo propio y del objetivo, ya leídas. */
   adoptions: { gear: AdoptionSides; talentNodes: AdoptionSides };
 }): GapView {
   const ownSegment = segmentFor(input.rating);
-  const targetSegment = nextSegment(ownSegment);
+  const { choice, target, rowOf } = comparisonRowsFor(input.rating, input.segments);
+  const targetSegment = choice.mode === "none" ? choice.next : choice.segment;
+  // Sin objetivo y sin escalón encima es el tramo abierto sin base propia: no
+  // falta muestra arriba, porque no hay arriba (§1.6).
   if (!targetSegment) return { state: "top-segment", ownSegment };
 
-  const target = input.target;
+  const mode: ComparisonMode = choice.mode === "none" ? "next" : choice.mode;
   const population = target?.population.sampleSize ?? 0;
   const gearSample = target?.gear.denominator ?? 0;
   // Cualquiera de las procedencias de la fila sirve: las seis salen de la misma
   // corrida, y es esa fecha la que la caja tiene que poder enseñar.
   const computedAt = target?.gear.computedAt ?? null;
   // Sin nada observado de quien mira no hay comparación posible por muy
-  // muestreado que esté el segmento de arriba, así que esta causa se mira antes
+  // muestreado que esté el segmento objetivo, así que esta causa se mira antes
   // que las otras dos: es la única que señala a un lado de la comparación que
   // sí se puede arreglar consultando el perfil.
   const hasSubjectData = input.player.itemLevel !== null;
 
-  // `!target` es redundante con el umbral —sin fila, `gearSample` es 0 y no lo
-  // supera— y va delante igualmente: es lo que deja `target` estrechado abajo,
-  // donde la fecha de la corrida no puede faltar.
-  if (!target || !hasSubjectData || !canShowComparison(gearSample)) {
+  // `!target` es redundante con `none` —un objetivo elegido tiene fila con
+  // base— y va igualmente: es lo que deja `target` estrechado abajo, donde la
+  // fecha de la corrida no puede faltar.
+  if (choice.mode === "none" || !target || !hasSubjectData) {
     return {
       state: "insufficient",
+      mode,
       ownSegment,
       targetSegment,
       computedAt,
@@ -367,10 +473,15 @@ export function gapFor(input: {
 
   const confidence = confidenceFor(gearSample);
   const items = input.player.gear?.items ?? [];
+  // Tramo contra tramo solo con el inmediato. Al saltar, el de abajo casi nunca
+  // tiene base, y en `peers` no hay dos tramos: el otro lado es quien mira.
+  const basis = mode === "next" ? "segments" : "player";
   return {
     state: "comparable",
+    mode,
     ownSegment,
     targetSegment,
+    skipped: choice.mode === "skipped" ? skippedSegments(choice.skipped, rowOf) : null,
     computedAt: target.gear.computedAt,
     // El `insufficient` ya salió arriba; el tipo lo estrecha aquí para que la
     // caja no tenga que volver a preguntarse por un estado imposible.
@@ -381,11 +492,30 @@ export function gapFor(input: {
       input.player.gear === null
         ? null
         : gearOverlap(items, input.adoptions.gear.target.map(toAggregatedVariable)),
-    gear: listFor({ ...input.adoptions.gear, playerKeys: gearKeys(input.player.gear) }),
+    gear: listFor({ ...input.adoptions.gear, basis, playerKeys: gearKeys(input.player.gear) }),
     talents: listFor({
       ...input.adoptions.talentNodes,
+      basis,
       playerKeys: talentKeys(input.player.talents),
     }),
+  };
+}
+
+function skippedSegments(
+  segments: readonly RatingSegment[],
+  rowOf: (segment: RatingSegment) => SegmentRead | null,
+): SkippedSegments | null {
+  const first = segments[0];
+  const last = segments[segments.length - 1];
+  if (!first || !last) return null;
+
+  const rows = segments.map(rowOf);
+  return {
+    first,
+    last,
+    count: segments.length,
+    population: rows.reduce((sum, row) => sum + (row?.population.sampleSize ?? 0), 0),
+    gearSample: rows.reduce((sum, row) => sum + (row?.gear.denominator ?? 0), 0),
   };
 }
 
@@ -448,11 +578,17 @@ export function talentKeys(talents: CharacterTalentsRead | null): ReadonlySet<st
  * correcta: sin filas no hay lista que enseñar, aunque el `gear_sample` de la
  * cabecera diga otra cosa.
  *
+ * `basis` dice cuál es el otro lado. En `segments` es el tramo propio, y la
+ * fila dice los dos porcentajes, así que los dos necesitan base. En `player` es
+ * lo que lleva quien mira (ADR 0051), y lo que necesita es haberlo leído: sin
+ * su equipo, "lo que llevan ahí y tú no" sería la lista entera del escalón.
+ *
  * Una lista **vacía no es un fallo**: significa que ninguna variable supera el
  * umbral discriminante, y §13.5 dice que las diferencias pequeñas se ocultan en
  * vez de rellenar el hueco. Quien la pinta lo dice con esas palabras.
  */
 export function listFor(input: {
+  basis: "segments" | "player";
   own: readonly AdoptionRead[];
   target: readonly AdoptionRead[];
   playerKeys: ReadonlySet<string> | null;
@@ -460,8 +596,8 @@ export function listFor(input: {
   const targetSample = input.target[0]?.provenance.denominator ?? 0;
   const ownSample = input.own[0]?.provenance.denominator ?? 0;
 
-  // El de arriba se mira primero porque es el que describe la lista entera: si
-  // ahí no hay base, no hay nada que contar del escalón objetivo.
+  // El objetivo se mira primero porque es el que describe la lista entera: si
+  // ahí no hay base, no hay nada que contar del escalón.
   if (!canShowComparison(targetSample)) {
     return {
       state: "insufficient",
@@ -470,30 +606,44 @@ export function listFor(input: {
       needed: MIN_SAMPLE_MEDIUM,
     };
   }
+
+  const iconsByKey = new Map(input.target.map((row) => [row.variableKey, row.iconUrl]));
+  const iconOf = (key: string): string | null => iconsByKey.get(key) ?? null;
+  const confidence = confidenceFor(targetSample);
+  const listed = {
+    state: "listed",
+    confidence: confidence === "high" ? "high" : "medium",
+    sample: targetSample,
+    // De la fila del objetivo, que es la que sostiene los porcentajes que se
+    // leen como "lo que lleva el escalón".
+    unavailable: input.target[0]?.unavailable ?? 0,
+  } as const;
+
+  if (input.basis === "player") {
+    if (input.playerKeys === null) {
+      return { state: "insufficient", missing: "player", sample: 0, needed: MIN_SAMPLE_MEDIUM };
+    }
+    const differences = playerDifferences(
+      input.playerKeys,
+      input.target.map(toAggregatedVariable),
+    ).map((difference) => ({ ...difference, iconUrl: iconOf(difference.variable.key) }));
+    return { ...listed, basis: "player", differences };
+  }
+
   if (!canShowComparison(ownSample)) {
     return { state: "insufficient", missing: "own", sample: ownSample, needed: MIN_SAMPLE_MEDIUM };
   }
 
-  const iconsByKey = new Map(input.target.map((row) => [row.variableKey, row.iconUrl]));
   const differences = biggestDifferences(
     input.own.map(toAggregatedVariable),
     input.target.map(toAggregatedVariable),
   ).map((difference) => ({
     ...difference,
     playerHasIt: input.playerKeys?.has(difference.variable.key) ?? false,
-    iconUrl: iconsByKey.get(difference.variable.key) ?? null,
+    iconUrl: iconOf(difference.variable.key),
   }));
 
-  const confidence = confidenceFor(targetSample);
-  return {
-    state: "listed",
-    confidence: confidence === "high" ? "high" : "medium",
-    sample: targetSample,
-    // De la fila de arriba, que es la que sostiene los porcentajes que se leen
-    // como "lo que lleva el escalón objetivo".
-    unavailable: input.target[0]?.unavailable ?? 0,
-    differences,
-  };
+  return { ...listed, basis: "segments", differences };
 }
 
 /**

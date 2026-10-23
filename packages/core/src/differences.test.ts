@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { aggregateGearItems } from "./aggregates";
-import { biggestDifferences, gearOverlap } from "./differences";
+import { biggestDifferences, gearOverlap, playerDifferences } from "./differences";
 import { biggestGearDifferences, gearAlignment, type PlayerBuild } from "./player-gap";
 
 function build(id: string, slots: Record<string, number>): PlayerBuild {
@@ -137,4 +137,26 @@ test("un item que arriba no lleva nadie cuenta cero, y un hueco no observado no 
 
   const unobservedSlot = gearOverlap([{ slot: "FEET", itemId: 7 }], aggregated);
   assert.deepEqual(unobservedSlot, { score: null, comparedItems: 0 });
+});
+
+test("contra quien mira, la lista es lo que lleva el escalón y él no, de más a menos llevado", () => {
+  const { target } = populations();
+  // Lleva HEAD:2 y TRINKET:50: quedan HEAD:1 (40%) y TRINKET:51 (60%).
+  const rows = playerDifferences(new Set(["HEAD:2", "TRINKET:50"]), aggregateGearItems(target));
+
+  assert.deepEqual(
+    rows.map((row) => [row.variable.key, row.target.value]),
+    [
+      ["TRINKET:51", 0.6],
+      ["HEAD:1", 0.4],
+    ],
+  );
+});
+
+test("contra quien mira, lo que casi nadie lleva no entra", () => {
+  // Una sola persona de veinte: un 5%, por debajo de MIN_DISCRIMINATIVE_DELTA.
+  const target = Array.from({ length: 20 }, (_, i) => build(`t${i}`, { HEAD: i === 0 ? 9 : 1 }));
+  const rows = playerDifferences(new Set(["HEAD:1"]), aggregateGearItems(target));
+
+  assert.deepEqual(rows, []);
 });
