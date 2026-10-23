@@ -1,6 +1,6 @@
 # ADR 0047 — Los agregados semanales se guardan cuatro semanas
 
-**Fecha**: 12 de octubre de 2026 · **Estado**: aceptada · Revisa la regla 2 de la retención de `aggregate_snapshots` ([migración 0019](../../db/migrations/0019_retencion_de_agregados.sql), `prune-aggregates`) · Se apoya en el [ADR 0037](0037-la-tendencia-se-mide-contra-el-ruido-de-su-propia-base.md)
+**Fecha**: 12 de octubre de 2026 · **Estado**: aceptada · Revisa la regla 2 de la retención de `aggregate_snapshots` ([migración 0019](../../db/migrations/0019_retencion_de_agregados.sql), `prune-aggregates`) · Se apoya en el [ADR 0037](0037-la-tendencia-se-mide-contra-el-ruido-de-su-propia-base.md) · **El punto 3 está revisado por el [ADR 0052](0052-lo-que-solo-se-lee-por-su-ultima-fila-se-poda.md)**
 
 ## Contexto
 
@@ -12,7 +12,7 @@ Las semanas viejas no las lee ninguna pantalla. El producto lee dos corridas: la
 
 1. **Una corrida semanal sobrevive durante cuatro semanas**, contadas desde la corrida vigente. La vigente se sigue guardando entera, y las semanales con el mismo corte de cinco usuarios.
 2. **Las semanas se cuentan desde la última corrida, no desde la fecha actual.** Si el pipeline se para, lo que hay no se va borrando mientras no se calcula nada nuevo.
-3. **`population_segments` sigue sin podarse.** La serie de mediana, cuartiles y denominadores por escalón queda entera, que es la que sostiene una tendencia.
+3. ~~**`population_segments` sigue sin podarse.** La serie de mediana, cuartiles y denominadores por escalón queda entera, que es la que sostiene una tendencia.~~ **Revisado el 23 de octubre de 2026 por el [ADR 0052](0052-lo-que-solo-se-lee-por-su-ultima-fila-se-poda.md)**: fuera de las cuatro semanas sale lo que ya no tiene agregados y no es la fila más reciente de su escalón. Ninguna pantalla leía esa serie, y había crecido a 13,7 MB.
 4. `--weeks N` en `prune-aggregates` para cambiarlo a mano; el valor por defecto es el mismo que aplica `refresh-aggregates` al final de cada corrida.
 
 ## Por qué
@@ -25,4 +25,4 @@ Las semanas viejas no las lee ninguna pantalla. El producto lee dos corridas: la
 
 - Medido con `--dry-run` el 12 de octubre: de 213.799 filas se borran 32.455 (unos 8,5 MB) y quedan 181.344 en cinco corridas, unos 47 MB. Ese es el techo con la población de hoy. Sube despacio a medida que avanza la temporada, porque las semanales recientes llevan más perfiles y más variables que las antiguas, pero ya no suma una corrida más cada semana.
 - La primera corrida tras el despliegue borra de una vez las semanales anteriores a cuatro semanas. El espacio no vuelve a la cuota hasta el siguiente `compact`.
-- Una pantalla nueva que quiera enseñar la evolución de una variable más allá de cuatro semanas tiene que revisar esta decisión, o leer de `population_segments`.
+- Una pantalla nueva que quiera enseñar la evolución de una variable más allá de cuatro semanas tiene que revisar esta decisión. Leer de `population_segments` ya no sirve más allá de cuatro semanas (ADR 0052).
